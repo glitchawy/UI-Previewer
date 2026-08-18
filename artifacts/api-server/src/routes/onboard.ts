@@ -181,4 +181,106 @@ router.get("/admin/drivers", async (req, res): Promise<void> => {
   );
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/onboard/status — current user's own application status
+// Used by partner/driver dashboards to unlock functionality once approved.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/onboard/status", async (req, res): Promise<void> => {
+  const user = await getUserFromToken(req);
+  if (!user) {
+    res.status(401).json({ error: "غير مصرح — سجّل دخولك مجدداً" });
+    return;
+  }
+
+  if (user.role === "partner") {
+    const rows = await db
+      .select()
+      .from(restaurantsTable)
+      .where(eq(restaurantsTable.ownerUserId, user.id))
+      .orderBy(desc(restaurantsTable.createdAt))
+      .limit(1);
+    res.json({ role: "partner", status: rows[0]?.status ?? null });
+    return;
+  }
+
+  if (user.role === "driver") {
+    const rows = await db
+      .select()
+      .from(driverProfilesTable)
+      .where(eq(driverProfilesTable.userId, user.id))
+      .orderBy(desc(driverProfilesTable.createdAt))
+      .limit(1);
+    res.json({ role: "driver", status: rows[0]?.status ?? null });
+    return;
+  }
+
+  res.json({ role: user.role, status: null });
+});
+
+const RESTAURANT_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "ACTIVE"] as const;
+const DRIVER_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "SUSPENDED"] as const;
+type RestaurantStatus = (typeof RESTAURANT_STATUSES)[number];
+type DriverStatus = (typeof DRIVER_STATUSES)[number];
+
+function parseStatus<T extends string>(body: unknown, allowed: readonly T[]): T | null {
+  const status = (body as { status?: unknown } | null)?.status;
+  return typeof status === "string" && (allowed as readonly string[]).includes(status) ? (status as T) : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/admin/restaurants/:id/status — approve/reject a restaurant (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch("/admin/restaurants/:id/status", async (req, res): Promise<void> => {
+  if (!(await requireAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "معرّف غير صحيح" });
+    return;
+  }
+  const status: RestaurantStatus | null = parseStatus(req.body, RESTAURANT_STATUSES);
+  if (!status) {
+    res.status(400).json({ error: "حالة غير صحيحة" });
+    return;
+  }
+  const rows = await db
+    .update(restaurantsTable)
+    .set({ status })
+    .where(eq(restaurantsTable.id, id))
+    .returning();
+  if (rows.length === 0) {
+    res.status(404).json({ error: "لم يتم العثور على الطلب" });
+    return;
+  }
+  req.log.info({ restaurantId: id, status: status }, "Restaurant status updated");
+  res.json({ success: true, id, status: rows[0].status });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/admin/drivers/:id/status — approve/reject a driver (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch("/admin/drivers/:id/status", async (req, res): Promise<void> => {
+  if (!(await requireAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "معرّف غير صحيح" });
+    return;
+  }
+  const status: DriverStatus | null = parseStatus(req.body, DRIVER_STATUSES);
+  if (!status) {
+    res.status(400).json({ error: "حالة غير صحيحة" });
+    return;
+  }
+  const rows = await db
+    .update(driverProfilesTable)
+    .set({ status })
+    .where(eq(driverProfilesTable.id, id))
+    .returning();
+  if (rows.length === 0) {
+    res.status(404).json({ error: "لم يتم العثور على الطلب" });
+    return;
+  }
+  req.log.info({ driverProfileId: id, status: status }, "Driver status updated");
+  res.json({ success: true, id, status: rows[0].status });
+});
+
 export default router;

@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DriverRouteImport } from './routes/driver'
+import { Route as PartnerRouteImport } from './routes/partner'
 import { Route as ScreensRouteImport } from './routes/screens'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAuditLogsRouteImport } from './routes/admin.audit-logs'
@@ -123,6 +125,16 @@ import { Route as PartnerOrdersIdRouteImport } from './routes/partner.orders.$id
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DriverRoute = DriverRouteImport.update({
+  id: '/driver',
+  path: '/driver',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnerRoute = PartnerRouteImport.update({
+  id: '/partner',
+  path: '/partner',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScreensRoute = ScreensRouteImport.update({
@@ -331,109 +343,109 @@ const BranchInventoryRoute = BranchInventoryRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const DriverIndexRoute = DriverIndexRouteImport.update({
-  id: '/driver/',
-  path: '/driver/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverDeliveredRoute = DriverDeliveredRouteImport.update({
-  id: '/driver/delivered',
-  path: '/driver/delivered',
-  getParentRoute: () => rootRouteImport,
+  id: '/delivered',
+  path: '/delivered',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverDocumentsRoute = DriverDocumentsRouteImport.update({
-  id: '/driver/documents',
-  path: '/driver/documents',
-  getParentRoute: () => rootRouteImport,
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverHistoryRoute = DriverHistoryRouteImport.update({
-  id: '/driver/history',
-  path: '/driver/history',
-  getParentRoute: () => rootRouteImport,
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverNavigateRoute = DriverNavigateRouteImport.update({
-  id: '/driver/navigate',
-  path: '/driver/navigate',
-  getParentRoute: () => rootRouteImport,
+  id: '/navigate',
+  path: '/navigate',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverOfferRoute = DriverOfferRouteImport.update({
-  id: '/driver/offer',
-  path: '/driver/offer',
-  getParentRoute: () => rootRouteImport,
+  id: '/offer',
+  path: '/offer',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverProfileRoute = DriverProfileRouteImport.update({
-  id: '/driver/profile',
-  path: '/driver/profile',
-  getParentRoute: () => rootRouteImport,
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => DriverRoute,
 } as any)
 const DriverWalletRoute = DriverWalletRouteImport.update({
-  id: '/driver/wallet',
-  path: '/driver/wallet',
-  getParentRoute: () => rootRouteImport,
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => DriverRoute,
 } as any)
 const PartnerIndexRoute = PartnerIndexRouteImport.update({
-  id: '/partner/',
-  path: '/partner/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerAnalyticsRoute = PartnerAnalyticsRouteImport.update({
-  id: '/partner/analytics',
-  path: '/partner/analytics',
-  getParentRoute: () => rootRouteImport,
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerBranchesRoute = PartnerBranchesRouteImport.update({
-  id: '/partner/branches',
-  path: '/partner/branches',
-  getParentRoute: () => rootRouteImport,
+  id: '/branches',
+  path: '/branches',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerDriversRoute = PartnerDriversRouteImport.update({
-  id: '/partner/drivers',
-  path: '/partner/drivers',
-  getParentRoute: () => rootRouteImport,
+  id: '/drivers',
+  path: '/drivers',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerHoursRoute = PartnerHoursRouteImport.update({
-  id: '/partner/hours',
-  path: '/partner/hours',
-  getParentRoute: () => rootRouteImport,
+  id: '/hours',
+  path: '/hours',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerInventoryRoute = PartnerInventoryRouteImport.update({
-  id: '/partner/inventory',
-  path: '/partner/inventory',
-  getParentRoute: () => rootRouteImport,
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerMenuRoute = PartnerMenuRouteImport.update({
-  id: '/partner/menu',
-  path: '/partner/menu',
-  getParentRoute: () => rootRouteImport,
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerOffersRoute = PartnerOffersRouteImport.update({
-  id: '/partner/offers',
-  path: '/partner/offers',
-  getParentRoute: () => rootRouteImport,
+  id: '/offers',
+  path: '/offers',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerOrdersRoute = PartnerOrdersRouteImport.update({
-  id: '/partner/orders',
-  path: '/partner/orders',
-  getParentRoute: () => rootRouteImport,
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerReviewsRoute = PartnerReviewsRouteImport.update({
-  id: '/partner/reviews',
-  path: '/partner/reviews',
-  getParentRoute: () => rootRouteImport,
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerSettingsRoute = PartnerSettingsRouteImport.update({
-  id: '/partner/settings',
-  path: '/partner/settings',
-  getParentRoute: () => rootRouteImport,
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerSettlementsRoute = PartnerSettlementsRouteImport.update({
-  id: '/partner/settlements',
-  path: '/partner/settlements',
-  getParentRoute: () => rootRouteImport,
+  id: '/settlements',
+  path: '/settlements',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerStaffRoute = PartnerStaffRouteImport.update({
-  id: '/partner/staff',
-  path: '/partner/staff',
-  getParentRoute: () => rootRouteImport,
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => PartnerRoute,
 } as any)
 const SAddAddressRoute = SAddAddressRouteImport.update({
   id: '/s/add-address',
@@ -680,6 +692,8 @@ const PartnerOrdersIdRoute = PartnerOrdersIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/driver': typeof DriverRouteWithChildren
+  '/partner': typeof PartnerRouteWithChildren
   '/screens': typeof ScreensRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/commissions': typeof AdminCommissionsRoute
@@ -905,6 +919,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/driver': typeof DriverRouteWithChildren
+  '/partner': typeof PartnerRouteWithChildren
   '/screens': typeof ScreensRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/commissions': typeof AdminCommissionsRoute
@@ -1019,6 +1035,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/driver'
+    | '/partner'
     | '/screens'
     | '/admin/audit-logs'
     | '/admin/commissions'
@@ -1049,8 +1067,8 @@ export interface FileRouteTypes {
     | '/auth/driver'
     | '/auth/location'
     | '/auth/login'
-    | '/auth/otp'
     | '/auth/onboard-customer'
+    | '/auth/otp'
     | '/auth/pending'
     | '/auth/register'
     | '/auth/register-restaurant'
@@ -1161,8 +1179,8 @@ export interface FileRouteTypes {
     | '/auth/driver'
     | '/auth/location'
     | '/auth/login'
-    | '/auth/otp'
     | '/auth/onboard-customer'
+    | '/auth/otp'
     | '/auth/pending'
     | '/auth/register'
     | '/auth/register-restaurant'
@@ -1243,6 +1261,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/driver'
+    | '/partner'
     | '/screens'
     | '/admin/audit-logs'
     | '/admin/commissions'
@@ -1273,8 +1293,8 @@ export interface FileRouteTypes {
     | '/auth/driver'
     | '/auth/location'
     | '/auth/login'
-    | '/auth/otp'
     | '/auth/onboard-customer'
+    | '/auth/otp'
     | '/auth/pending'
     | '/auth/register'
     | '/auth/register-restaurant'
@@ -1356,6 +1376,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DriverRoute: typeof DriverRouteWithChildren
+  PartnerRoute: typeof PartnerRouteWithChildren
   ScreensRoute: typeof ScreensRoute
   AdminAuditLogsRoute: typeof AdminAuditLogsRoute
   AdminCommissionsRoute: typeof AdminCommissionsRoute
@@ -1394,25 +1416,6 @@ export interface RootRouteChildren {
   AuthWelcomeRoute: typeof AuthWelcomeRoute
   BranchDriversRoute: typeof BranchDriversRoute
   BranchInventoryRoute: typeof BranchInventoryRoute
-  DriverDeliveredRoute: typeof DriverDeliveredRoute
-  DriverDocumentsRoute: typeof DriverDocumentsRoute
-  DriverHistoryRoute: typeof DriverHistoryRoute
-  DriverNavigateRoute: typeof DriverNavigateRoute
-  DriverOfferRoute: typeof DriverOfferRoute
-  DriverProfileRoute: typeof DriverProfileRoute
-  DriverWalletRoute: typeof DriverWalletRoute
-  PartnerAnalyticsRoute: typeof PartnerAnalyticsRoute
-  PartnerBranchesRoute: typeof PartnerBranchesRouteWithChildren
-  PartnerDriversRoute: typeof PartnerDriversRoute
-  PartnerHoursRoute: typeof PartnerHoursRoute
-  PartnerInventoryRoute: typeof PartnerInventoryRoute
-  PartnerMenuRoute: typeof PartnerMenuRouteWithChildren
-  PartnerOffersRoute: typeof PartnerOffersRoute
-  PartnerOrdersRoute: typeof PartnerOrdersRouteWithChildren
-  PartnerReviewsRoute: typeof PartnerReviewsRoute
-  PartnerSettingsRoute: typeof PartnerSettingsRoute
-  PartnerSettlementsRoute: typeof PartnerSettlementsRoute
-  PartnerStaffRoute: typeof PartnerStaffRoute
   SAddAddressRoute: typeof SAddAddressRoute
   SAdminDashboardOverviewMobileRoute: typeof SAdminDashboardOverviewMobileRoute
   SAdminOrdersManagementMobileRoute: typeof SAdminOrdersManagementMobileRoute
@@ -1451,8 +1454,6 @@ export interface RootRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AppIndexRoute: typeof AppIndexRoute
   BranchIndexRoute: typeof BranchIndexRoute
-  DriverIndexRoute: typeof DriverIndexRoute
-  PartnerIndexRoute: typeof PartnerIndexRoute
   AppCategoryIdRoute: typeof AppCategoryIdRoute
   AppProductIdRoute: typeof AppProductIdRoute
   AppRateIdRoute: typeof AppRateIdRoute
@@ -1468,6 +1469,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/driver': {
+      id: '/driver'
+      path: '/driver'
+      fullPath: '/driver'
+      preLoaderRoute: typeof DriverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partner': {
+      id: '/partner'
+      path: '/partner'
+      fullPath: '/partner'
+      preLoaderRoute: typeof PartnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/screens': {
@@ -1759,150 +1774,150 @@ declare module '@tanstack/react-router' {
     }
     '/driver/': {
       id: '/driver/'
-      path: '/driver'
+      path: '/'
       fullPath: '/driver/'
       preLoaderRoute: typeof DriverIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/delivered': {
       id: '/driver/delivered'
-      path: '/driver/delivered'
+      path: '/delivered'
       fullPath: '/driver/delivered'
       preLoaderRoute: typeof DriverDeliveredRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/documents': {
       id: '/driver/documents'
-      path: '/driver/documents'
+      path: '/documents'
       fullPath: '/driver/documents'
       preLoaderRoute: typeof DriverDocumentsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/history': {
       id: '/driver/history'
-      path: '/driver/history'
+      path: '/history'
       fullPath: '/driver/history'
       preLoaderRoute: typeof DriverHistoryRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/navigate': {
       id: '/driver/navigate'
-      path: '/driver/navigate'
+      path: '/navigate'
       fullPath: '/driver/navigate'
       preLoaderRoute: typeof DriverNavigateRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/offer': {
       id: '/driver/offer'
-      path: '/driver/offer'
+      path: '/offer'
       fullPath: '/driver/offer'
       preLoaderRoute: typeof DriverOfferRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/profile': {
       id: '/driver/profile'
-      path: '/driver/profile'
+      path: '/profile'
       fullPath: '/driver/profile'
       preLoaderRoute: typeof DriverProfileRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/driver/wallet': {
       id: '/driver/wallet'
-      path: '/driver/wallet'
+      path: '/wallet'
       fullPath: '/driver/wallet'
       preLoaderRoute: typeof DriverWalletRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DriverRoute
     }
     '/partner/': {
       id: '/partner/'
-      path: '/partner'
+      path: '/'
       fullPath: '/partner/'
       preLoaderRoute: typeof PartnerIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/analytics': {
       id: '/partner/analytics'
-      path: '/partner/analytics'
+      path: '/analytics'
       fullPath: '/partner/analytics'
       preLoaderRoute: typeof PartnerAnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/branches': {
       id: '/partner/branches'
-      path: '/partner/branches'
+      path: '/branches'
       fullPath: '/partner/branches'
       preLoaderRoute: typeof PartnerBranchesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/drivers': {
       id: '/partner/drivers'
-      path: '/partner/drivers'
+      path: '/drivers'
       fullPath: '/partner/drivers'
       preLoaderRoute: typeof PartnerDriversRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/hours': {
       id: '/partner/hours'
-      path: '/partner/hours'
+      path: '/hours'
       fullPath: '/partner/hours'
       preLoaderRoute: typeof PartnerHoursRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/inventory': {
       id: '/partner/inventory'
-      path: '/partner/inventory'
+      path: '/inventory'
       fullPath: '/partner/inventory'
       preLoaderRoute: typeof PartnerInventoryRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/menu': {
       id: '/partner/menu'
-      path: '/partner/menu'
+      path: '/menu'
       fullPath: '/partner/menu'
       preLoaderRoute: typeof PartnerMenuRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/offers': {
       id: '/partner/offers'
-      path: '/partner/offers'
+      path: '/offers'
       fullPath: '/partner/offers'
       preLoaderRoute: typeof PartnerOffersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/orders': {
       id: '/partner/orders'
-      path: '/partner/orders'
+      path: '/orders'
       fullPath: '/partner/orders'
       preLoaderRoute: typeof PartnerOrdersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/reviews': {
       id: '/partner/reviews'
-      path: '/partner/reviews'
+      path: '/reviews'
       fullPath: '/partner/reviews'
       preLoaderRoute: typeof PartnerReviewsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/settings': {
       id: '/partner/settings'
-      path: '/partner/settings'
+      path: '/settings'
       fullPath: '/partner/settings'
       preLoaderRoute: typeof PartnerSettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/settlements': {
       id: '/partner/settlements'
-      path: '/partner/settlements'
+      path: '/settlements'
       fullPath: '/partner/settlements'
       preLoaderRoute: typeof PartnerSettlementsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/partner/staff': {
       id: '/partner/staff'
-      path: '/partner/staff'
+      path: '/staff'
       fullPath: '/partner/staff'
       preLoaderRoute: typeof PartnerStaffRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof PartnerRoute
     }
     '/s/add-address': {
       id: '/s/add-address'
@@ -2236,40 +2251,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AdminDriversRouteChildren {
-  AdminDriversIdRoute: typeof AdminDriversIdRoute
+interface DriverRouteChildren {
+  DriverDeliveredRoute: typeof DriverDeliveredRoute
+  DriverDocumentsRoute: typeof DriverDocumentsRoute
+  DriverHistoryRoute: typeof DriverHistoryRoute
+  DriverNavigateRoute: typeof DriverNavigateRoute
+  DriverOfferRoute: typeof DriverOfferRoute
+  DriverProfileRoute: typeof DriverProfileRoute
+  DriverWalletRoute: typeof DriverWalletRoute
+  DriverIndexRoute: typeof DriverIndexRoute
 }
 
-const AdminDriversRouteChildren: AdminDriversRouteChildren = {
-  AdminDriversIdRoute: AdminDriversIdRoute,
+const DriverRouteChildren: DriverRouteChildren = {
+  DriverDeliveredRoute: DriverDeliveredRoute,
+  DriverDocumentsRoute: DriverDocumentsRoute,
+  DriverHistoryRoute: DriverHistoryRoute,
+  DriverNavigateRoute: DriverNavigateRoute,
+  DriverOfferRoute: DriverOfferRoute,
+  DriverProfileRoute: DriverProfileRoute,
+  DriverWalletRoute: DriverWalletRoute,
+  DriverIndexRoute: DriverIndexRoute,
 }
 
-const AdminDriversRouteWithChildren = AdminDriversRoute._addFileChildren(
-  AdminDriversRouteChildren,
-)
-
-interface AdminOrdersRouteChildren {
-  AdminOrdersIdRoute: typeof AdminOrdersIdRoute
-}
-
-const AdminOrdersRouteChildren: AdminOrdersRouteChildren = {
-  AdminOrdersIdRoute: AdminOrdersIdRoute,
-}
-
-const AdminOrdersRouteWithChildren = AdminOrdersRoute._addFileChildren(
-  AdminOrdersRouteChildren,
-)
-
-interface AdminRestaurantsRouteChildren {
-  AdminRestaurantsIdRoute: typeof AdminRestaurantsIdRoute
-}
-
-const AdminRestaurantsRouteChildren: AdminRestaurantsRouteChildren = {
-  AdminRestaurantsIdRoute: AdminRestaurantsIdRoute,
-}
-
-const AdminRestaurantsRouteWithChildren =
-  AdminRestaurantsRoute._addFileChildren(AdminRestaurantsRouteChildren)
+const DriverRouteWithChildren =
+  DriverRoute._addFileChildren(DriverRouteChildren)
 
 interface PartnerBranchesRouteChildren {
   PartnerBranchesIdRoute: typeof PartnerBranchesIdRoute
@@ -2307,8 +2312,80 @@ const PartnerOrdersRouteWithChildren = PartnerOrdersRoute._addFileChildren(
   PartnerOrdersRouteChildren,
 )
 
+interface PartnerRouteChildren {
+  PartnerAnalyticsRoute: typeof PartnerAnalyticsRoute
+  PartnerBranchesRoute: typeof PartnerBranchesRouteWithChildren
+  PartnerDriversRoute: typeof PartnerDriversRoute
+  PartnerHoursRoute: typeof PartnerHoursRoute
+  PartnerInventoryRoute: typeof PartnerInventoryRoute
+  PartnerMenuRoute: typeof PartnerMenuRouteWithChildren
+  PartnerOffersRoute: typeof PartnerOffersRoute
+  PartnerOrdersRoute: typeof PartnerOrdersRouteWithChildren
+  PartnerReviewsRoute: typeof PartnerReviewsRoute
+  PartnerSettingsRoute: typeof PartnerSettingsRoute
+  PartnerSettlementsRoute: typeof PartnerSettlementsRoute
+  PartnerStaffRoute: typeof PartnerStaffRoute
+  PartnerIndexRoute: typeof PartnerIndexRoute
+}
+
+const PartnerRouteChildren: PartnerRouteChildren = {
+  PartnerAnalyticsRoute: PartnerAnalyticsRoute,
+  PartnerBranchesRoute: PartnerBranchesRouteWithChildren,
+  PartnerDriversRoute: PartnerDriversRoute,
+  PartnerHoursRoute: PartnerHoursRoute,
+  PartnerInventoryRoute: PartnerInventoryRoute,
+  PartnerMenuRoute: PartnerMenuRouteWithChildren,
+  PartnerOffersRoute: PartnerOffersRoute,
+  PartnerOrdersRoute: PartnerOrdersRouteWithChildren,
+  PartnerReviewsRoute: PartnerReviewsRoute,
+  PartnerSettingsRoute: PartnerSettingsRoute,
+  PartnerSettlementsRoute: PartnerSettlementsRoute,
+  PartnerStaffRoute: PartnerStaffRoute,
+  PartnerIndexRoute: PartnerIndexRoute,
+}
+
+const PartnerRouteWithChildren =
+  PartnerRoute._addFileChildren(PartnerRouteChildren)
+
+interface AdminDriversRouteChildren {
+  AdminDriversIdRoute: typeof AdminDriversIdRoute
+}
+
+const AdminDriversRouteChildren: AdminDriversRouteChildren = {
+  AdminDriversIdRoute: AdminDriversIdRoute,
+}
+
+const AdminDriversRouteWithChildren = AdminDriversRoute._addFileChildren(
+  AdminDriversRouteChildren,
+)
+
+interface AdminOrdersRouteChildren {
+  AdminOrdersIdRoute: typeof AdminOrdersIdRoute
+}
+
+const AdminOrdersRouteChildren: AdminOrdersRouteChildren = {
+  AdminOrdersIdRoute: AdminOrdersIdRoute,
+}
+
+const AdminOrdersRouteWithChildren = AdminOrdersRoute._addFileChildren(
+  AdminOrdersRouteChildren,
+)
+
+interface AdminRestaurantsRouteChildren {
+  AdminRestaurantsIdRoute: typeof AdminRestaurantsIdRoute
+}
+
+const AdminRestaurantsRouteChildren: AdminRestaurantsRouteChildren = {
+  AdminRestaurantsIdRoute: AdminRestaurantsIdRoute,
+}
+
+const AdminRestaurantsRouteWithChildren =
+  AdminRestaurantsRoute._addFileChildren(AdminRestaurantsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DriverRoute: DriverRouteWithChildren,
+  PartnerRoute: PartnerRouteWithChildren,
   ScreensRoute: ScreensRoute,
   AdminAuditLogsRoute: AdminAuditLogsRoute,
   AdminCommissionsRoute: AdminCommissionsRoute,
@@ -2347,25 +2424,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthWelcomeRoute: AuthWelcomeRoute,
   BranchDriversRoute: BranchDriversRoute,
   BranchInventoryRoute: BranchInventoryRoute,
-  DriverDeliveredRoute: DriverDeliveredRoute,
-  DriverDocumentsRoute: DriverDocumentsRoute,
-  DriverHistoryRoute: DriverHistoryRoute,
-  DriverNavigateRoute: DriverNavigateRoute,
-  DriverOfferRoute: DriverOfferRoute,
-  DriverProfileRoute: DriverProfileRoute,
-  DriverWalletRoute: DriverWalletRoute,
-  PartnerAnalyticsRoute: PartnerAnalyticsRoute,
-  PartnerBranchesRoute: PartnerBranchesRouteWithChildren,
-  PartnerDriversRoute: PartnerDriversRoute,
-  PartnerHoursRoute: PartnerHoursRoute,
-  PartnerInventoryRoute: PartnerInventoryRoute,
-  PartnerMenuRoute: PartnerMenuRouteWithChildren,
-  PartnerOffersRoute: PartnerOffersRoute,
-  PartnerOrdersRoute: PartnerOrdersRouteWithChildren,
-  PartnerReviewsRoute: PartnerReviewsRoute,
-  PartnerSettingsRoute: PartnerSettingsRoute,
-  PartnerSettlementsRoute: PartnerSettlementsRoute,
-  PartnerStaffRoute: PartnerStaffRoute,
   SAddAddressRoute: SAddAddressRoute,
   SAdminDashboardOverviewMobileRoute: SAdminDashboardOverviewMobileRoute,
   SAdminOrdersManagementMobileRoute: SAdminOrdersManagementMobileRoute,
@@ -2404,8 +2462,6 @@ const rootRouteChildren: RootRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AppIndexRoute: AppIndexRoute,
   BranchIndexRoute: BranchIndexRoute,
-  DriverIndexRoute: DriverIndexRoute,
-  PartnerIndexRoute: PartnerIndexRoute,
   AppCategoryIdRoute: AppCategoryIdRoute,
   AppProductIdRoute: AppProductIdRoute,
   AppRateIdRoute: AppRateIdRoute,
@@ -2416,13 +2472,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

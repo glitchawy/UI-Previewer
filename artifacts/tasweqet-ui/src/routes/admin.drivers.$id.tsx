@@ -4,8 +4,8 @@ import { Badge, Button, Card, DashboardShell, Icon, SectionTitle, Stat, StatusBa
 import { adminNav } from "@/lib/tb/nav";
 import { EGP, drivers, driverWallet } from "@/lib/tb/data";
 import { useEffect } from "react";
-import { fetchDriverApplications, parseAppRouteId, type DriverApplication } from "@/lib/tb/applications";
 import { getToken } from "@/lib/auth-session";
+import { fetchDriverApplications, parseAppRouteId, updateDriverStatus, type DriverApplication } from "@/lib/tb/applications";
 
 function storageUrl(objectPath: string): string {
   const token = getToken();
@@ -58,11 +58,27 @@ const docLabels: Record<string, string> = {
 
 function StoredDriverDetail({ appId }: { appId: number }) {
   const [app, setApp] = useState<DriverApplication | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   useEffect(() => {
     fetchDriverApplications()
       .then((apps) => setApp(apps.find((a) => a.id === appId) ?? null))
       .catch(() => setApp(null));
   }, [appId]);
+
+  async function setStatus(status: string) {
+    if (!app || busy) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await updateDriverStatus(app.id, status);
+      setApp({ ...app, status });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "حدث خطأ — حاول مرة أخرى");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const uploadedDocs: { key: string; label: string; url: string }[] = [
     { key: "nationalIdFrontUrl", label: docLabels["national_id_front"], url: app?.nationalIdFrontUrl ?? "" },
@@ -132,6 +148,40 @@ function StoredDriverDetail({ appId }: { appId: number }) {
                   ))}
                 </div>
               )}
+            </Card>
+            <Card className="p-md">
+              <SectionTitle title="إجراء المراجعة" icon="verified" />
+              {app.status === "APPROVED" ? (
+                <p className="mb-sm font-body-md text-body-md text-success">تمت الموافقة على هذا المندوب — يمكنه استلام الطلبات.</p>
+              ) : app.status === "REJECTED" ? (
+                <p className="mb-sm font-body-md text-body-md text-error">تم رفض هذا الطلب.</p>
+              ) : app.status === "SUSPENDED" ? (
+                <p className="mb-sm font-body-md text-body-md text-error">هذا المندوب موقوف حالياً.</p>
+              ) : (
+                <p className="mb-sm font-body-md text-body-md text-on-surface-variant">راجع بيانات ومستندات المندوب ثم اعتمد أو ارفض التوثيق.</p>
+              )}
+              <div className="flex flex-wrap gap-sm">
+                {app.status !== "APPROVED" ? (
+                  <Button icon="check_circle" variant="primary" disabled={busy} onClick={() => setStatus("APPROVED")}>
+                    موافقة على التوثيق
+                  </Button>
+                ) : (
+                  <Button icon="pause_circle" variant="danger" disabled={busy} onClick={() => setStatus("SUSPENDED")}>
+                    إيقاف المندوب
+                  </Button>
+                )}
+                {app.status !== "REJECTED" && app.status !== "APPROVED" ? (
+                  <Button icon="cancel" variant="danger" disabled={busy} onClick={() => setStatus("REJECTED")}>
+                    رفض الطلب
+                  </Button>
+                ) : null}
+                {app.status === "REJECTED" || app.status === "SUSPENDED" ? (
+                  <Button icon="undo" variant="outline" disabled={busy} onClick={() => setStatus("PENDING")}>
+                    إعادة للمراجعة
+                  </Button>
+                ) : null}
+              </div>
+              {actionError ? <p className="mt-sm font-label-md text-label-md text-error">{actionError}</p> : null}
             </Card>
           </>
         )}

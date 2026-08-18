@@ -33,6 +33,7 @@ export const Route = createFileRoute("/partner/")({
 function PartnerIndex() {
   const navigate = useNavigate();
   const session = getSession();
+  // Approval gating happens in the /partner layout route (partner.tsx).
   const liveOrders = orders.filter((o) => !["DELIVERED", "CANCELLED"].includes(o.status));
 
   function handleLogout() {

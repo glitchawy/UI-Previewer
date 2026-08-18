@@ -4,8 +4,8 @@ import { Bars, Button, Card, DashboardShell, Field, Icon, SectionTitle, Stat, St
 import { adminNav } from "@/lib/tb/nav";
 import { EGP, branches, restaurantOf, restaurantStats } from "@/lib/tb/data";
 import { useEffect } from "react";
-import { fetchRestaurantApplications, parseAppRouteId, type RestaurantApplication } from "@/lib/tb/applications";
 import { getToken } from "@/lib/auth-session";
+import { fetchRestaurantApplications, parseAppRouteId, updateRestaurantStatus, type RestaurantApplication } from "@/lib/tb/applications";
 
 function storageUrl(objectPath: string): string {
   const token = getToken();
@@ -39,11 +39,28 @@ const appStatusLabels: Record<string, string> = {
 
 function StoredRestaurantDetail({ appId }: { appId: number }) {
   const [app, setApp] = useState<RestaurantApplication | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   useEffect(() => {
     fetchRestaurantApplications()
       .then((apps) => setApp(apps.find((a) => a.id === appId) ?? null))
       .catch(() => setApp(null));
   }, [appId]);
+
+  async function setStatus(status: string) {
+    if (!app || busy) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await updateRestaurantStatus(app.id, status);
+      setApp({ ...app, status });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "حدث خطأ — حاول مرة أخرى");
+    } finally {
+      setBusy(false);
+    }
+  }
+
 
   return (
     <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title={app?.name ?? "طلب تسجيل مطعم"}>
@@ -132,6 +149,33 @@ function StoredRestaurantDetail({ appId }: { appId: number }) {
                 </div>
               </Card>
             )}
+            <Card className="p-md">
+              <SectionTitle title="إجراء المراجعة" icon="verified" />
+              {app.status === "APPROVED" || app.status === "ACTIVE" ? (
+                <p className="mb-sm font-body-md text-body-md text-success">تمت الموافقة على هذا المطعم — الحساب مفعّل.</p>
+              ) : app.status === "REJECTED" ? (
+                <p className="mb-sm font-body-md text-body-md text-error">تم رفض هذا الطلب.</p>
+              ) : (
+                <p className="mb-sm font-body-md text-body-md text-on-surface-variant">راجع بيانات الطلب ثم اعتمد أو ارفض التسجيل.</p>
+              )}
+              <div className="flex flex-wrap gap-sm">
+                {app.status !== "APPROVED" && app.status !== "ACTIVE" ? (
+                  <Button icon="check_circle" variant="primary" disabled={busy} onClick={() => setStatus("APPROVED")}>
+                    موافقة على التوثيق
+                  </Button>
+                ) : null}
+                {app.status !== "REJECTED" ? (
+                  <Button icon="cancel" variant="danger" disabled={busy} onClick={() => setStatus("REJECTED")}>
+                    رفض الطلب
+                  </Button>
+                ) : (
+                  <Button icon="undo" variant="outline" disabled={busy} onClick={() => setStatus("PENDING")}>
+                    إعادة للمراجعة
+                  </Button>
+                )}
+              </div>
+              {actionError ? <p className="mt-sm font-label-md text-label-md text-error">{actionError}</p> : null}
+            </Card>
           </>
         )}
       </div>

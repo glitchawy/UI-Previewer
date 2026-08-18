@@ -26,7 +26,7 @@ function DriverIndex() {
   const navigate = useNavigate();
   const session = getSession();
   const [online, setOnline] = useState(true);
-  const approved = me["status"] === "APPROVED";
+  // Approval gating happens in the /driver layout route (driver.tsx).
 
   function handleLogout() {
     clearSession();
@@ -49,19 +49,6 @@ function DriverIndex() {
         }
       />
       <div className="tb-fade-up flex flex-col gap-md p-md">
-        {!approved && (
-          <Link
-            to="/driver/documents"
-            className="flex items-center justify-between gap-2 rounded-card bg-error-container p-md"
-          >
-            <span className="flex items-center gap-2 font-label-lg text-label-lg text-on-error-container">
-              <Icon name="warning" className="text-[18px]" />
-              حسابك لسه قيد المراجعة، اتمم مستنداتك
-            </span>
-            <Icon name="chevron_left" className="text-on-error-container" />
-          </Link>
-        )}
-
         <Card className="p-lg">
           <div className="flex items-center justify-between">
             <div>
