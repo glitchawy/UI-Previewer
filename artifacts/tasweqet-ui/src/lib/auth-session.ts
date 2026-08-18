@@ -3,7 +3,7 @@ const SESSION_KEY = "tasweqet_session";
 export interface AuthUser {
   id: number;
   phone: string;
-  role: "customer" | "partner" | "driver";
+  role: "customer" | "partner" | "driver" | "admin";
   name: string | null;
   lat: number | null;
   lng: number | null;
@@ -38,6 +38,7 @@ export function getToken(): string | null {
 
 /** Where each role lands after login */
 export function getRoleDashboard(role: string): string {
+  if (role === "admin") return "/admin";
   if (role === "partner") return "/partner";
   if (role === "driver") return "/driver";
   return "/app";

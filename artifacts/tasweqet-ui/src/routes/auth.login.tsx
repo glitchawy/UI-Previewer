@@ -19,12 +19,13 @@ export const Route = createFileRoute("/auth/login")({
   component: AuthLogin,
 });
 
-type Role = "customer" | "partner" | "driver";
+type Role = "customer" | "partner" | "driver" | "admin";
 
 const loginRoles: { value: Role; label: string; icon: string }[] = [
   { value: "customer", label: "عميل", icon: "shopping_bag" },
   { value: "partner", label: "مطعم", icon: "storefront" },
   { value: "driver", label: "مندوب", icon: "two_wheeler" },
+  { value: "admin", label: "مشرف", icon: "admin_panel_settings" },
 ];
 
 const EG_PHONE_RE = /^01[0125]\d{8}$/;

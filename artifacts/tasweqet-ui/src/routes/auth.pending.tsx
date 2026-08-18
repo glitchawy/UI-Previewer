@@ -21,9 +21,9 @@ const roleConfig = {
     title: "تم استلام طلب تسجيل مطعمك!",
     subtitle: "فريق طلبات بيتك بيراجع بياناتك دلوقتي",
     steps: [
-      { label: "استلام الطلب", done: true },
+      { label: "استلام الطلب", done: true, active: false },
       { label: "مراجعة البيانات", done: false, active: true },
-      { label: "تنشيط الحساب", done: false },
+      { label: "تنشيط الحساب", done: false, active: false },
     ],
     eta: "خلال 24–48 ساعة عمل",
     nextTitle: "إيه اللي هيحصل بعد كده؟",
@@ -40,9 +40,9 @@ const roleConfig = {
     title: "تم إرسال طلبك للمراجعة!",
     subtitle: "فريق التوثيق بيراجع مستنداتك الآن",
     steps: [
-      { label: "رفع المستندات", done: true },
+      { label: "رفع المستندات", done: true, active: false },
       { label: "مراجعة التوثيق", done: false, active: true },
-      { label: "تفعيل الحساب", done: false },
+      { label: "تفعيل الحساب", done: false, active: false },
     ],
     eta: "خلال 24–72 ساعة عمل",
     nextTitle: "ماذا يحدث بعد ذلك؟",

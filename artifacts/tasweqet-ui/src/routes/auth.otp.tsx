@@ -4,13 +4,14 @@ import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useVerifyOtp } from "@workspace/api-client-react";
 import { saveSession, getSession, getRoleDashboard } from "@/lib/auth-session";
 
-type Role = "customer" | "partner" | "driver";
+type Role = "customer" | "partner" | "driver" | "admin";
 type FlowType = "login" | "register";
 
 const roleLabels: Record<Role, string> = {
   customer: "حساب عميل",
   partner: "حساب مطعم",
   driver: "حساب مندوب",
+  admin: "حساب مشرف",
 };
 
 const RESEND_SECONDS = 60;
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/auth/otp")({
     const p = typeof search["phone"] === "string" ? search["phone"] : "";
     const t = search["type"];
     return {
-      role: r === "partner" || r === "driver" ? r : "customer",
+      role: r === "partner" || r === "driver" || r === "admin" ? r : "customer",
       phone: p,
       type: t === "register" ? "register" : "login",
     };

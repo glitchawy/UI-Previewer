@@ -5,7 +5,7 @@ import { RequestOtpBody, VerifyOtpBody, UpdateLocationBody } from "@workspace/ap
 
 const router = Router();
 
-const HARDCODED_OTP = "123456";
+import { issueOtp, verifyOtpCode } from "../lib/otp";
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,7 +37,14 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  req.log.info({ phone, role }, "Login OTP requested (hardcoded 123456)");
+  try {
+    await issueOtp(phone, role);
+  } catch (err) {
+    req.log.error({ err }, "OTP delivery failed");
+    res.status(503).json({ error: "تعذر إرسال كود التحقق حالياً — حاول لاحقاً" });
+    return;
+  }
+  req.log.info({ phone, role }, "Login OTP requested");
   res.json({ success: true, message: "OTP sent" });
 });
 
@@ -53,6 +60,11 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
   const { phone, role } = parsed.data;
+
+  if (role === "admin") {
+    res.status(403).json({ error: "لا يمكن إنشاء حساب مشرف من هنا" });
+    return;
+  }
 
   if (!EG_PHONE_RE.test(phone)) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح — يجب أن يكون رقماً مصرياً (01XXXXXXXXX)" });
@@ -70,7 +82,14 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  req.log.info({ phone, role }, "Register OTP requested (hardcoded 123456)");
+  try {
+    await issueOtp(phone, role);
+  } catch (err) {
+    req.log.error({ err }, "OTP delivery failed");
+    res.status(503).json({ error: "تعذر إرسال كود التحقق حالياً — حاول لاحقاً" });
+    return;
+  }
+  req.log.info({ phone, role }, "Register OTP requested");
   res.json({ success: true, message: "OTP sent" });
 });
 
@@ -92,7 +111,16 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  if (otp !== HARDCODED_OTP) {
+  const verdict = await verifyOtpCode(phone, role, otp);
+  if (!verdict.ok) {
+    if (verdict.reason === "too_many_attempts") {
+      res.status(429).json({ error: "محاولات كتير غلط — اطلب كود جديد" });
+      return;
+    }
+    if (verdict.reason === "expired") {
+      res.status(401).json({ error: "الكود انتهت صلاحيته — اطلب كود جديد" });
+      return;
+    }
     res.status(401).json({ error: "الكود غير صحيح، حاول تاني" });
     return;
   }
@@ -110,6 +138,10 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     }
   } else {
     // register
+    if (role === "admin") {
+      res.status(403).json({ error: "لا يمكن إنشاء حساب مشرف من هنا" });
+      return;
+    }
     if (rows.length > 0) {
       res.status(409).json({ error: "الرقم ده مسجل بالفعل — سجّل دخول بدل كده" });
       return;

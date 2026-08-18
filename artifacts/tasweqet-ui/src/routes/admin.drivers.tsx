@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Card, DashboardShell, Field, Icon, StatusBadge, Table, Td } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
 import { drivers } from "@/lib/tb/data";
+import { appRouteId, fetchDriverApplications, type DriverApplication } from "@/lib/tb/applications";
 
 export const Route = createFileRoute("/admin/drivers")({
   head: () => ({
@@ -29,8 +30,19 @@ const filterLabels: Record<string, string> = {
 };
 
 function AdminDrivers() {
+  const childMatches = useChildMatches();
+  if (childMatches.length > 0) return <Outlet />;
+  return <AdminDriversList />;
+}
+
+function AdminDriversList() {
   const [filter, setFilter] = useState<(typeof filters)[number]>("الكل");
+  const [applications, setApplications] = useState<DriverApplication[]>([]);
+  useEffect(() => {
+    fetchDriverApplications().then(setApplications).catch(() => setApplications([]));
+  }, []);
   const rows = drivers.filter((d) => filter === "الكل" || d.status === filter);
+  const appRows = applications.filter((a) => filter === "الكل" || a.status === filter);
 
   return (
     <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title="المندوبين">
@@ -58,6 +70,24 @@ function AdminDrivers() {
         </Card>
 
         <Table head={["المندوب", "الهاتف", "النوع", "المنطقة", "المركبة", "التقييم", "التوصيلات", "الحالة"]}>
+          {appRows.map((a) => (
+            <tr key={`app-${a.id}`} className="bg-secondary-container/20 transition hover:bg-surface-container-low">
+              <Td>
+                <Link to="/admin/drivers/$id" params={{ id: appRouteId(a.id) }} className="font-label-lg text-label-lg text-secondary">
+                  {a.fullName}
+                </Link>
+              </Td>
+              <Td className="text-on-surface-variant">{a.phone ?? "—"}</Td>
+              <Td>مندوب المنصة</Td>
+              <Td>{a.area}</Td>
+              <Td>{a.vehicleType}</Td>
+              <Td>⭐ —</Td>
+              <Td>٠</Td>
+              <Td>
+                <StatusBadge status={a.status} label={filterLabels[a.status] ?? a.status} />
+              </Td>
+            </tr>
+          ))}
           {rows.map((d) => (
             <tr key={d.id} className="transition hover:bg-surface-container-low">
               <Td>

@@ -5,6 +5,84 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type PartnerOnboardDeliveryType = typeof PartnerOnboardDeliveryType[keyof typeof PartnerOnboardDeliveryType];
+
+
+export const PartnerOnboardDeliveryType = {
+  restaurant: 'restaurant',
+  platform: 'platform',
+} as const;
+
+export interface PartnerOnboard {
+  ownerName?: string;
+  email?: string;
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  phone?: string;
+  /** @minLength 1 */
+  address: string;
+  branches?: number;
+  hours?: string;
+  /** Comma-separated category ids */
+  category?: string;
+  deliveryType?: PartnerOnboardDeliveryType;
+}
+
+export interface DriverOnboard {
+  /** @minLength 1 */
+  fullName: string;
+  /** @minLength 1 */
+  area: string;
+  /** @minLength 1 */
+  vehicleType: string;
+  /** Comma-separated ids of uploaded documents */
+  documents?: string;
+}
+
+export interface OnboardResult {
+  success: boolean;
+  id: number;
+  status: string;
+}
+
+export interface RestaurantApplication {
+  id: number;
+  ownerUserId: number;
+  /** @nullable */
+  ownerName?: string | null;
+  /** @nullable */
+  email?: string | null;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  address: string;
+  branches?: number;
+  /** @nullable */
+  hours?: string | null;
+  /** @nullable */
+  category?: string | null;
+  deliveryType: string;
+  status: string;
+  createdAt?: string;
+}
+
+export interface DriverApplication {
+  id: number;
+  userId: number;
+  fullName: string;
+  area: string;
+  vehicleType: string;
+  /** @nullable */
+  documents?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  status: string;
+  createdAt?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -16,6 +94,7 @@ export const OtpRequestRole = {
   customer: 'customer',
   partner: 'partner',
   driver: 'driver',
+  admin: 'admin',
 } as const;
 
 export interface OtpRequest {
@@ -36,6 +115,7 @@ export const OtpVerifyRole = {
   customer: 'customer',
   partner: 'partner',
   driver: 'driver',
+  admin: 'admin',
 } as const;
 
 /**

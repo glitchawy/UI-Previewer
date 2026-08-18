@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Badge, Button, Card, DashboardShell, Icon, SectionTitle, Stat, StatusBadge, Table, Td } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
 import { EGP, drivers, driverWallet } from "@/lib/tb/data";
+import { useEffect } from "react";
+import { fetchDriverApplications, parseAppRouteId, type DriverApplication } from "@/lib/tb/applications";
 
 export const Route = createFileRoute("/admin/drivers/$id")({
   head: () => ({
@@ -33,8 +35,82 @@ const historyRows = [
   { code: "#12338", restaurant: "كشري التحرير", earning: 18, at: "أمس 16:05" },
 ];
 
+const appStatusLabels: Record<string, string> = {
+  PENDING: "بانتظار المراجعة",
+  UNDER_REVIEW: "تحت المراجعة",
+  APPROVED: "معتمد",
+  REJECTED: "مرفوض",
+  SUSPENDED: "موقوف",
+};
+
+const docLabels: Record<string, string> = {
+  national_id_front: "صورة الرقم القومي (وجه)",
+  national_id_back: "صورة الرقم القومي (ظهر)",
+  criminal_record: "الفيش والتشبيه (السجل الجنائي)",
+  license: "رخصة القيادة",
+};
+
+function StoredDriverDetail({ appId }: { appId: number }) {
+  const [app, setApp] = useState<DriverApplication | null | undefined>(undefined);
+  useEffect(() => {
+    fetchDriverApplications()
+      .then((apps) => setApp(apps.find((a) => a.id === appId) ?? null))
+      .catch(() => setApp(null));
+  }, [appId]);
+
+  const docIds = app?.documents ? app.documents.split(",").filter(Boolean) : [];
+
+  return (
+    <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title={app?.fullName ?? "طلب تسجيل مندوب"}>
+      <div className="tb-stagger flex flex-col gap-md">
+        {app === undefined ? (
+          <Card className="p-md font-body-md text-body-md text-on-surface-variant">جاري التحميل...</Card>
+        ) : app === null ? (
+          <Card className="p-md font-body-md text-body-md text-on-surface-variant">لم يتم العثور على الطلب.</Card>
+        ) : (
+          <>
+            <Card className="flex flex-wrap items-center justify-between gap-sm p-md">
+              <div>
+                <p className="font-headline-md text-headline-md text-on-surface">{app.fullName}</p>
+                <p className="font-label-md text-label-md text-on-surface-variant">
+                  {app.phone ?? "—"} · {app.area} · {app.vehicleType}
+                </p>
+                <p className="font-label-md text-label-md text-on-surface-variant">
+                  تاريخ التقديم: {new Date(app.createdAt).toLocaleDateString("ar-EG")}
+                </p>
+              </div>
+              <StatusBadge status={app.status} label={appStatusLabels[app.status] ?? app.status} />
+            </Card>
+            <Card className="p-md">
+              <SectionTitle title="المستندات المرفوعة" icon="description" />
+              {docIds.length === 0 ? (
+                <p className="font-body-md text-body-md text-on-surface-variant">لا توجد مستندات مرفوعة.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {docIds.map((docId) => (
+                    <div key={docId} className="flex items-center gap-2 rounded-card border border-outline-variant p-md">
+                      <Icon name="check_circle" className="text-[20px] text-success" />
+                      <span className="font-body-md text-body-md text-on-surface">{docLabels[docId] ?? docId}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </>
+        )}
+      </div>
+    </DashboardShell>
+  );
+}
+
 function AdminDriverDetail() {
   const { id } = Route.useParams();
+  const appId = parseAppRouteId(id);
+  if (appId !== null) return <StoredDriverDetail appId={appId} />;
+  return <MockDriverDetail id={id} />;
+}
+
+function MockDriverDetail({ id }: { id: string }) {
   const d = drivers.find((x) => x.id === id) ?? drivers[0]!;
   const [suspended, setSuspended] = useState(d.status === "SUSPENDED");
   const currentStep = steps.indexOf(d.status === "REJECTED" || d.status === "SUSPENDED" ? "PENDING" : d.status);

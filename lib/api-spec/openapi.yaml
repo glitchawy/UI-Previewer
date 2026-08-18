@@ -139,8 +139,221 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /onboard/partner:
+    post:
+      operationId: onboardPartner
+      tags: [auth]
+      summary: Submit restaurant onboarding application
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerOnboard"
+      responses:
+        "200":
+          description: Application saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /onboard/driver:
+    post:
+      operationId: onboardDriver
+      tags: [auth]
+      summary: Submit driver onboarding application
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverOnboard"
+      responses:
+        "200":
+          description: Application saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/restaurants:
+    get:
+      operationId: listRestaurantApplications
+      tags: [auth]
+      summary: List submitted restaurant applications
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RestaurantApplication"
+
+  /admin/drivers:
+    get:
+      operationId: listDriverApplications
+      tags: [auth]
+      summary: List submitted driver applications
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DriverApplication"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   schemas:
+    PartnerOnboard:
+      type: object
+      required: [name, address]
+      properties:
+        ownerName:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+          minLength: 1
+        branches:
+          type: number
+        hours:
+          type: string
+        category:
+          type: string
+          description: Comma-separated category ids
+        deliveryType:
+          type: string
+          enum: [restaurant, platform]
+
+    DriverOnboard:
+      type: object
+      required: [fullName, area, vehicleType]
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+        area:
+          type: string
+          minLength: 1
+        vehicleType:
+          type: string
+          minLength: 1
+        documents:
+          type: string
+          description: Comma-separated ids of uploaded documents
+
+    OnboardResult:
+      type: object
+      required: [success, id, status]
+      properties:
+        success:
+          type: boolean
+        id:
+          type: number
+        status:
+          type: string
+
+    RestaurantApplication:
+      type: object
+      required: [id, name, address, deliveryType, status, ownerUserId]
+      properties:
+        id:
+          type: number
+        ownerUserId:
+          type: number
+        ownerName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        address:
+          type: string
+        branches:
+          type: number
+        hours:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        deliveryType:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+
+    DriverApplication:
+      type: object
+      required: [id, userId, fullName, area, vehicleType, status]
+      properties:
+        id:
+          type: number
+        userId:
+          type: number
+        fullName:
+          type: string
+        area:
+          type: string
+        vehicleType:
+          type: string
+        documents:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+
     HealthStatus:
       type: object
       properties:
@@ -158,7 +371,7 @@ components:
           description: Phone number in Egyptian format e.g. 01012345678
         role:
           type: string
-          enum: [customer, partner, driver]
+          enum: [customer, partner, driver, admin]
 
     OtpRequestResponse:
       type: object
@@ -180,7 +393,7 @@ components:
           description: 6-digit OTP code
         role:
           type: string
-          enum: [customer, partner, driver]
+          enum: [customer, partner, driver, admin]
         type:
           type: string
           enum: [login, register]

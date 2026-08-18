@@ -21,13 +21,18 @@ import type {
 
 import type {
   AuthSession,
+  DriverApplication,
+  DriverOnboard,
   ErrorResponse,
   HealthStatus,
   LocationSaveResult,
   LocationUpdate,
+  OnboardResult,
   OtpRequest,
   OtpRequestResponse,
-  OtpVerify
+  OtpVerify,
+  PartnerOnboard,
+  RestaurantApplication
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -418,4 +423,300 @@ export const useUpdateLocation = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getUpdateLocationMutationOptions(options));
     }
+
+export const getOnboardPartnerUrl = () => {
+
+
+
+
+  return `/api/onboard/partner`
+}
+
+/**
+ * @summary Submit restaurant onboarding application
+ */
+export const onboardPartner = async (partnerOnboard: PartnerOnboard, options?: Parameters<typeof customFetch>[1]): Promise<OnboardResult> => {
+
+  return customFetch<OnboardResult>(getOnboardPartnerUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(partnerOnboard)
+  }
+);}
+
+
+
+
+
+export const getOnboardPartnerMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof onboardPartner>>, TError,{data: BodyType<PartnerOnboard>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof onboardPartner>>, TError,{data: BodyType<PartnerOnboard>}, TContext> => {
+
+const mutationKey = ['onboardPartner'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof onboardPartner>>, {data: BodyType<PartnerOnboard>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  onboardPartner(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OnboardPartnerMutationResult = NonNullable<Awaited<ReturnType<typeof onboardPartner>>>
+    export type OnboardPartnerMutationBody = BodyType<PartnerOnboard>
+    export type OnboardPartnerMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit restaurant onboarding application
+ */
+export const useOnboardPartner = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof onboardPartner>>, TError,{data: BodyType<PartnerOnboard>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof onboardPartner>>,
+        TError,
+        {data: BodyType<PartnerOnboard>},
+        TContext
+      > => {
+      return useMutation(getOnboardPartnerMutationOptions(options));
+    }
+
+export const getOnboardDriverUrl = () => {
+
+
+
+
+  return `/api/onboard/driver`
+}
+
+/**
+ * @summary Submit driver onboarding application
+ */
+export const onboardDriver = async (driverOnboard: DriverOnboard, options?: Parameters<typeof customFetch>[1]): Promise<OnboardResult> => {
+
+  return customFetch<OnboardResult>(getOnboardDriverUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driverOnboard)
+  }
+);}
+
+
+
+
+
+export const getOnboardDriverMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof onboardDriver>>, TError,{data: BodyType<DriverOnboard>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof onboardDriver>>, TError,{data: BodyType<DriverOnboard>}, TContext> => {
+
+const mutationKey = ['onboardDriver'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof onboardDriver>>, {data: BodyType<DriverOnboard>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  onboardDriver(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OnboardDriverMutationResult = NonNullable<Awaited<ReturnType<typeof onboardDriver>>>
+    export type OnboardDriverMutationBody = BodyType<DriverOnboard>
+    export type OnboardDriverMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit driver onboarding application
+ */
+export const useOnboardDriver = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof onboardDriver>>, TError,{data: BodyType<DriverOnboard>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof onboardDriver>>,
+        TError,
+        {data: BodyType<DriverOnboard>},
+        TContext
+      > => {
+      return useMutation(getOnboardDriverMutationOptions(options));
+    }
+
+export const getListRestaurantApplicationsUrl = () => {
+
+
+
+
+  return `/api/admin/restaurants`
+}
+
+/**
+ * @summary List submitted restaurant applications
+ */
+export const listRestaurantApplications = async ( options?: Parameters<typeof customFetch>[1]): Promise<RestaurantApplication[]> => {
+
+  return customFetch<RestaurantApplication[]>(getListRestaurantApplicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRestaurantApplicationsQueryKey = () => {
+    return [
+    `/api/admin/restaurants`
+    ] as const;
+    }
+
+
+export const getListRestaurantApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listRestaurantApplications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRestaurantApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRestaurantApplicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRestaurantApplications>>> = ({ signal }) => listRestaurantApplications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRestaurantApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRestaurantApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listRestaurantApplications>>>
+export type ListRestaurantApplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List submitted restaurant applications
+ */
+
+export function useListRestaurantApplications<TData = Awaited<ReturnType<typeof listRestaurantApplications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRestaurantApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRestaurantApplicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDriverApplicationsUrl = () => {
+
+
+
+
+  return `/api/admin/drivers`
+}
+
+/**
+ * @summary List submitted driver applications
+ */
+export const listDriverApplications = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriverApplication[]> => {
+
+  return customFetch<DriverApplication[]>(getListDriverApplicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDriverApplicationsQueryKey = () => {
+    return [
+    `/api/admin/drivers`
+    ] as const;
+    }
+
+
+export const getListDriverApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listDriverApplications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDriverApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDriverApplicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDriverApplications>>> = ({ signal }) => listDriverApplications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDriverApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDriverApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listDriverApplications>>>
+export type ListDriverApplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List submitted driver applications
+ */
+
+export function useListDriverApplications<TData = Awaited<ReturnType<typeof listDriverApplications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDriverApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDriverApplicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

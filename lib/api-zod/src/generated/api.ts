@@ -22,7 +22,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const RequestOtpBody = zod.object({
   "phone": zod.string().describe('Phone number in Egyptian format e.g. 01012345678'),
-  "role": zod.enum(['customer', 'partner', 'driver'])
+  "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
 })
 
 export const RequestOtpResponse = zod.object({
@@ -36,7 +36,7 @@ export const RequestOtpResponse = zod.object({
  */
 export const RegisterOtpBody = zod.object({
   "phone": zod.string().describe('Phone number in Egyptian format e.g. 01012345678'),
-  "role": zod.enum(['customer', 'partner', 'driver'])
+  "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
 })
 
 export const RegisterOtpResponse = zod.object({
@@ -51,7 +51,7 @@ export const RegisterOtpResponse = zod.object({
 export const VerifyOtpBody = zod.object({
   "phone": zod.string(),
   "otp": zod.string().describe('6-digit OTP code'),
-  "role": zod.enum(['customer', 'partner', 'driver']),
+  "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
   "type": zod.enum(['login', 'register']).describe('login = existing user only; register = new user only')
 })
 
@@ -80,5 +80,93 @@ export const UpdateLocationBody = zod.object({
 export const UpdateLocationResponse = zod.object({
   "success": zod.boolean()
 })
+
+
+/**
+ * @summary Submit restaurant onboarding application
+ */
+
+
+
+
+export const OnboardPartnerBody = zod.object({
+  "ownerName": zod.string().optional(),
+  "email": zod.string().optional(),
+  "name": zod.string().min(1),
+  "description": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "address": zod.string().min(1),
+  "branches": zod.number().optional(),
+  "hours": zod.string().optional(),
+  "category": zod.string().optional().describe('Comma-separated category ids'),
+  "deliveryType": zod.enum(['restaurant', 'platform']).optional()
+})
+
+export const OnboardPartnerResponse = zod.object({
+  "success": zod.boolean(),
+  "id": zod.number(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Submit driver onboarding application
+ */
+
+
+
+
+
+export const OnboardDriverBody = zod.object({
+  "fullName": zod.string().min(1),
+  "area": zod.string().min(1),
+  "vehicleType": zod.string().min(1),
+  "documents": zod.string().optional().describe('Comma-separated ids of uploaded documents')
+})
+
+export const OnboardDriverResponse = zod.object({
+  "success": zod.boolean(),
+  "id": zod.number(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary List submitted restaurant applications
+ */
+export const ListRestaurantApplicationsResponseItem = zod.object({
+  "id": zod.number(),
+  "ownerUserId": zod.number(),
+  "ownerName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "address": zod.string(),
+  "branches": zod.number().optional(),
+  "hours": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "deliveryType": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.string().optional()
+})
+export const ListRestaurantApplicationsResponse = zod.array(ListRestaurantApplicationsResponseItem)
+
+
+/**
+ * @summary List submitted driver applications
+ */
+export const ListDriverApplicationsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "fullName": zod.string(),
+  "area": zod.string(),
+  "vehicleType": zod.string(),
+  "documents": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string().optional()
+})
+export const ListDriverApplicationsResponse = zod.array(ListDriverApplicationsResponseItem)
 
 

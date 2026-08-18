@@ -13,4 +13,5 @@ export const OtpRequestRole = {
   customer: 'customer',
   partner: 'partner',
   driver: 'driver',
+  admin: 'admin',
 } as const;

@@ -1050,6 +1050,8 @@ export interface FileRouteTypes {
     | '/auth/location'
     | '/auth/login'
     | '/auth/otp'
+    | '/auth/onboard-customer'
+    | '/auth/pending'
     | '/auth/register'
     | '/auth/register-restaurant'
     | '/auth/welcome'
@@ -1160,6 +1162,8 @@ export interface FileRouteTypes {
     | '/auth/location'
     | '/auth/login'
     | '/auth/otp'
+    | '/auth/onboard-customer'
+    | '/auth/pending'
     | '/auth/register'
     | '/auth/register-restaurant'
     | '/auth/welcome'
@@ -1270,6 +1274,8 @@ export interface FileRouteTypes {
     | '/auth/location'
     | '/auth/login'
     | '/auth/otp'
+    | '/auth/onboard-customer'
+    | '/auth/pending'
     | '/auth/register'
     | '/auth/register-restaurant'
     | '/auth/welcome'
@@ -1688,11 +1694,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/onboard-customer': {
+      id: '/auth/onboard-customer'
+      path: '/auth/onboard-customer'
+      fullPath: '/auth/onboard-customer'
+      preLoaderRoute: typeof AuthOnboardCustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/otp': {
       id: '/auth/otp'
       path: '/auth/otp'
       fullPath: '/auth/otp'
       preLoaderRoute: typeof AuthOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/pending': {
+      id: '/auth/pending'
+      path: '/auth/pending'
+      fullPath: '/auth/pending'
+      preLoaderRoute: typeof AuthPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/register': {

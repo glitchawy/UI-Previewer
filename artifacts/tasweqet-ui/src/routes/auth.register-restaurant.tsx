@@ -55,13 +55,43 @@ function AuthRegisterRestaurant() {
     );
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!ownerName.trim()) { setError("من فضلك أدخل اسم المالك"); return; }
     if (!restaurantName.trim()) { setError("من فضلك أدخل اسم المطعم"); return; }
     if (!address.trim()) { setError("من فضلك أدخل عنوان المطعم"); return; }
     setSubmitting(true);
     setError("");
-    setTimeout(() => navigate({ to: "/auth/pending" }), 800);
+    try {
+      const res = await fetch("/api/onboard/partner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.token ?? ""}`,
+        },
+        body: JSON.stringify({
+          ownerName: ownerName.trim(),
+          email: email.trim() || undefined,
+          name: restaurantName.trim(),
+          description: description.trim() || undefined,
+          phone: phone.trim() || undefined,
+          address: address.trim(),
+          branches: Number(branches) || 1,
+          hours: hours.trim() || undefined,
+          category: selectedCategories.join(",") || undefined,
+          deliveryType: delivery,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(data?.error ?? "حدث خطأ أثناء الإرسال، حاول مرة أخرى");
+        setSubmitting(false);
+        return;
+      }
+      navigate({ to: "/auth/pending" });
+    } catch {
+      setError("تعذر الاتصال بالخادم، حاول مرة أخرى");
+      setSubmitting(false);
+    }
   }
 
   function Field({ label, placeholder, value, onChange, type = "text", icon }: {

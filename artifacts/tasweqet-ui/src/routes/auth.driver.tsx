@@ -57,13 +57,39 @@ function AuthDriver() {
     setDocs((prev) => ({ ...prev, [id]: prev[id] === "uploaded" ? "idle" : "uploaded" }));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!fullName.trim()) { setError("من فضلك أدخل اسمك الكامل"); return; }
     if (!allUploaded) { setError(`برجاء رفع جميع المستندات المطلوبة (${uploadedCount}/${requiredDocs.length})`); return; }
     setSubmitting(true);
     setError("");
-    // Simulate a short delay for the submit action then navigate to pending
-    setTimeout(() => navigate({ to: "/auth/pending" }), 800);
+    try {
+      const res = await fetch("/api/onboard/driver", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.token ?? ""}`,
+        },
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          area,
+          vehicleType: vehicle,
+          documents: requiredDocs
+            .filter((d) => docs[d.id] === "uploaded")
+            .map((d) => d.id)
+            .join(","),
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(data?.error ?? "حدث خطأ أثناء الإرسال، حاول مرة أخرى");
+        setSubmitting(false);
+        return;
+      }
+      navigate({ to: "/auth/pending" });
+    } catch {
+      setError("تعذر الاتصال بالخادم، حاول مرة أخرى");
+      setSubmitting(false);
+    }
   }
 
   return (

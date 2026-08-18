@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Bars, Button, Card, DashboardShell, Field, Icon, SectionTitle, Stat, StatusBadge } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
 import { EGP, branches, restaurantOf, restaurantStats } from "@/lib/tb/data";
+import { useEffect } from "react";
+import { fetchRestaurantApplications, parseAppRouteId, type RestaurantApplication } from "@/lib/tb/applications";
 
 export const Route = createFileRoute("/admin/restaurants/$id")({
   head: () => ({
@@ -21,8 +23,76 @@ export const Route = createFileRoute("/admin/restaurants/$id")({
 const steps = ["PENDING", "UNDER_REVIEW", "APPROVED", "ACTIVE"];
 const stepLabels: Record<string, string> = { PENDING: "بانتظار المراجعة", UNDER_REVIEW: "تحت المراجعة", APPROVED: "معتمد", ACTIVE: "نشط" };
 
+const appStatusLabels: Record<string, string> = {
+  PENDING: "بانتظار المراجعة",
+  UNDER_REVIEW: "تحت المراجعة",
+  APPROVED: "معتمد",
+  REJECTED: "مرفوض",
+  ACTIVE: "نشط",
+};
+
+function StoredRestaurantDetail({ appId }: { appId: number }) {
+  const [app, setApp] = useState<RestaurantApplication | null | undefined>(undefined);
+  useEffect(() => {
+    fetchRestaurantApplications()
+      .then((apps) => setApp(apps.find((a) => a.id === appId) ?? null))
+      .catch(() => setApp(null));
+  }, [appId]);
+
+  return (
+    <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title={app?.name ?? "طلب تسجيل مطعم"}>
+      <div className="tb-stagger flex flex-col gap-md">
+        {app === undefined ? (
+          <Card className="p-md font-body-md text-body-md text-on-surface-variant">جاري التحميل...</Card>
+        ) : app === null ? (
+          <Card className="p-md font-body-md text-body-md text-on-surface-variant">لم يتم العثور على الطلب.</Card>
+        ) : (
+          <>
+            <Card className="flex flex-wrap items-center justify-between gap-sm p-md">
+              <div>
+                <p className="font-headline-md text-headline-md text-on-surface">{app.name}</p>
+                <p className="font-label-md text-label-md text-on-surface-variant">
+                  {app.phone ?? "—"} · {app.email ?? "—"}
+                </p>
+                <p className="font-label-md text-label-md text-on-surface-variant">
+                  {app.address} · مواعيد العمل: {app.hours ?? "—"}
+                </p>
+              </div>
+              <StatusBadge status={app.status} label={appStatusLabels[app.status] ?? app.status} />
+            </Card>
+            <Card className="p-md">
+              <SectionTitle title="بيانات الطلب" icon="description" />
+              <div className="grid grid-cols-1 gap-sm md:grid-cols-2">
+                {[
+                  ["اسم المالك", app.ownerName ?? "—"],
+                  ["الوصف", app.description ?? "—"],
+                  ["التصنيفات", app.category ?? "—"],
+                  ["عدد الفروع", String(app.branches)],
+                  ["نوع التوصيل", app.deliveryType === "platform" ? "توصيل طلبات بيتك" : "توصيل المطعم"],
+                  ["تاريخ التقديم", new Date(app.createdAt).toLocaleDateString("ar-EG")],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-card bg-surface-container p-md">
+                    <p className="font-label-md text-label-md text-on-surface-variant">{label}</p>
+                    <p className="font-body-md text-body-md text-on-surface">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
+      </div>
+    </DashboardShell>
+  );
+}
+
 function AdminRestaurantDetail() {
   const { id } = Route.useParams();
+  const appId = parseAppRouteId(id);
+  if (appId !== null) return <StoredRestaurantDetail appId={appId} />;
+  return <MockRestaurantDetail id={id} />;
+}
+
+function MockRestaurantDetail({ id }: { id: string }) {
   const r = restaurantOf(id) ?? restaurantOf("burger-house")!;
   const [commission, setCommission] = useState(r.commission);
   const currentStep = steps.indexOf(r.status === "REJECTED" ? "PENDING" : r.status);

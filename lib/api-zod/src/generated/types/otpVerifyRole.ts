@@ -13,4 +13,5 @@ export const OtpVerifyRole = {
   customer: 'customer',
   partner: 'partner',
   driver: 'driver',
+  admin: 'admin',
 } as const;

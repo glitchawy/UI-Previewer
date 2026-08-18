@@ -1,0 +1,1 @@
+- [TanStack flat-route list/detail rendering](tanstack-flat-route-outlet.md) — list routes are layout parents of $id routes; detail pages need an Outlet (or an index route) to render.

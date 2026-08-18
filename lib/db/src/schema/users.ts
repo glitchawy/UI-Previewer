@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   phone: text("phone").notNull().unique(),
-  role: text("role", { enum: ["customer", "partner", "driver"] }).notNull(),
+  role: text("role", { enum: ["customer", "partner", "driver", "admin"] }).notNull(),
   name: text("name"),
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
