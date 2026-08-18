@@ -1,18 +1,20 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppBar, Badge, Card, Icon, MobileShell, Stat } from "@/components/tb/shell";
 import { EGP, driverWallet, drivers } from "@/lib/tb/data";
 import { driverTabs } from "@/lib/tb/nav";
+import { getSession, clearSession, getRoleDashboard } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/driver/")({
+  beforeLoad: () => {
+    const session = getSession();
+    if (!session) throw redirect({ to: "/auth/login" });
+    if (session.user.role !== "driver") throw redirect({ to: getRoleDashboard(session.user.role) });
+  },
   head: () => ({
     meta: [
       { title: "طلبات المندوب | طلبات بيتك" },
       { name: "description", content: "تابع حالتك وابدأ استلام طلبات التوصيل من طلبات بيتك." },
-      { property: "og:title", content: "طلبات المندوب | طلبات بيتك" },
-      { property: "og:description", content: "تابع حالتك وابدأ استلام طلبات التوصيل من طلبات بيتك." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: DriverIndex,
@@ -21,14 +23,33 @@ export const Route = createFileRoute("/driver/")({
 const me = drivers[0]!;
 
 function DriverIndex() {
+  const navigate = useNavigate();
+  const session = getSession();
   const [online, setOnline] = useState(true);
   const approved = me["status"] === "APPROVED";
 
+  function handleLogout() {
+    clearSession();
+    navigate({ to: "/auth/login" });
+  }
+
   return (
     <MobileShell tabs={driverTabs}>
-      <AppBar title="أهلاً، محمود" subtitle="مندوب طلبات بيتك" />
+      <AppBar
+        title={`أهلاً 👋 +20${session?.user.phone ?? ""}`}
+        subtitle="مندوب طلبات بيتك"
+        right={
+          <button
+            onClick={handleLogout}
+            className="flex size-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+            title="تسجيل الخروج"
+          >
+            <Icon name="logout" className="text-[20px]" />
+          </button>
+        }
+      />
       <div className="tb-fade-up flex flex-col gap-md p-md">
-        {!approved ? (
+        {!approved && (
           <Link
             to="/driver/documents"
             className="flex items-center justify-between gap-2 rounded-card bg-error-container p-md"
@@ -39,7 +60,7 @@ function DriverIndex() {
             </span>
             <Icon name="chevron_left" className="text-on-error-container" />
           </Link>
-        ) : null}
+        )}
 
         <Card className="p-lg">
           <div className="flex items-center justify-between">
@@ -56,16 +77,12 @@ function DriverIndex() {
               className={`relative h-9 w-16 rounded-full transition ${online ? "bg-success" : "bg-surface-container-high"}`}
               aria-label="تبديل الحالة"
             >
-              <span
-                className={`absolute top-1 size-7 rounded-full bg-surface-container-lowest shadow transition-all ${
-                  online ? "right-1" : "right-8"
-                }`}
-              />
+              <span className={`absolute top-1 size-7 rounded-full bg-surface-container-lowest shadow transition-all ${online ? "right-1" : "right-8"}`} />
             </button>
           </div>
         </Card>
 
-        {online ? (
+        {online && (
           <Link to="/driver/offer" className="block">
             <Card className="tb-pulse-ring border-primary bg-primary-container/30 p-md">
               <div className="flex items-center justify-between">
@@ -77,7 +94,7 @@ function DriverIndex() {
               </div>
             </Card>
           </Link>
-        ) : null}
+        )}
 
         <Link to="/driver/navigate" className="block">
           <Card className="p-md">

@@ -1,9 +1,14 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useRegisterOtp } from "@workspace/api-client-react";
+import { getSession, getRoleDashboard } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/register")({
+  beforeLoad: () => {
+    const session = getSession();
+    if (session) throw redirect({ to: getRoleDashboard(session.user.role) });
+  },
   head: () => ({
     meta: [
       { title: "إنشاء حساب | طلبات بيتك" },
@@ -66,7 +71,7 @@ function AuthRegister() {
   return (
     <AuthShell title="إنشاء حساب جديد" subtitle="أنشئ حسابك الجديد برقم موبايلك المصري">
 
-      {/* Phone field */}
+      {/* Phone */}
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">رقم الموبايل</span>
         <span className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${inlineError ? "border-error" : "border-outline-variant"}`}>
@@ -93,7 +98,7 @@ function AuthRegister() {
         )}
       </label>
 
-      {/* Role selector */}
+      {/* Role cards */}
       <div className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">نوع الحساب</span>
         <div className="flex flex-col gap-2">
@@ -115,9 +120,7 @@ function AuthRegister() {
                 <span className={`font-label-lg text-label-lg ${role === r.value ? "text-on-secondary-container" : "text-on-surface"}`}>{r.label}</span>
                 <span className="font-label-md text-label-md text-on-surface-variant">{r.desc}</span>
               </div>
-              {role === r.value && (
-                <Icon name="check_circle" className="mr-auto text-[20px] text-secondary" filled />
-              )}
+              {role === r.value && <Icon name="check_circle" className="mr-auto text-[20px] text-secondary" filled />}
             </button>
           ))}
         </div>
@@ -130,24 +133,18 @@ function AuthRegister() {
           <div>
             <p className="font-label-md text-label-md text-on-error-container">{error}</p>
             {error.includes("مسجل بالفعل") && (
-              <Link
-                to="/auth/login"
-                className="mt-1 inline-flex items-center gap-1 font-label-md text-label-md text-on-error-container underline"
-              >
-                <Icon name="login" className="text-[16px]" />
-                سجّل دخول بدلاً من ذلك
+              <Link to="/auth/login" className="mt-1 inline-flex items-center gap-1 font-label-md text-label-md text-on-error-container underline">
+                <Icon name="login" className="text-[16px]" />سجّل دخول بدلاً من ذلك
               </Link>
             )}
           </div>
         </div>
       )}
 
-      {/* Register button */}
       <Button className="w-full" icon="person_add" onClick={handleSubmit} disabled={registerOtp.isPending}>
         {registerOtp.isPending ? "جاري الإنشاء..." : "إنشاء الحساب"}
       </Button>
 
-      {/* Login CTA */}
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-outline-variant" />
         <span className="font-label-md text-label-md text-on-surface-variant">عندك حساب؟</span>
@@ -155,11 +152,8 @@ function AuthRegister() {
       </div>
 
       <Link to="/auth/login">
-        <Button variant="outline" className="w-full" icon="login">
-          تسجيل الدخول
-        </Button>
+        <Button variant="outline" className="w-full" icon="login">تسجيل الدخول</Button>
       </Link>
-
     </AuthShell>
   );
 }

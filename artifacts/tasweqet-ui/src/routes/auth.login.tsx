@@ -1,9 +1,15 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useRequestOtp } from "@workspace/api-client-react";
+import { getSession, getRoleDashboard } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/login")({
+  beforeLoad: () => {
+    // Already logged in → skip to the right dashboard
+    const session = getSession();
+    if (session) throw redirect({ to: getRoleDashboard(session.user.role) });
+  },
   head: () => ({
     meta: [
       { title: "تسجيل الدخول | طلبات بيتك" },
@@ -113,36 +119,29 @@ function AuthLogin() {
             </button>
           ))}
         </div>
-        <p className="font-label-md text-label-md text-on-surface-variant">
-          العميل والمطعم والمندوب لهم حسابات منفصلة
-        </p>
+        <p className="font-label-md text-label-md text-on-surface-variant">العميل والمطعم والمندوب لهم حسابات منفصلة</p>
       </div>
 
-      {/* API / validation error */}
+      {/* Error banner */}
       {error && (
         <div className="flex items-start gap-2 rounded-card bg-error-container p-md">
           <Icon name="error" className="mt-0.5 text-[18px] text-on-error-container" />
           <div>
             <p className="font-label-md text-label-md text-on-error-container">{error}</p>
             {error.includes("مش مسجل") && (
-              <Link
-                to="/auth/register"
-                className="mt-1 inline-flex items-center gap-1 font-label-md text-label-md text-on-error-container underline"
-              >
-                <Icon name="person_add" className="text-[16px]" />
-                سجّل حساب جديد
+              <Link to="/auth/register" className="mt-1 inline-flex items-center gap-1 font-label-md text-label-md text-on-error-container underline">
+                <Icon name="person_add" className="text-[16px]" />سجّل حساب جديد
               </Link>
             )}
           </div>
         </div>
       )}
 
-      {/* Login button */}
       <Button className="w-full" icon="arrow_forward" onClick={handleSubmit} disabled={requestOtp.isPending}>
         {requestOtp.isPending ? "جاري الإرسال..." : "دخول"}
       </Button>
 
-      {/* Sign up CTA */}
+      {/* Divider */}
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-outline-variant" />
         <span className="font-label-md text-label-md text-on-surface-variant">أو</span>
@@ -150,18 +149,13 @@ function AuthLogin() {
       </div>
 
       <Link to="/auth/register">
-        <Button variant="outline" className="w-full" icon="person_add">
-          إنشاء حساب جديد
-        </Button>
+        <Button variant="outline" className="w-full" icon="person_add">إنشاء حساب جديد</Button>
       </Link>
 
       <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-md">
         <Icon name="sms" className="text-[18px] text-on-surface-variant" />
-        <p className="font-label-md text-label-md text-on-surface-variant">
-          هنبعتلك كود تأكيد برسالة SMS على رقمك المصري
-        </p>
+        <p className="font-label-md text-label-md text-on-surface-variant">هنبعتلك كود تأكيد برسالة SMS على رقمك المصري</p>
       </div>
-
     </AuthShell>
   );
 }

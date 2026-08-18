@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useVerifyOtp } from "@workspace/api-client-react";
-import { saveSession } from "@/lib/auth-session";
+import { saveSession, getSession, getRoleDashboard } from "@/lib/auth-session";
 
 type Role = "customer" | "partner" | "driver";
 type FlowType = "login" | "register";
@@ -25,6 +25,13 @@ export const Route = createFileRoute("/auth/otp")({
       phone: p,
       type: t === "register" ? "register" : "login",
     };
+  },
+  beforeLoad: ({ search }) => {
+    // If already logged in, skip OTP entirely
+    const session = getSession();
+    if (session) throw redirect({ to: getRoleDashboard(session.user.role) });
+    // If no phone was passed, someone navigated here directly — send to login
+    if (!search.phone) throw redirect({ to: "/auth/login" });
   },
   head: () => ({
     meta: [{ title: "تأكيد الكود | طلبات بيتك" }],
@@ -60,16 +67,16 @@ function AuthOtp() {
             lng: data.user.lng ?? null,
           },
         });
+        // Customer → location screen first; others go straight to dashboard
         if (role === "customer") {
           navigate({ to: "/auth/location" });
-        } else if (role === "partner") {
-          navigate({ to: "/partner" });
         } else {
-          navigate({ to: "/driver" });
+          navigate({ to: getRoleDashboard(role) });
         }
       },
-      onError: () => {
-        setError("الكود غير صحيح، حاول تاني");
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        setError(msg ?? "الكود غير صحيح، حاول تاني");
         setDigits(Array(6).fill(""));
         inputRefs.current[0]?.focus();
       },
@@ -110,11 +117,8 @@ function AuthOtp() {
   const backTo = type === "register" ? "/auth/register" : "/auth/login";
 
   return (
-    <AuthShell
-      title="تأكيد الكود"
-      subtitle={`الكود اتبعت برسالة SMS لـ +20${phone}`}
-      back={backTo}
-    >
+    <AuthShell title="تأكيد الكود" subtitle={`الكود اتبعت برسالة SMS لـ +20${phone}`} back={backTo}>
+
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
         <Icon name={type === "register" ? "person_add" : "login"} className="text-[18px] text-on-secondary-container" />
         <p className="font-label-md text-label-md text-on-secondary-container">
@@ -122,7 +126,7 @@ function AuthOtp() {
         </p>
       </div>
 
-      {/* OTP inputs */}
+      {/* OTP boxes */}
       <div className="tb-stagger flex items-center justify-center gap-2" dir="ltr" onPaste={handlePaste}>
         {Array.from({ length: 6 }).map((_, i) => (
           <input
@@ -143,9 +147,7 @@ function AuthOtp() {
 
       {/* Resend row */}
       <div className="flex items-center justify-between">
-        <span className="font-label-md text-label-md text-on-surface-variant">
-          إعادة الإرسال بعد {mm}:{ss}
-        </span>
+        <span className="font-label-md text-label-md text-on-surface-variant">إعادة الإرسال بعد {mm}:{ss}</span>
         <button
           disabled={seconds > 0}
           onClick={() => setSeconds(RESEND_SECONDS)}
@@ -155,11 +157,9 @@ function AuthOtp() {
         </button>
       </div>
 
-      <div className="flex items-center justify-between rounded-card bg-surface-container-low p-md">
-        <span className="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant">
-          <Icon name="lock_clock" className="text-[18px]" />
-          الكود صالح 5 دقايق
-        </span>
+      <div className="flex items-center rounded-card bg-surface-container-low p-md">
+        <Icon name="lock_clock" className="text-[18px] text-on-surface-variant" />
+        <span className="mr-1.5 font-label-md text-label-md text-on-surface-variant">الكود صالح 5 دقايق</span>
       </div>
 
       {error && (
@@ -173,10 +173,7 @@ function AuthOtp() {
         {verifyOtp.isPending ? "جاري التأكيد..." : "تأكيد"}
       </Button>
 
-      <button
-        onClick={() => navigate({ to: backTo })}
-        className="text-center font-body-md text-body-md text-secondary hover:underline"
-      >
+      <button onClick={() => navigate({ to: backTo })} className="text-center font-body-md text-body-md text-secondary hover:underline">
         {type === "register" ? "تغيير الرقم أو نوع الحساب" : "تغيير الرقم"}
       </button>
     </AuthShell>

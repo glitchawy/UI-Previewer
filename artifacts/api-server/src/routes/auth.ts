@@ -141,6 +141,39 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/auth/me  — validate Bearer token, return current user
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/auth/me", async (req, res): Promise<void> => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "غير مصرح" });
+    return;
+  }
+  const token = auth.slice(7);
+
+  const rows = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.sessionToken, token))
+    .limit(1);
+
+  if (rows.length === 0) {
+    res.status(401).json({ error: "الجلسة منتهية — سجّل دخولك مجدداً" });
+    return;
+  }
+
+  const user = rows[0];
+  res.json({
+    id: user.id,
+    phone: user.phone,
+    role: user.role,
+    name: user.name ?? null,
+    lat: user.lat ?? null,
+    lng: user.lng ?? null,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/auth/location  — saves GPS for an already-verified user
 // ─────────────────────────────────────────────────────────────────────────────
 router.patch("/auth/location", async (req, res): Promise<void> => {
