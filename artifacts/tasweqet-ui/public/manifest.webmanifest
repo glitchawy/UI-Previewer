@@ -1,0 +1,24 @@
+{
+  "name": "طلبات بيتك — توصيل ومتاجر محلية",
+  "short_name": "طلبات بيتك",
+  "description": "منظومة طلبات بيتك: تطبيق العميل، لوحة التاجر، تطبيق المندوب ولوحة الإدارة.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbf9f1",
+  "theme_color": "#ffd502",
+  "categories": ["food", "shopping", "business"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

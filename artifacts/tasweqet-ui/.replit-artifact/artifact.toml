@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Tasweqet UI Preview"
+description = "A preview of the Tasweqet Betak delivery platform UI — includes customer app, merchant dashboard, driver app, and admin panel screens — Arabic-first design with gold/brown palette."
+version = "1.0.0"
+id = "artifacts/tasweqet-ui"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25150
+
+[services.development]
+run = "pnpm --filter @workspace/tasweqet-ui run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tasweqet-ui", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/tasweqet-ui/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25150"
+BASE_PATH = "/"

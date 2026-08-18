@@ -1,0 +1,133 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Bars, Button, Card, DashboardShell, Field, Icon, SectionTitle, Stat, StatusBadge } from "@/components/tb/shell";
+import { adminNav } from "@/lib/tb/nav";
+import { EGP, branches, restaurantOf, restaurantStats } from "@/lib/tb/data";
+
+export const Route = createFileRoute("/admin/restaurants/$id")({
+  head: () => ({
+    meta: [
+      { title: "ملف المطعم | لوحة سوبر أدمن - طلبات بيتك" },
+      { name: "description", content: "مراجعة توثيق المطعم، العمولة، الفروع والأداء." },
+      { property: "og:title", content: "ملف المطعم | طلبات بيتك" },
+      { property: "og:description", content: "مراجعة بيانات وتوثيق مطعم." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: AdminRestaurantDetail,
+});
+
+const steps = ["PENDING", "UNDER_REVIEW", "APPROVED", "ACTIVE"];
+const stepLabels: Record<string, string> = { PENDING: "بانتظار المراجعة", UNDER_REVIEW: "تحت المراجعة", APPROVED: "معتمد", ACTIVE: "نشط" };
+
+function AdminRestaurantDetail() {
+  const { id } = Route.useParams();
+  const r = restaurantOf(id) ?? restaurantOf("burger-house")!;
+  const [commission, setCommission] = useState(r.commission);
+  const currentStep = steps.indexOf(r.status === "REJECTED" ? "PENDING" : r.status);
+
+  return (
+    <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title={r.name}>
+      <div className="tb-stagger flex flex-col gap-md">
+        <Card className="overflow-hidden">
+          <div className="h-36 w-full bg-cover bg-center" style={{ backgroundImage: `url(${r.cover})` }} />
+          <div className="flex flex-wrap items-center gap-md p-md">
+            <img src={r.logo} alt="" className="-mt-12 size-20 rounded-full border-4 border-surface-container-lowest object-cover" />
+            <div className="flex-1">
+              <p className="font-headline-md text-headline-md text-on-surface">{r.name}</p>
+              <p className="font-label-md text-label-md text-on-surface-variant">{r.phone} · {r.email}</p>
+              <p className="font-label-md text-label-md text-on-surface-variant">{r.address} · مواعيد العمل: {r.hours}</p>
+            </div>
+            <StatusBadge status={r.status} label={stepLabels[r.status] ?? r.status} />
+          </div>
+        </Card>
+
+        <Card className="p-md">
+          <SectionTitle title="حالة التوثيق" icon="verified" />
+          <div className="mb-md flex items-center gap-2">
+            {steps.map((s, i) => (
+              <div key={s} className="flex flex-1 items-center gap-2">
+                <span
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-full font-label-md text-label-md ${
+                    i <= currentStep ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+                <span className="font-label-md text-label-md text-on-surface-variant">{stepLabels[s]}</span>
+                {i < steps.length - 1 ? <span className="h-px flex-1 bg-outline-variant" /> : null}
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-end gap-sm">
+            <Button icon="check_circle" variant="primary">موافقة على التوثيق</Button>
+            <Button icon="cancel" variant="danger">رفض</Button>
+            <div className="min-w-[240px] flex-1">
+              <Field label="سبب الرفض (لو تم الرفض)" placeholder="اكتب السبب هنا" />
+            </div>
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-md lg:grid-cols-2">
+          <Card className="p-md">
+            <SectionTitle title="نسبة العمولة" icon="percent" />
+            <div className="flex items-center gap-sm">
+              <input
+                type="range"
+                min={5}
+                max={30}
+                value={commission}
+                onChange={(e) => setCommission(Number(e.target.value))}
+                className="flex-1"
+              />
+              <span className="font-headline-md text-headline-md text-on-surface">{commission}%</span>
+            </div>
+            <p className="mt-sm font-label-md text-label-md text-on-surface-variant">تُحتسب العمولة على قيمة الطلب فقط دون رسوم التوصيل — يتحكم بها السوبر أدمن فقط.</p>
+            <Button className="mt-sm" icon="save" variant="outline">حفظ العمولة</Button>
+          </Card>
+
+          <Card className="p-md">
+            <SectionTitle title="مزود التوصيل" icon="local_shipping" />
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              {r.deliveryProvider === "TALABAT_BETAK" ? "توصيل عبر مندوبين طلبات بيتك" : "توصيل عبر مندوبين المطعم الخاصين"}
+            </p>
+            <p className="mt-1 font-label-md text-label-md text-outline">رسوم توصيل أساسية: {EGP(r.deliveryFee)}</p>
+          </Card>
+        </div>
+
+        <Card className="p-md">
+          <SectionTitle title="الفروع" icon="store" />
+          <div className="grid grid-cols-1 gap-sm md:grid-cols-3">
+            {branches.map((b) => (
+              <div key={b.id} className="rounded-button border border-outline-variant p-md">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="font-label-lg text-label-lg text-on-surface">{b.name}</span>
+                  <Icon name={b.open ? "check_circle" : "cancel"} className={`text-[18px] ${b.open ? "text-success" : "text-error"}`} />
+                </div>
+                <p className="font-label-md text-label-md text-on-surface-variant">{b.manager} · {b.staff} موظفين</p>
+                <p className="font-label-md text-label-md text-on-surface-variant">{b.ordersToday} طلب اليوم</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-2 gap-sm md:grid-cols-4">
+          <Stat label="الإيرادات" value={EGP(restaurantStats.revenue)} icon="payments" tone="warn" />
+          <Stat label="الطلبات" value={String(restaurantStats.orders)} icon="receipt_long" tone="info" />
+          <Stat label="متوسط الطلب" value={EGP(restaurantStats.aov)} icon="calculate" tone="success" />
+          <Stat label="نسبة التكرار" value={`${restaurantStats.repeatRate}%`} icon="repeat" tone="info" />
+        </div>
+
+        <Card className="p-md">
+          <SectionTitle title="أداء المطعم أسبوعياً" icon="bar_chart" />
+          <Bars values={[...restaurantStats.series]} labels={[...restaurantStats.days]} />
+        </Card>
+
+        <Link to="/admin/settlements">
+          <Button icon="account_balance" variant="outline">عرض التسويات المالية للمطعم</Button>
+        </Link>
+      </div>
+    </DashboardShell>
+  );
+}

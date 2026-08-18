@@ -1,0 +1,553 @@
+/* Generated screen styles (namespaced per screen) */
+
+/* --- add-address --- */
+[data-screen="add-address"] .input-pill {
+            @apply w-full bg-surface-container-lowest border border-[#F0E8D0] rounded-input py-3 px-6 text-on-surface focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-colors;
+        }
+[data-screen="add-address"] .input-pill::placeholder {
+            @apply text-[#8A6742];
+        }
+[data-screen="add-address"] .type-chip {
+            @apply flex-1 py-3 px-4 rounded-button border-2 border-transparent bg-surface-container-lowest text-center cursor-pointer transition-all duration-200;
+        }
+[data-screen="add-address"] .type-chip input:checked + div {
+            @apply border-secondary text-secondary bg-surface-container-low font-bold;
+        }
+[data-screen="add-address"] .type-chip-content {
+            @apply border-2 border-[#F0E8D0] rounded-button flex flex-col items-center justify-center gap-2 h-full;
+        }
+
+/* --- admin-dashboard-overview-mobile --- */
+[data-screen="admin-dashboard-overview-mobile"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="admin-dashboard-overview-mobile"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="admin-dashboard-overview-mobile"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="admin-dashboard-overview-mobile"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- admin-orders-management-mobile --- */
+[data-screen="admin-orders-management-mobile"] .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="admin-orders-management-mobile"] .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1;
+        }
+[data-screen="admin-orders-management-mobile"] .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="admin-orders-management-mobile"] .no-scrollbar {
+            -ms-overflow-style: none;  
+            scrollbar-width: none;  
+        }
+[data-screen="admin-orders-management-mobile"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- business-type-selection --- */
+[data-screen="business-type-selection"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="business-type-selection"] .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+[data-screen="business-type-selection"] .card-base {
+            transition: all 0.2s ease-in-out;
+        }
+[data-screen="business-type-selection"] .card-base:hover {
+            box-shadow: 0 4px 8px rgba(94, 60, 26, 0.04);
+            transform: translateY(-2px);
+        }
+[data-screen="business-type-selection"] .card-active {
+            border-color: #FFD502 !important;
+            box-shadow: inset 0 0 0 1px #FFD502;
+            background-color: #FFFDF5;
+        }
+[data-screen="business-type-selection"] .card-active .icon-container {
+            background-color: #FFD502;
+            color: #5E3C1A;
+        }
+[data-screen="business-type-selection"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- checkout --- */
+[data-screen="checkout"] .material-symbols-outlined {
+          font-variation-settings:
+          'FILL' 0,
+          'wght' 400,
+          'GRAD' 0,
+          'opsz' 24
+        }
+[data-screen="checkout"] .icon-filled {
+          font-variation-settings:
+          'FILL' 1,
+          'wght' 400,
+          'GRAD' 0,
+          'opsz' 24
+        }
+[data-screen="checkout"] *::-webkit-scrollbar {
+            display: none;
+        }
+
+/* --- delivery-completed --- */
+[data-screen="delivery-completed"] .check-anim {
+            animation: delivery-completed-popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+            transform: scale(0.5);
+        }
+@keyframes delivery-completed-popIn {
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+[data-screen="delivery-completed"] .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #ffd502;
+            opacity: 0;
+        }
+[data-screen="delivery-completed"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- driver-earnings-dashboard --- */
+[data-screen="driver-earnings-dashboard"] {
+            background-color: #fbf9f1; 
+            color: #1b1c17; 
+        }
+[data-screen="driver-earnings-dashboard"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="driver-earnings-dashboard"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="driver-earnings-dashboard"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- driver-home-online --- */
+[data-screen="driver-home-online"] .pulse-ring {
+            animation: driver-home-online-pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+@keyframes driver-home-online-pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            80%, 100% { transform: scale(2); opacity: 0; }
+        }
+[data-screen="driver-home-online"] .pulse-dot {
+            animation: driver-home-online-pulse-dot 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) -.4s infinite;
+        }
+@keyframes driver-home-online-pulse-dot {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1); }
+            100% { transform: scale(0.8); }
+        }
+[data-screen="driver-home-online"] .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+[data-screen="driver-home-online"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- driver-operations-mobile --- */
+[data-screen="driver-operations-mobile"] .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="driver-operations-mobile"] .bottom-sheet-handle {
+            width: 40px;
+            height: 4px;
+            background-color: #dcdad2; 
+            border-radius: 2px;
+            margin: 8px auto;
+        }
+[data-screen="driver-operations-mobile"] .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="driver-operations-mobile"] .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="driver-operations-mobile"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- finance-payouts-mobile --- */
+[data-screen="finance-payouts-mobile"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- home-discovery --- */
+[data-screen="home-discovery"] {
+            background-color: #FFFDF5;
+        }
+[data-screen="home-discovery"] .card-level-1 {
+            background-color: #FFFFFF;
+            border: 1px solid #F0E8D0;
+            border-radius: 16px;
+        }
+[data-screen="home-discovery"] .card-level-2:hover {
+            box-shadow: 0 4px 8px rgba(94, 60, 26, 0.04);
+            transform: translateY(-2px);
+            transition: all 0.2s ease;
+        }
+[data-screen="home-discovery"] .btn-primary {
+            background-color: #FFD502;
+            color: #5E3C1A;
+            font-weight: bold;
+            border-radius: 12px;
+        }
+[data-screen="home-discovery"] .input-pill {
+            background-color: #FFFFFF;
+            border: 1px solid #F0E8D0;
+            border-radius: 50px;
+        }
+[data-screen="home-discovery"] .input-pill:focus-within {
+            border-color: #FFD502;
+            box-shadow: inset 0 0 0 1px #FFD502;
+        }
+
+/* --- location-selection --- */
+[data-screen="location-selection"] {
+            background-color: theme('colors.surface');
+            color: theme('colors.on-surface');
+        }
+[data-screen="location-selection"] .bg-pattern {
+            background-image: radial-gradient(theme('colors.surface-container-high') 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+/* --- login-screen --- */
+[data-screen="login-screen"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="login-screen"] .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+[data-screen="login-screen"] .btn-hover-effect {
+            transition: all 0.2s ease-in-out;
+        }
+[data-screen="login-screen"] .btn-hover-effect:active {
+            transform: scale(0.98);
+        }
+
+/* --- merchant-analytics --- */
+[data-screen="merchant-analytics"] {
+            background-color: #FFFDF5; 
+            color: #1b1c17;
+            -webkit-font-smoothing: antialiased;
+        }
+[data-screen="merchant-analytics"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="merchant-analytics"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="merchant-analytics"] #salesChart {
+            max-height: 250px;
+        }
+[data-screen="merchant-analytics"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- merchant-catalog-restaurant --- */
+[data-screen="merchant-catalog-restaurant"] {
+            background-color: #FFFDF5;
+            -webkit-tap-highlight-color: transparent;
+        }
+[data-screen="merchant-catalog-restaurant"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="merchant-catalog-restaurant"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="merchant-catalog-restaurant"] .horizontal-scroll-container {
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+[data-screen="merchant-catalog-restaurant"] .toggle-checkbox:checked {
+            right: 0;
+            border-color: #FFD502;
+        }
+[data-screen="merchant-catalog-restaurant"] .toggle-checkbox:checked + .toggle-label {
+            background-color: #FFD502;
+        }
+[data-screen="merchant-catalog-restaurant"] .toggle-checkbox:checked + .toggle-label:after {
+            transform: translateX(-100%);
+            border-color: white;
+        }
+[data-screen="merchant-catalog-restaurant"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- merchant-dashboard-restaurant --- */
+[data-screen="merchant-dashboard-restaurant"] {
+            background-color: #FFFDF5; 
+        }
+[data-screen="merchant-dashboard-restaurant"] .toggle-checkbox:checked {
+            right: 0;
+            border-color: #FFD502;
+        }
+[data-screen="merchant-dashboard-restaurant"] .toggle-checkbox:checked + .toggle-label {
+            background-color: #FFD502;
+        }
+[data-screen="merchant-dashboard-restaurant"] .toggle-checkbox:checked + .toggle-label:after {
+            transform: translateX(100%);
+            border-color: white;
+        }
+[data-screen="merchant-dashboard-restaurant"] .toggle-label {
+            width: 3rem;
+            height: 1.5rem;
+            background-color: #e4e3db;
+            border-radius: 9999px;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+[data-screen="merchant-dashboard-restaurant"] .toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 0.125rem;
+            left: 0.125rem;
+            width: 1.25rem;
+            height: 1.25rem;
+            background-color: white;
+            border-radius: 50%;
+            transition: transform 0.2s ease-in-out;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+[data-screen="merchant-dashboard-restaurant"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- merchant-management-mobile --- */
+[data-screen="merchant-management-mobile"] {
+            -webkit-tap-highlight-color: transparent;
+        }
+[data-screen="merchant-management-mobile"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="merchant-management-mobile"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="merchant-management-mobile"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- merchant-orders-management --- */
+[data-screen="merchant-orders-management"] .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="merchant-orders-management"] .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+[data-screen="merchant-orders-management"] .card-shadow-hover:hover {
+            box-shadow: 0 4px 8px rgba(94, 60, 26, 0.04);
+            transform: translateY(-2px);
+            transition: all 0.2s ease-in-out;
+        }
+[data-screen="merchant-orders-management"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- my-orders --- */
+[data-screen="my-orders"] .card-hover:hover {
+            box-shadow: 0 4px 8px rgba(94, 60, 26, 0.04);
+            transform: translateY(-2px);
+        }
+
+/* --- navigation-to-customer --- */
+[data-screen="navigation-to-customer"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="navigation-to-customer"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- new-delivery-request --- */
+[data-screen="new-delivery-request"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="new-delivery-request"] .timer-ring {
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            animation: new-delivery-request-countdown 25s linear forwards;
+        }
+@keyframes new-delivery-request-countdown {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: 283; }
+        }
+[data-screen="new-delivery-request"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- new-order-alert --- */
+[data-screen="new-order-alert"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="new-order-alert"] .bg-pattern {
+            background-color: #ffd502;
+            background-image: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(112, 92, 0, 0.03) 10px,
+                rgba(112, 92, 0, 0.03) 20px
+            );
+        }
+@keyframes new-order-alert-slideUpFade {
+            0% { transform: translateY(40px) scale(0.95); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+[data-screen="new-order-alert"] .animate-modal-enter {
+            animation: new-order-alert-slideUpFade 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+@keyframes new-order-alert-pulseRing {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+[data-screen="new-order-alert"] .animate-pulse-ring::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background-color: #ba1a1a;
+            animation: new-order-alert-pulseRing 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            z-index: -1;
+        }
+[data-screen="new-order-alert"] {
+      min-height: max(884px, 100dvh);
+    }
+
+/* --- order-tracking --- */
+[data-screen="order-tracking"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+/* --- otp-verification --- */
+[data-screen="otp-verification"] {
+    background-color: #fbf9f1; 
+    color: #1b1c17; 
+  }
+[data-screen="otp-verification"] .otp-input:focus {
+    border-color: #ffd502 !important; 
+    outline: none;
+    box-shadow: inset 0 0 0 1px #ffd502;
+  }
+
+/* --- pharmacy-listing --- */
+[data-screen="pharmacy-listing"] {
+            background-color: #FFFDF5;
+        }
+[data-screen="pharmacy-listing"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="pharmacy-listing"] .icon-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+/* --- pharmacy-listing (inline) --- */
+[data-screen="pharmacy-listing"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="pharmacy-listing"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+/* --- profile --- */
+[data-screen="profile"] {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            -webkit-tap-highlight-color: transparent;
+        }
+[data-screen="profile"] .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid theme('colors.surface-variant');
+        }
+[data-screen="profile"] .menu-item-hover {
+            transition: all 0.2s ease-in-out;
+        }
+[data-screen="profile"] .menu-item-hover:hover, [data-screen="profile"] .menu-item-hover:active {
+            background-color: theme('colors.surface-container-low');
+            box-shadow: 0 4px 8px rgba(94, 60, 26, 0.04);
+            transform: translateY(-1px);
+        }
+
+/* --- restaurant-listing --- */
+[data-screen="restaurant-listing"] .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="restaurant-listing"] .no-scrollbar {
+            -ms-overflow-style: none;  
+            scrollbar-width: none;  
+        }
+
+/* --- search --- */
+[data-screen="search"] { background-color: #FFFDF5; }
+[data-screen="search"] .card-level-1 { background-color: #FFFFFF; border: 1px solid #F0E8D0; }
+[data-screen="search"] .card-hover:hover { box-shadow: 0 4px 8px rgba(94, 60, 26, 0.04); }
+[data-screen="search"] .primary-btn { background-color: #FFD502; color: #5E3C1A; font-weight: bold; border-radius: 12px; }
+[data-screen="search"] .secondary-btn { background-color: #FFFFFF; border: 2px solid #5E3C1A; color: #5E3C1A; border-radius: 12px; }
+[data-screen="search"] .ghost-btn { color: #8A6742; }
+[data-screen="search"] .search-input { border: 1px solid #F0E8D0; border-radius: 50px; background-color: #FFFFFF; }
+[data-screen="search"] .search-input:focus { border-color: #FFD502; border-width: 1px; outline: none; box-shadow: inset 0 0 0 1px #FFD502; }
+[data-screen="search"] .search-input::placeholder { color: #8A6742; }
+[data-screen="search"] .chip { border: 1px solid #F0E8D0; border-radius: 50px; background-color: #FFFFFF; }
+
+/* --- shopping-cart --- */
+[data-screen="shopping-cart"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1;
+        }
+
+/* --- sign-up-screen --- */
+[data-screen="sign-up-screen"] .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+
+/* --- splash-screen --- */
+[data-screen="splash-screen"] .splash-pulse {
+            animation: splash-screen-pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+@keyframes splash-screen-pulse-soft {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.95;
+                transform: scale(0.98);
+            }
+        }
+
+/* --- store-details-restaurant --- */
+[data-screen="store-details-restaurant"] .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="store-details-restaurant"] .material-symbols-outlined.filled {
+          font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+[data-screen="store-details-restaurant"] .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+[data-screen="store-details-restaurant"] .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+/* --- welcome-screen --- */
+[data-screen="welcome-screen"] .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
