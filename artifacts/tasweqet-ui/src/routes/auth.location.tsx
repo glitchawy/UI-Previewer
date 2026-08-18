@@ -112,7 +112,7 @@ function AuthLocation() {
     setSearching(true);
     try {
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&accept-language=ar`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&accept-language=ar&countrycodes=eg`,
       );
       setResults((await r.json()) as SearchResult[]);
     } catch { setResults([]); }
