@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/request-otp:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Request OTP for phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "200":
+          description: OTP requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpRequestResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP and create session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "200":
+          description: OTP verified, session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/location:
+    patch:
+      operationId: updateLocation
+      tags: [auth]
+      summary: Save user location after login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationUpdate"
+      responses:
+        "200":
+          description: Location saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationSaveResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +118,86 @@ components:
       required:
         - status
 
+    OtpRequest:
+      type: object
+      required: [phone, role]
+      properties:
+        phone:
+          type: string
+          description: Phone number in Egyptian format e.g. 01012345678
+        role:
+          type: string
+          enum: [customer, partner, driver]
+
+    OtpRequestResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    OtpVerify:
+      type: object
+      required: [phone, otp, role]
+      properties:
+        phone:
+          type: string
+        otp:
+          type: string
+          description: 6-digit OTP code
+        role:
+          type: string
+          enum: [customer, partner, driver]
+
+    AuthUser:
+      type: object
+      required: [id, phone, role]
+      properties:
+        id:
+          type: number
+        phone:
+          type: string
+        role:
+          type: string
+        name:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+
+    AuthSession:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/AuthUser"
+
+    LocationUpdate:
+      type: object
+      required: [lat, lng, token]
+      properties:
+        lat:
+          type: number
+        lng:
+          type: number
+        token:
+          type: string
+
+    LocationSaveResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

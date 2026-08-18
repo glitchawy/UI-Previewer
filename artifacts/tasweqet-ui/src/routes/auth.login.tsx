@@ -1,16 +1,13 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AuthShell, Button, Field, Icon } from "@/components/tb/shell";
+import { useRequestOtp } from "@workspace/api-client-react";
 
 export const Route = createFileRoute("/auth/login")({
   head: () => ({
     meta: [
       { title: "تسجيل الدخول | طلبات بيتك" },
-      { name: "description", content: "سجّل دخولك برقم موبايلك واستلم كود التأكيد على واتساب." },
-      { property: "og:title", content: "تسجيل الدخول | طلبات بيتك" },
-      { property: "og:description", content: "سجّل دخولك برقم موبايلك واستلم كود التأكيد على واتساب." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "description", content: "سجّل دخولك برقم موبايلك واستلم كود التأكيد." },
     ],
   }),
   component: AuthLogin,
@@ -25,10 +22,36 @@ const loginRoles: { value: Role; label: string; icon: string }[] = [
 ];
 
 function AuthLogin() {
+  const navigate = useNavigate();
   const [role, setRole] = useState<Role>("customer");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
+
+  const requestOtp = useRequestOtp({
+    mutation: {
+      onSuccess: () => {
+        navigate({ to: "/auth/otp", search: { role, phone } });
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        setError(msg ?? "حصل خطأ، حاول تاني");
+      },
+    },
+  });
+
+  function handleSubmit() {
+    setError("");
+    const cleaned = phone.replace(/\s/g, "");
+    if (!cleaned || cleaned.length < 10) {
+      setError("أدخل رقم موبايل صحيح");
+      return;
+    }
+    requestOtp.mutate({ data: { phone: cleaned, role } });
+  }
 
   return (
     <AuthShell title="تسجيل الدخول" subtitle="ادخل برقم موبايلك عشان نبعتلك كود التأكيد" back="/auth/welcome">
+
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">رقم الموبايل</span>
         <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary">
@@ -38,6 +61,9 @@ function AuthLogin() {
           <input
             type="tel"
             placeholder="100 123 4567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
           />
         </span>
@@ -71,21 +97,32 @@ function AuthLogin() {
         </div>
       </div>
 
-      <Link to="/auth/otp" search={{ role }}>
-        <Button className="w-full" icon="arrow_back">متابعة</Button>
-      </Link>
+      {error && (
+        <div className="flex items-center gap-2 rounded-card bg-error-container p-md">
+          <Icon name="error" className="text-[18px] text-on-error-container" />
+          <p className="font-label-md text-label-md text-on-error-container">{error}</p>
+        </div>
+      )}
 
+      <Button
+        className="w-full"
+        icon="arrow_back"
+        onClick={handleSubmit}
+        disabled={requestOtp.isPending}
+      >
+        {requestOtp.isPending ? "جاري الإرسال..." : "متابعة"}
+      </Button>
 
       <div className="flex items-center gap-2 rounded-card bg-success/10 p-md">
-        <Icon name="chat" className="text-[18px] text-success" />
-        <p className="font-label-md text-label-md text-success">هنبعتلك كود التأكيد على واتساب</p>
+        <Icon name="sms" className="text-[18px] text-success" />
+        <p className="font-label-md text-label-md text-success">هنبعتلك كود التأكيد برسالة SMS</p>
       </div>
 
       <p className="text-center font-body-md text-body-md text-on-surface-variant">
         مفيش حساب؟{" "}
-        <Link to="/auth/register" className="text-secondary hover:underline">
+        <a href="/auth/register" className="text-secondary hover:underline">
           إنشاء حساب جديد
-        </Link>
+        </a>
       </p>
     </AuthShell>
   );
