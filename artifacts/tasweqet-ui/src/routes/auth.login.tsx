@@ -56,7 +56,7 @@ function AuthLogin() {
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        setError(msg ?? "حصل خطأ، حاول تاني");
+        setError(msg ?? "اتاكد من رقم التليفون , او اعمل اكونت جديد");
       },
     },
   });
