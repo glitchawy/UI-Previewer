@@ -67,11 +67,18 @@ function AuthOtp() {
             lng: data.user.lng ?? null,
           },
         });
-        // Customer → location screen first; others go straight to dashboard
-        if (role === "customer") {
-          navigate({ to: "/auth/location" });
+        if (type === "register") {
+          // New account → role-specific onboarding
+          if (role === "customer") navigate({ to: "/auth/location" });
+          else if (role === "partner") navigate({ to: "/auth/register-restaurant" });
+          else navigate({ to: "/auth/driver" });
         } else {
-          navigate({ to: getRoleDashboard(role) });
+          // Login → straight to dashboard (or location screen if customer has no saved coords)
+          if (role === "customer") {
+            navigate({ to: data.user.lat ? "/app" : "/auth/location" });
+          } else {
+            navigate({ to: getRoleDashboard(role) });
+          }
         }
       },
       onError: (err: unknown) => {

@@ -66,8 +66,8 @@ function AuthLocation() {
 
   const updateLocation = useUpdateLocation({
     mutation: {
-      onSuccess: () => navigate({ to: "/app" }),
-      onError: () => navigate({ to: "/app" }),
+      onSuccess: () => navigate({ to: "/auth/onboard-customer" }),
+      onError: () => navigate({ to: "/auth/onboard-customer" }),
     },
   });
 
@@ -139,7 +139,7 @@ function AuthLocation() {
     if (geo.status === "success" && token) {
       updateLocation.mutate({ data: { lat: geo.lat, lng: geo.lng, token } });
     } else {
-      navigate({ to: "/app" });
+      navigate({ to: "/auth/onboard-customer" });
     }
   }
 
@@ -299,7 +299,7 @@ function AuthLocation() {
 
       {/* Skip link */}
       <button
-        onClick={() => navigate({ to: "/app" })}
+        onClick={() => navigate({ to: "/auth/onboard-customer" })}
         className="text-center font-label-lg text-label-lg text-outline hover:text-on-surface-variant transition"
       >
         تخطي في الوقت الحالي

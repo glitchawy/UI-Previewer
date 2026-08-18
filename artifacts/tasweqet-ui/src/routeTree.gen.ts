@@ -42,7 +42,9 @@ import { Route as AppWalletRouteImport } from './routes/app.wallet'
 import { Route as AuthDriverRouteImport } from './routes/auth.driver'
 import { Route as AuthLocationRouteImport } from './routes/auth.location'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
+import { Route as AuthOnboardCustomerRouteImport } from './routes/auth.onboard-customer'
 import { Route as AuthOtpRouteImport } from './routes/auth.otp'
+import { Route as AuthPendingRouteImport } from './routes/auth.pending'
 import { Route as AuthRegisterRouteImport } from './routes/auth.register'
 import { Route as AuthRegisterRestaurantRouteImport } from './routes/auth.register-restaurant'
 import { Route as AuthWelcomeRouteImport } from './routes/auth.welcome'
@@ -283,9 +285,19 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthOnboardCustomerRoute = AuthOnboardCustomerRouteImport.update({
+  id: '/auth/onboard-customer',
+  path: '/auth/onboard-customer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthOtpRoute = AuthOtpRouteImport.update({
   id: '/auth/otp',
   path: '/auth/otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthPendingRoute = AuthPendingRouteImport.update({
+  id: '/auth/pending',
+  path: '/auth/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRegisterRoute = AuthRegisterRouteImport.update({
@@ -698,7 +710,9 @@ export interface FileRoutesByFullPath {
   '/auth/driver': typeof AuthDriverRoute
   '/auth/location': typeof AuthLocationRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/onboard-customer': typeof AuthOnboardCustomerRoute
   '/auth/otp': typeof AuthOtpRoute
+  '/auth/pending': typeof AuthPendingRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/register-restaurant': typeof AuthRegisterRestaurantRoute
   '/auth/welcome': typeof AuthWelcomeRoute
@@ -808,7 +822,9 @@ export interface FileRoutesByTo {
   '/auth/driver': typeof AuthDriverRoute
   '/auth/location': typeof AuthLocationRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/onboard-customer': typeof AuthOnboardCustomerRoute
   '/auth/otp': typeof AuthOtpRoute
+  '/auth/pending': typeof AuthPendingRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/register-restaurant': typeof AuthRegisterRestaurantRoute
   '/auth/welcome': typeof AuthWelcomeRoute
@@ -919,7 +935,9 @@ export interface FileRoutesById {
   '/auth/driver': typeof AuthDriverRoute
   '/auth/location': typeof AuthLocationRoute
   '/auth/login': typeof AuthLoginRoute
+  '/auth/onboard-customer': typeof AuthOnboardCustomerRoute
   '/auth/otp': typeof AuthOtpRoute
+  '/auth/pending': typeof AuthPendingRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/register-restaurant': typeof AuthRegisterRestaurantRoute
   '/auth/welcome': typeof AuthWelcomeRoute
@@ -1362,7 +1380,9 @@ export interface RootRouteChildren {
   AuthDriverRoute: typeof AuthDriverRoute
   AuthLocationRoute: typeof AuthLocationRoute
   AuthLoginRoute: typeof AuthLoginRoute
+  AuthOnboardCustomerRoute: typeof AuthOnboardCustomerRoute
   AuthOtpRoute: typeof AuthOtpRoute
+  AuthPendingRoute: typeof AuthPendingRoute
   AuthRegisterRoute: typeof AuthRegisterRoute
   AuthRegisterRestaurantRoute: typeof AuthRegisterRestaurantRoute
   AuthWelcomeRoute: typeof AuthWelcomeRoute
@@ -2299,7 +2319,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthDriverRoute: AuthDriverRoute,
   AuthLocationRoute: AuthLocationRoute,
   AuthLoginRoute: AuthLoginRoute,
+  AuthOnboardCustomerRoute: AuthOnboardCustomerRoute,
   AuthOtpRoute: AuthOtpRoute,
+  AuthPendingRoute: AuthPendingRoute,
   AuthRegisterRoute: AuthRegisterRoute,
   AuthRegisterRestaurantRoute: AuthRegisterRestaurantRoute,
   AuthWelcomeRoute: AuthWelcomeRoute,

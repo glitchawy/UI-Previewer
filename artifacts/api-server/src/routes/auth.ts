@@ -141,6 +141,33 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/auth/profile  — update the logged-in user's name
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch("/auth/profile", async (req, res): Promise<void> => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "غير مصرح" });
+    return;
+  }
+  const token = auth.slice(7);
+  const { name } = req.body as { name?: string };
+  if (!name?.trim()) {
+    res.status(400).json({ error: "الاسم مطلوب" });
+    return;
+  }
+  const rows = await db
+    .update(usersTable)
+    .set({ name: name.trim() })
+    .where(eq(usersTable.sessionToken, token))
+    .returning();
+  if (rows.length === 0) {
+    res.status(401).json({ error: "الجلسة منتهية" });
+    return;
+  }
+  res.json({ success: true, name: rows[0].name });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/auth/me  — validate Bearer token, return current user
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/auth/me", async (req, res): Promise<void> => {
