@@ -6,10 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OtpVerifyRole } from './otpVerifyRole';
+import type { OtpVerifyType } from './otpVerifyType';
 
 export interface OtpVerify {
   phone: string;
   /** 6-digit OTP code */
   otp: string;
   role: OtpVerifyRole;
+  /** login = existing user only; register = new user only */
+  type: OtpVerifyType;
 }

@@ -52,6 +52,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/register:
+    post:
+      operationId: registerOtp
+      tags: [auth]
+      summary: Request OTP for a new account (signup)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "200":
+          description: OTP sent for registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpRequestResponse"
+        "409":
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/verify-otp:
     post:
       operationId: verifyOtp
@@ -140,7 +171,7 @@ components:
 
     OtpVerify:
       type: object
-      required: [phone, otp, role]
+      required: [phone, otp, role, type]
       properties:
         phone:
           type: string
@@ -150,6 +181,10 @@ components:
         role:
           type: string
           enum: [customer, partner, driver]
+        type:
+          type: string
+          enum: [login, register]
+          description: login = existing user only; register = new user only
 
     AuthUser:
       type: object

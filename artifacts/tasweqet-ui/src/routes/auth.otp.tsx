@@ -5,6 +5,7 @@ import { useVerifyOtp } from "@workspace/api-client-react";
 import { saveSession } from "@/lib/auth-session";
 
 type Role = "customer" | "partner" | "driver";
+type FlowType = "login" | "register";
 
 const roleLabels: Record<Role, string> = {
   customer: "حساب عميل",
@@ -15,12 +16,14 @@ const roleLabels: Record<Role, string> = {
 const RESEND_SECONDS = 60;
 
 export const Route = createFileRoute("/auth/otp")({
-  validateSearch: (search: Record<string, unknown>): { role: Role; phone: string } => {
+  validateSearch: (search: Record<string, unknown>): { role: Role; phone: string; type: FlowType } => {
     const r = search["role"];
     const p = typeof search["phone"] === "string" ? search["phone"] : "";
+    const t = search["type"];
     return {
       role: r === "partner" || r === "driver" ? r : "customer",
       phone: p,
+      type: t === "register" ? "register" : "login",
     };
   },
   head: () => ({
@@ -30,14 +33,13 @@ export const Route = createFileRoute("/auth/otp")({
 });
 
 function AuthOtp() {
-  const { role, phone } = Route.useSearch();
+  const { role, phone, type } = Route.useSearch();
   const navigate = useNavigate();
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [error, setError] = useState("");
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Countdown timer
   useEffect(() => {
     if (seconds <= 0) return;
     const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
@@ -80,9 +82,7 @@ function AuthOtp() {
     next[idx] = ch;
     setDigits(next);
     setError("");
-    if (ch && idx < 5) {
-      inputRefs.current[idx + 1]?.focus();
-    }
+    if (ch && idx < 5) inputRefs.current[idx + 1]?.focus();
   }
 
   function handleKeyDown(idx: number, e: React.KeyboardEvent<HTMLInputElement>) {
@@ -101,26 +101,24 @@ function AuthOtp() {
 
   function handleConfirm() {
     const code = digits.join("");
-    if (code.length < 6) {
-      setError("أدخل الكود كامل (6 أرقام)");
-      return;
-    }
-    verifyOtp.mutate({ data: { phone, otp: code, role } });
+    if (code.length < 6) { setError("أدخل الكود كامل (6 أرقام)"); return; }
+    verifyOtp.mutate({ data: { phone, otp: code, role, type } });
   }
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
+  const backTo = type === "register" ? "/auth/register" : "/auth/login";
 
   return (
     <AuthShell
       title="تأكيد الكود"
       subtitle={`الكود اتبعت برسالة SMS لـ +20${phone}`}
-      back="/auth/login"
+      back={backTo}
     >
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
-        <Icon name="badge" className="text-[18px] text-on-secondary-container" />
+        <Icon name={type === "register" ? "person_add" : "login"} className="text-[18px] text-on-secondary-container" />
         <p className="font-label-md text-label-md text-on-secondary-container">
-          بتأكد {roleLabels[role]} — بعد التأكيد هتدخل لوحة الحساب بتاعتك
+          {type === "register" ? "إنشاء" : "دخول"} {roleLabels[role]} — أدخل الكود لتأكيد رقمك
         </p>
       </div>
 
@@ -137,9 +135,7 @@ function AuthOtp() {
             onChange={(e) => handleDigit(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             className={`size-11 rounded-button border-2 bg-surface-container-lowest text-center font-headline-md text-headline-md text-on-surface outline-none transition ${
-              error
-                ? "border-error focus:border-error"
-                : "border-outline-variant focus:border-secondary"
+              error ? "border-error" : "border-outline-variant focus:border-secondary"
             }`}
           />
         ))}
@@ -159,7 +155,6 @@ function AuthOtp() {
         </button>
       </div>
 
-      {/* Timer info */}
       <div className="flex items-center justify-between rounded-card bg-surface-container-low p-md">
         <span className="flex items-center gap-1.5 font-label-md text-label-md text-on-surface-variant">
           <Icon name="lock_clock" className="text-[18px]" />
@@ -167,7 +162,6 @@ function AuthOtp() {
         </span>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="flex items-center gap-2 rounded-card bg-error-container p-md">
           <Icon name="error" className="text-[18px] text-on-error-container" />
@@ -175,20 +169,15 @@ function AuthOtp() {
         </div>
       )}
 
-      <Button
-        className="w-full"
-        icon="check_circle"
-        onClick={handleConfirm}
-        disabled={verifyOtp.isPending}
-      >
+      <Button className="w-full" icon="check_circle" onClick={handleConfirm} disabled={verifyOtp.isPending}>
         {verifyOtp.isPending ? "جاري التأكيد..." : "تأكيد"}
       </Button>
 
       <button
-        onClick={() => navigate({ to: "/auth/login" })}
+        onClick={() => navigate({ to: backTo })}
         className="text-center font-body-md text-body-md text-secondary hover:underline"
       >
-        تغيير الرقم
+        {type === "register" ? "تغيير الرقم أو نوع الحساب" : "تغيير الرقم"}
       </button>
     </AuthShell>
   );

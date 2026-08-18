@@ -32,12 +32,27 @@ export const RequestOtpResponse = zod.object({
 
 
 /**
+ * @summary Request OTP for a new account (signup)
+ */
+export const RegisterOtpBody = zod.object({
+  "phone": zod.string().describe('Phone number in Egyptian format e.g. 01012345678'),
+  "role": zod.enum(['customer', 'partner', 'driver'])
+})
+
+export const RegisterOtpResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().optional()
+})
+
+
+/**
  * @summary Verify OTP and create session
  */
 export const VerifyOtpBody = zod.object({
   "phone": zod.string(),
   "otp": zod.string().describe('6-digit OTP code'),
-  "role": zod.enum(['customer', 'partner', 'driver'])
+  "role": zod.enum(['customer', 'partner', 'driver']),
+  "type": zod.enum(['login', 'register']).describe('login = existing user only; register = new user only')
 })
 
 export const VerifyOtpResponse = zod.object({

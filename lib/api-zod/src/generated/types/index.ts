@@ -17,3 +17,4 @@ export * from './otpRequestResponse';
 export * from './otpRequestRole';
 export * from './otpVerify';
 export * from './otpVerifyRole';
+export * from './otpVerifyType';

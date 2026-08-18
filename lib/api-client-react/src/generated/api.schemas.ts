@@ -38,11 +38,24 @@ export const OtpVerifyRole = {
   driver: 'driver',
 } as const;
 
+/**
+ * login = existing user only; register = new user only
+ */
+export type OtpVerifyType = typeof OtpVerifyType[keyof typeof OtpVerifyType];
+
+
+export const OtpVerifyType = {
+  login: 'login',
+  register: 'register',
+} as const;
+
 export interface OtpVerify {
   phone: string;
   /** 6-digit OTP code */
   otp: string;
   role: OtpVerifyRole;
+  /** login = existing user only; register = new user only */
+  type: OtpVerifyType;
 }
 
 export interface AuthUser {

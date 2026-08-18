@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useRequestOtp } from "@workspace/api-client-react";
 
@@ -21,7 +21,6 @@ const loginRoles: { value: Role; label: string; icon: string }[] = [
   { value: "driver", label: "مندوب", icon: "two_wheeler" },
 ];
 
-// Egyptian mobile: 01 + operator digit (0/1/2/5) + 8 digits
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 function validateEgPhone(raw: string): string | null {
@@ -30,8 +29,8 @@ function validateEgPhone(raw: string): string | null {
   if (!/^\d+$/.test(cleaned)) return "الرقم يجب أن يحتوي على أرقام فقط";
   if (cleaned.length !== 11) return "رقم الموبايل يجب أن يكون 11 رقماً";
   if (!cleaned.startsWith("01")) return "رقم الموبايل المصري يبدأ بـ 01";
-  if (!EG_PHONE_RE.test(cleaned)) return "الشبكة غير معروفة — يجب أن يبدأ برقم 010 أو 011 أو 012 أو 015";
-  return null; // valid
+  if (!EG_PHONE_RE.test(cleaned)) return "الشبكة غير معروفة — يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015";
+  return null;
 }
 
 function AuthLogin() {
@@ -47,7 +46,7 @@ function AuthLogin() {
   const requestOtp = useRequestOtp({
     mutation: {
       onSuccess: () => {
-        navigate({ to: "/auth/otp", search: { role, phone: cleaned } });
+        navigate({ to: "/auth/otp", search: { role, phone: cleaned, type: "login" } });
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -60,10 +59,7 @@ function AuthLogin() {
     setTouched(true);
     setError("");
     const validationError = validateEgPhone(phone);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+    if (validationError) { setError(validationError); return; }
     requestOtp.mutate({ data: { phone: cleaned, role } });
   }
 
@@ -73,12 +69,8 @@ function AuthLogin() {
       {/* Phone field */}
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">رقم الموبايل</span>
-        <span
-          className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${
-            inlineError ? "border-error" : "border-outline-variant"
-          }`}
-        >
-          <span className="font-label-lg text-label-lg text-on-surface-variant select-none">+20</span>
+        <span className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${inlineError ? "border-error" : "border-outline-variant"}`}>
+          <span className="select-none font-label-lg text-label-lg text-on-surface-variant">+20</span>
           <span className="h-5 w-px bg-outline-variant" />
           <Icon name="call" className="text-[20px] text-outline" />
           <input
@@ -86,10 +78,7 @@ function AuthLogin() {
             inputMode="numeric"
             placeholder="01X XXXX XXXX"
             value={phone}
-            onChange={(e) => {
-              setPhone(e.target.value);
-              setError("");
-            }}
+            onChange={(e) => { setPhone(e.target.value); setError(""); }}
             onBlur={() => setTouched(true)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
@@ -97,12 +86,9 @@ function AuthLogin() {
             dir="ltr"
           />
         </span>
-
-        {/* Inline hint under the field */}
         {inlineError && !error && (
           <span className="flex items-center gap-1 font-label-md text-label-md text-error">
-            <Icon name="error" className="text-[16px]" />
-            {inlineError}
+            <Icon name="error" className="text-[16px]" />{inlineError}
           </span>
         )}
       </label>
@@ -132,22 +118,42 @@ function AuthLogin() {
         </p>
       </div>
 
-      {/* API error */}
+      {/* API / validation error */}
       {error && (
-        <div className="flex items-center gap-2 rounded-card bg-error-container p-md">
-          <Icon name="error" className="text-[18px] text-on-error-container" />
-          <p className="font-label-md text-label-md text-on-error-container">{error}</p>
+        <div className="flex items-start gap-2 rounded-card bg-error-container p-md">
+          <Icon name="error" className="mt-0.5 text-[18px] text-on-error-container" />
+          <div>
+            <p className="font-label-md text-label-md text-on-error-container">{error}</p>
+            {error.includes("مش مسجل") && (
+              <Link
+                to="/auth/register"
+                className="mt-1 inline-flex items-center gap-1 font-label-md text-label-md text-on-error-container underline"
+              >
+                <Icon name="person_add" className="text-[16px]" />
+                سجّل حساب جديد
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
-      <Button
-        className="w-full"
-        icon="arrow_forward"
-        onClick={handleSubmit}
-        disabled={requestOtp.isPending}
-      >
-        {requestOtp.isPending ? "جاري الإرسال..." : "متابعة"}
+      {/* Login button */}
+      <Button className="w-full" icon="arrow_forward" onClick={handleSubmit} disabled={requestOtp.isPending}>
+        {requestOtp.isPending ? "جاري الإرسال..." : "دخول"}
       </Button>
+
+      {/* Sign up CTA */}
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-outline-variant" />
+        <span className="font-label-md text-label-md text-on-surface-variant">أو</span>
+        <span className="h-px flex-1 bg-outline-variant" />
+      </div>
+
+      <Link to="/auth/register">
+        <Button variant="outline" className="w-full" icon="person_add">
+          إنشاء حساب جديد
+        </Button>
+      </Link>
 
       <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-md">
         <Icon name="sms" className="text-[18px] text-on-surface-variant" />
