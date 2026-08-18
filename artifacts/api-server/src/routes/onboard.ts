@@ -53,6 +53,8 @@ router.post("/onboard/partner", async (req, res): Promise<void> => {
       hours: b.hours?.trim() || null,
       category: b.category?.trim() || null,
       deliveryType: b.deliveryType ?? "restaurant",
+      logoUrl: b.logoUrl?.trim() || null,
+      coverUrl: b.coverUrl?.trim() || null,
       status: "PENDING",
     })
     .returning();
@@ -90,6 +92,10 @@ router.post("/onboard/driver", async (req, res): Promise<void> => {
       area: b.area.trim(),
       vehicleType: b.vehicleType.trim(),
       documents: b.documents?.trim() || null,
+      nationalIdFrontUrl: b.nationalIdFrontUrl?.trim() || null,
+      nationalIdBackUrl: b.nationalIdBackUrl?.trim() || null,
+      criminalRecordUrl: b.criminalRecordUrl?.trim() || null,
+      licenseUrl: b.licenseUrl?.trim() || null,
       status: "PENDING",
     })
     .returning();
@@ -135,6 +141,8 @@ router.get("/admin/restaurants", async (req, res): Promise<void> => {
       hours: r.hours,
       category: r.category,
       deliveryType: r.deliveryType,
+      logoUrl: r.logoUrl,
+      coverUrl: r.coverUrl,
       status: r.status,
       createdAt: r.createdAt.toISOString(),
     })),
@@ -162,6 +170,10 @@ router.get("/admin/drivers", async (req, res): Promise<void> => {
       area: d.area,
       vehicleType: d.vehicleType,
       documents: d.documents,
+      nationalIdFrontUrl: d.nationalIdFrontUrl,
+      nationalIdBackUrl: d.nationalIdBackUrl,
+      criminalRecordUrl: d.criminalRecordUrl,
+      licenseUrl: d.licenseUrl,
       phone: phone ?? null,
       status: d.status,
       createdAt: d.createdAt.toISOString(),

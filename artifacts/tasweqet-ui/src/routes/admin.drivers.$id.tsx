@@ -5,6 +5,12 @@ import { adminNav } from "@/lib/tb/nav";
 import { EGP, drivers, driverWallet } from "@/lib/tb/data";
 import { useEffect } from "react";
 import { fetchDriverApplications, parseAppRouteId, type DriverApplication } from "@/lib/tb/applications";
+import { getToken } from "@/lib/auth-session";
+
+function storageUrl(objectPath: string): string {
+  const token = getToken();
+  return `/api/storage${objectPath}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
 
 export const Route = createFileRoute("/admin/drivers/$id")({
   head: () => ({
@@ -58,7 +64,12 @@ function StoredDriverDetail({ appId }: { appId: number }) {
       .catch(() => setApp(null));
   }, [appId]);
 
-  const docIds = app?.documents ? app.documents.split(",").filter(Boolean) : [];
+  const uploadedDocs: { key: string; label: string; url: string }[] = [
+    { key: "nationalIdFrontUrl", label: docLabels["national_id_front"], url: app?.nationalIdFrontUrl ?? "" },
+    { key: "nationalIdBackUrl",  label: docLabels["national_id_back"],  url: app?.nationalIdBackUrl ?? "" },
+    { key: "criminalRecordUrl",  label: docLabels["criminal_record"],   url: app?.criminalRecordUrl ?? "" },
+    { key: "licenseUrl",         label: docLabels["license"],           url: app?.licenseUrl ?? "" },
+  ].filter((d) => d.url);
 
   return (
     <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title={app?.fullName ?? "طلب تسجيل مندوب"}>
@@ -83,14 +94,40 @@ function StoredDriverDetail({ appId }: { appId: number }) {
             </Card>
             <Card className="p-md">
               <SectionTitle title="المستندات المرفوعة" icon="description" />
-              {docIds.length === 0 ? (
+              {uploadedDocs.length === 0 ? (
                 <p className="font-body-md text-body-md text-on-surface-variant">لا توجد مستندات مرفوعة.</p>
               ) : (
-                <div className="flex flex-col gap-2">
-                  {docIds.map((docId) => (
-                    <div key={docId} className="flex items-center gap-2 rounded-card border border-outline-variant p-md">
-                      <Icon name="check_circle" className="text-[20px] text-success" />
-                      <span className="font-body-md text-body-md text-on-surface">{docLabels[docId] ?? docId}</span>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {uploadedDocs.map((doc) => (
+                    <div key={doc.key} className="flex flex-col gap-2 rounded-card border border-outline-variant overflow-hidden">
+                      <a href={storageUrl(doc.url)} target="_blank" rel="noreferrer" className="block">
+                        <img
+                          src={storageUrl(doc.url)}
+                          alt={doc.label}
+                          className="w-full h-40 object-cover bg-surface-container"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = "none";
+                            img.nextElementSibling?.classList.remove("hidden");
+                          }}
+                        />
+                        <div className="hidden flex items-center justify-center h-40 bg-surface-container">
+                          <Icon name="description" className="text-[40px] text-on-surface-variant" />
+                        </div>
+                      </a>
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <Icon name="check_circle" className="text-[16px] text-success flex-shrink-0" />
+                        <span className="font-label-md text-label-md text-on-surface truncate">{doc.label}</span>
+                        <a
+                          href={storageUrl(doc.url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mr-auto flex items-center gap-1 font-label-md text-label-md text-primary"
+                        >
+                          <Icon name="open_in_new" className="text-[14px]" />
+                          فتح
+                        </a>
+                      </div>
                     </div>
                   ))}
                 </div>

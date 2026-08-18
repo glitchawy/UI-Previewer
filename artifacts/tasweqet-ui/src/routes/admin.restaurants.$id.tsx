@@ -5,6 +5,12 @@ import { adminNav } from "@/lib/tb/nav";
 import { EGP, branches, restaurantOf, restaurantStats } from "@/lib/tb/data";
 import { useEffect } from "react";
 import { fetchRestaurantApplications, parseAppRouteId, type RestaurantApplication } from "@/lib/tb/applications";
+import { getToken } from "@/lib/auth-session";
+
+function storageUrl(objectPath: string): string {
+  const token = getToken();
+  return `/api/storage${objectPath}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
 
 export const Route = createFileRoute("/admin/restaurants/$id")({
   head: () => ({
@@ -48,18 +54,41 @@ function StoredRestaurantDetail({ appId }: { appId: number }) {
           <Card className="p-md font-body-md text-body-md text-on-surface-variant">لم يتم العثور على الطلب.</Card>
         ) : (
           <>
-            <Card className="flex flex-wrap items-center justify-between gap-sm p-md">
-              <div>
-                <p className="font-headline-md text-headline-md text-on-surface">{app.name}</p>
-                <p className="font-label-md text-label-md text-on-surface-variant">
-                  {app.phone ?? "—"} · {app.email ?? "—"}
-                </p>
-                <p className="font-label-md text-label-md text-on-surface-variant">
-                  {app.address} · مواعيد العمل: {app.hours ?? "—"}
-                </p>
+            {/* Cover + logo header */}
+            <Card className="overflow-hidden">
+              <div
+                className="h-36 w-full bg-surface-container bg-cover bg-center"
+                style={app.coverUrl ? { backgroundImage: `url(${storageUrl(app.coverUrl)})` } : undefined}
+              >
+                {!app.coverUrl && (
+                  <div className="flex h-full items-center justify-center">
+                    <Icon name="image" className="text-[40px] text-on-surface-variant/30" />
+                  </div>
+                )}
               </div>
-              <StatusBadge status={app.status} label={appStatusLabels[app.status] ?? app.status} />
+              <div className="flex flex-wrap items-end gap-md p-md">
+                <div className="-mt-10 size-16 flex-shrink-0 overflow-hidden rounded-full border-4 border-surface-container-lowest bg-surface-container">
+                  {app.logoUrl ? (
+                    <img src={storageUrl(app.logoUrl!)} alt="شعار" className="size-full object-cover" />
+                  ) : (
+                    <div className="flex size-full items-center justify-center">
+                      <Icon name="storefront" className="text-[28px] text-on-surface-variant/40" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-headline-md text-headline-md text-on-surface">{app.name}</p>
+                  <p className="font-label-md text-label-md text-on-surface-variant">
+                    {app.phone ?? "—"} · {app.email ?? "—"}
+                  </p>
+                  <p className="font-label-md text-label-md text-on-surface-variant">
+                    {app.address} · مواعيد العمل: {app.hours ?? "—"}
+                  </p>
+                </div>
+                <StatusBadge status={app.status} label={appStatusLabels[app.status] ?? app.status} />
+              </div>
             </Card>
+
             <Card className="p-md">
               <SectionTitle title="بيانات الطلب" icon="description" />
               <div className="grid grid-cols-1 gap-sm md:grid-cols-2">
@@ -78,6 +107,31 @@ function StoredRestaurantDetail({ appId }: { appId: number }) {
                 ))}
               </div>
             </Card>
+
+            {/* Uploaded images */}
+            {(app.logoUrl || app.coverUrl) && (
+              <Card className="p-md">
+                <SectionTitle title="الصور المرفوعة" icon="image" />
+                <div className="grid grid-cols-2 gap-3">
+                  {app.logoUrl && (
+                    <div className="flex flex-col gap-1 rounded-card border border-outline-variant overflow-hidden">
+                      <a href={storageUrl(app.logoUrl!)} target="_blank" rel="noreferrer">
+                        <img src={storageUrl(app.logoUrl!)} alt="شعار المطعم" className="w-full h-32 object-contain bg-surface-container" />
+                      </a>
+                      <p className="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant">شعار المطعم</p>
+                    </div>
+                  )}
+                  {app.coverUrl && (
+                    <div className="flex flex-col gap-1 rounded-card border border-outline-variant overflow-hidden">
+                      <a href={storageUrl(app.coverUrl)} target="_blank" rel="noreferrer">
+                        <img src={storageUrl(app.coverUrl)} alt="صورة الغلاف" className="w-full h-32 object-cover bg-surface-container" />
+                      </a>
+                      <p className="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant">صورة الغلاف</p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
           </>
         )}
       </div>

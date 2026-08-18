@@ -99,7 +99,9 @@ export const OnboardPartnerBody = zod.object({
   "branches": zod.number().optional(),
   "hours": zod.string().optional(),
   "category": zod.string().optional().describe('Comma-separated category ids'),
-  "deliveryType": zod.enum(['restaurant', 'platform']).optional()
+  "deliveryType": zod.enum(['restaurant', 'platform']).optional(),
+  "logoUrl": zod.string().optional().describe('Object storage path for the restaurant logo'),
+  "coverUrl": zod.string().optional().describe('Object storage path for the restaurant cover image')
 })
 
 export const OnboardPartnerResponse = zod.object({
@@ -121,13 +123,37 @@ export const OnboardDriverBody = zod.object({
   "fullName": zod.string().min(1),
   "area": zod.string().min(1),
   "vehicleType": zod.string().min(1),
-  "documents": zod.string().optional().describe('Comma-separated ids of uploaded documents')
+  "documents": zod.string().optional().describe('Comma-separated ids of uploaded documents'),
+  "nationalIdFrontUrl": zod.string().optional().describe('Object storage path for national ID front'),
+  "nationalIdBackUrl": zod.string().optional().describe('Object storage path for national ID back'),
+  "criminalRecordUrl": zod.string().optional().describe('Object storage path for criminal record'),
+  "licenseUrl": zod.string().optional().describe('Object storage path for driver license')
 })
 
 export const OnboardDriverResponse = zod.object({
   "success": zod.boolean(),
   "id": zod.number(),
   "status": zod.string()
+})
+
+
+/**
+ * @summary Request a presigned GCS URL for a direct file upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
 })
 
 
@@ -147,6 +173,8 @@ export const ListRestaurantApplicationsResponseItem = zod.object({
   "hours": zod.string().nullish(),
   "category": zod.string().nullish(),
   "deliveryType": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "coverUrl": zod.string().nullish(),
   "status": zod.string(),
   "createdAt": zod.string().optional()
 })
@@ -163,6 +191,10 @@ export const ListDriverApplicationsResponseItem = zod.object({
   "area": zod.string(),
   "vehicleType": zod.string(),
   "documents": zod.string().nullish(),
+  "nationalIdFrontUrl": zod.string().nullish(),
+  "nationalIdBackUrl": zod.string().nullish(),
+  "criminalRecordUrl": zod.string().nullish(),
+  "licenseUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "status": zod.string(),
   "createdAt": zod.string().optional()

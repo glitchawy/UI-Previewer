@@ -27,6 +27,10 @@ export interface PartnerOnboard {
   /** Comma-separated category ids */
   category?: string;
   deliveryType?: PartnerOnboardDeliveryType;
+  /** Object storage path for the restaurant logo */
+  logoUrl?: string;
+  /** Object storage path for the restaurant cover image */
+  coverUrl?: string;
 }
 
 export interface DriverOnboard {
@@ -38,6 +42,14 @@ export interface DriverOnboard {
   vehicleType: string;
   /** Comma-separated ids of uploaded documents */
   documents?: string;
+  /** Object storage path for national ID front */
+  nationalIdFrontUrl?: string;
+  /** Object storage path for national ID back */
+  nationalIdBackUrl?: string;
+  /** Object storage path for criminal record */
+  criminalRecordUrl?: string;
+  /** Object storage path for driver license */
+  licenseUrl?: string;
 }
 
 export interface OnboardResult {
@@ -65,6 +77,10 @@ export interface RestaurantApplication {
   /** @nullable */
   category?: string | null;
   deliveryType: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  coverUrl?: string | null;
   status: string;
   createdAt?: string;
 }
@@ -78,9 +94,35 @@ export interface DriverApplication {
   /** @nullable */
   documents?: string | null;
   /** @nullable */
+  nationalIdFrontUrl?: string | null;
+  /** @nullable */
+  nationalIdBackUrl?: string | null;
+  /** @nullable */
+  criminalRecordUrl?: string | null;
+  /** @nullable */
+  licenseUrl?: string | null;
+  /** @nullable */
   phone?: string | null;
   status: string;
   createdAt?: string;
+}
+
+export interface RequestUploadUrlBody {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export type RequestUploadUrlResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};
+
+export interface RequestUploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: RequestUploadUrlResponseMetadata;
 }
 
 export interface HealthStatus {

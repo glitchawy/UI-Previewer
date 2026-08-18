@@ -15,6 +15,8 @@ export const restaurantsTable = pgTable("restaurants", {
   hours: text("hours"),
   category: text("category"),
   deliveryType: text("delivery_type", { enum: ["restaurant", "platform"] }).notNull().default("restaurant"),
+  logoUrl: text("logo_url"),
+  coverUrl: text("cover_url"),
   status: text("status", { enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "ACTIVE"] }).notNull().default("PENDING"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

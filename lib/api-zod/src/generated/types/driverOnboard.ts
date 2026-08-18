@@ -15,4 +15,12 @@ export interface DriverOnboard {
   vehicleType: string;
   /** Comma-separated ids of uploaded documents */
   documents?: string;
+  /** Object storage path for national ID front */
+  nationalIdFrontUrl?: string;
+  /** Object storage path for national ID back */
+  nationalIdBackUrl?: string;
+  /** Object storage path for criminal record */
+  criminalRecordUrl?: string;
+  /** Object storage path for driver license */
+  licenseUrl?: string;
 }

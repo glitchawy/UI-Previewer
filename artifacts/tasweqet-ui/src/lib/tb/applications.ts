@@ -14,6 +14,8 @@ export interface RestaurantApplication {
   hours: string | null;
   category: string | null;
   deliveryType: string;
+  logoUrl: string | null;
+  coverUrl: string | null;
   status: string;
   createdAt: string;
 }
@@ -25,6 +27,10 @@ export interface DriverApplication {
   area: string;
   vehicleType: string;
   documents: string | null;
+  nationalIdFrontUrl: string | null;
+  nationalIdBackUrl: string | null;
+  criminalRecordUrl: string | null;
+  licenseUrl: string | null;
   phone: string | null;
   status: string;
   createdAt: string;

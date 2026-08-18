@@ -15,6 +15,14 @@ export interface DriverApplication {
   /** @nullable */
   documents?: string | null;
   /** @nullable */
+  nationalIdFrontUrl?: string | null;
+  /** @nullable */
+  nationalIdBackUrl?: string | null;
+  /** @nullable */
+  criminalRecordUrl?: string | null;
+  /** @nullable */
+  licenseUrl?: string | null;
+  /** @nullable */
   phone?: string | null;
   status: string;
   createdAt?: string;

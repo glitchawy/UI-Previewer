@@ -21,4 +21,8 @@ export interface PartnerOnboard {
   /** Comma-separated category ids */
   category?: string;
   deliveryType?: PartnerOnboardDeliveryType;
+  /** Object storage path for the restaurant logo */
+  logoUrl?: string;
+  /** Object storage path for the restaurant cover image */
+  coverUrl?: string;
 }

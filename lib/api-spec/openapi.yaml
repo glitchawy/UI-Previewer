@@ -205,6 +205,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned GCS URL for a direct file upload
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL and object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/restaurants:
     get:
       operationId: listRestaurantApplications
@@ -269,6 +302,12 @@ components:
         deliveryType:
           type: string
           enum: [restaurant, platform]
+        logoUrl:
+          type: string
+          description: Object storage path for the restaurant logo
+        coverUrl:
+          type: string
+          description: Object storage path for the restaurant cover image
 
     DriverOnboard:
       type: object
@@ -286,6 +325,18 @@ components:
         documents:
           type: string
           description: Comma-separated ids of uploaded documents
+        nationalIdFrontUrl:
+          type: string
+          description: Object storage path for national ID front
+        nationalIdBackUrl:
+          type: string
+          description: Object storage path for national ID back
+        criminalRecordUrl:
+          type: string
+          description: Object storage path for criminal record
+        licenseUrl:
+          type: string
+          description: Object storage path for driver license
 
     OnboardResult:
       type: object
@@ -326,6 +377,10 @@ components:
           type: ["string", "null"]
         deliveryType:
           type: string
+        logoUrl:
+          type: ["string", "null"]
+        coverUrl:
+          type: ["string", "null"]
         status:
           type: string
         createdAt:
@@ -347,12 +402,50 @@ components:
           type: string
         documents:
           type: ["string", "null"]
+        nationalIdFrontUrl:
+          type: ["string", "null"]
+        nationalIdBackUrl:
+          type: ["string", "null"]
+        criminalRecordUrl:
+          type: ["string", "null"]
+        licenseUrl:
+          type: ["string", "null"]
         phone:
           type: ["string", "null"]
         status:
           type: string
         createdAt:
           type: string
+
+    RequestUploadUrlBody:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+        size:
+          type: number
+        contentType:
+          type: string
+
+    RequestUploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath, metadata]
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          type: object
+          required: [name, size, contentType]
+          properties:
+            name:
+              type: string
+            size:
+              type: number
+            contentType:
+              type: string
 
     HealthStatus:
       type: object

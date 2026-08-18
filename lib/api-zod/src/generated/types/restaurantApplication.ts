@@ -25,6 +25,10 @@ export interface RestaurantApplication {
   /** @nullable */
   category?: string | null;
   deliveryType: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  coverUrl?: string | null;
   status: string;
   createdAt?: string;
 }

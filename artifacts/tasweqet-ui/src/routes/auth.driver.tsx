@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Badge, Button, Icon, StatusBadge } from "@/components/tb/shell";
-import { getSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, getRoleDashboard, getToken } from "@/lib/auth-session";
+
+/** Build a URL to serve a stored object, attaching the session token as a query param
+ *  so plain <img src> and CSS backgrounds work without Bearer header support. */
+function storageUrl(objectPath: string): string {
+  const token = getToken();
+  return `/api/storage${objectPath}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
 
 export const Route = createFileRoute("/auth/driver")({
   beforeLoad: () => {
@@ -18,15 +25,6 @@ export const Route = createFileRoute("/auth/driver")({
   component: AuthDriver,
 });
 
-type DocStatus = "idle" | "uploaded";
-
-const requiredDocs = [
-  { id: "national_id_front", label: "صورة الرقم القومي (وجه)" },
-  { id: "national_id_back", label: "صورة الرقم القومي (ظهر)" },
-  { id: "criminal_record", label: "الفيش والتشبيه (السجل الجنائي)" },
-  { id: "license", label: "رخصة القيادة" },
-];
-
 const areas = ["المعادي", "مدينة نصر", "الدقي", "شبرا", "مصر الجديدة", "الزمالك", "الهرم", "المهندسين"];
 const vehicles = ["موتوسيكل", "دراجة هوائية", "سيارة"];
 
@@ -37,6 +35,114 @@ const statusLabels: Record<string, string> = {
   REJECTED: "مرفوض",
 };
 
+type DocKey = "nationalIdFrontUrl" | "nationalIdBackUrl" | "criminalRecordUrl" | "licenseUrl";
+
+const requiredDocs: { key: DocKey; label: string; accept: string }[] = [
+  { key: "nationalIdFrontUrl",  label: "صورة الرقم القومي (وجه)",              accept: "image/*" },
+  { key: "nationalIdBackUrl",   label: "صورة الرقم القومي (ظهر)",             accept: "image/*" },
+  { key: "criminalRecordUrl",   label: "الفيش والتشبيه (السجل الجنائي)",      accept: "image/*,application/pdf" },
+  { key: "licenseUrl",          label: "رخصة القيادة",                         accept: "image/*" },
+];
+
+/** Upload a file to object storage via presigned URL. Returns objectPath or throws. */
+async function uploadFileToStorage(file: File): Promise<string> {
+  const token = getToken();
+  // Step 1: get presigned URL
+  const urlRes = await fetch("/api/storage/uploads/request-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
+  });
+  if (!urlRes.ok) throw new Error("تعذّر الحصول على رابط الرفع");
+  const { uploadURL, objectPath } = (await urlRes.json()) as { uploadURL: string; objectPath: string };
+  // Step 2: PUT directly to GCS
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+  });
+  if (!putRes.ok) throw new Error("فشل رفع الملف إلى التخزين");
+  return objectPath;
+}
+
+function DocSlot({
+  label,
+  accept,
+  objectPath,
+  uploading,
+  onFile,
+}: {
+  label: string;
+  accept: string;
+  objectPath: string | null;
+  uploading: boolean;
+  onFile: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const uploaded = !!objectPath;
+
+  return (
+    <div
+      className={`flex items-center justify-between gap-2 rounded-card border p-md transition ${
+        uploaded ? "border-success bg-success/5" : "border-outline-variant"
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        {uploaded ? (
+          <img
+            src={storageUrl(objectPath)}
+            alt={label}
+            className="size-10 rounded-button object-cover border border-outline-variant flex-shrink-0"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <Icon
+            name={uploading ? "hourglass_empty" : "description"}
+            className={`text-[20px] flex-shrink-0 ${uploading ? "text-primary animate-spin" : "text-on-surface-variant"}`}
+          />
+        )}
+        <span className="font-body-md text-body-md text-on-surface truncate">{label}</span>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {uploaded && (
+          <span className="flex items-center gap-1 font-label-md text-label-md text-success">
+            <Icon name="check_circle" className="text-[14px]" />
+            تم
+          </span>
+        )}
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+          className={`flex items-center gap-1 rounded-button px-3 py-1.5 font-label-md text-label-md transition ${
+            uploading
+              ? "bg-surface-container text-on-surface-variant cursor-wait"
+              : uploaded
+              ? "bg-secondary-container/50 text-on-secondary-container"
+              : "bg-secondary-container text-on-secondary-container"
+          }`}
+        >
+          <Icon name={uploading ? "hourglass_empty" : uploaded ? "refresh" : "upload"} className="text-[14px]" />
+          {uploading ? "جاري..." : uploaded ? "تغيير" : "رفع"}
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) { onFile(f); e.target.value = ""; }
+        }}
+      />
+    </div>
+  );
+}
+
 function AuthDriver() {
   const navigate = useNavigate();
   const session = getSession();
@@ -44,17 +150,37 @@ function AuthDriver() {
   const [fullName, setFullName] = useState("");
   const [area, setArea] = useState(areas[0]);
   const [vehicle, setVehicle] = useState(vehicles[0]);
-  const [docs, setDocs] = useState<Record<string, DocStatus>>(
-    Object.fromEntries(requiredDocs.map((d) => [d.id, "idle"]))
-  );
+
+  const [docPaths, setDocPaths] = useState<Record<DocKey, string | null>>({
+    nationalIdFrontUrl: null,
+    nationalIdBackUrl: null,
+    criminalRecordUrl: null,
+    licenseUrl: null,
+  });
+  const [docUploading, setDocUploading] = useState<Record<DocKey, boolean>>({
+    nationalIdFrontUrl: false,
+    nationalIdBackUrl: false,
+    criminalRecordUrl: false,
+    licenseUrl: false,
+  });
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const uploadedCount = Object.values(docs).filter((s) => s === "uploaded").length;
+  const uploadedCount = Object.values(docPaths).filter(Boolean).length;
   const allUploaded = uploadedCount === requiredDocs.length;
 
-  function toggleDoc(id: string) {
-    setDocs((prev) => ({ ...prev, [id]: prev[id] === "uploaded" ? "idle" : "uploaded" }));
+  async function handleDocFile(key: DocKey, file: File) {
+    setDocUploading((prev) => ({ ...prev, [key]: true }));
+    setError("");
+    try {
+      const objectPath = await uploadFileToStorage(file);
+      setDocPaths((prev) => ({ ...prev, [key]: objectPath }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل رفع المستند");
+    } finally {
+      setDocUploading((prev) => ({ ...prev, [key]: false }));
+    }
   }
 
   async function handleSubmit() {
@@ -73,10 +199,11 @@ function AuthDriver() {
           fullName: fullName.trim(),
           area,
           vehicleType: vehicle,
-          documents: requiredDocs
-            .filter((d) => docs[d.id] === "uploaded")
-            .map((d) => d.id)
-            .join(","),
+          documents: requiredDocs.filter((d) => docPaths[d.key]).map((d) => d.key).join(","),
+          nationalIdFrontUrl: docPaths.nationalIdFrontUrl,
+          nationalIdBackUrl: docPaths.nationalIdBackUrl,
+          criminalRecordUrl: docPaths.criminalRecordUrl,
+          licenseUrl: docPaths.licenseUrl,
         }),
       });
       if (!res.ok) {
@@ -161,39 +288,21 @@ function AuthDriver() {
           {uploadedCount}/{requiredDocs.length} مستندات
         </Badge>
       </div>
+      <p className="font-label-md text-label-md text-on-surface-variant -mt-2">
+        يُقبل: صور (JPG / PNG) أو PDF
+      </p>
 
       <div className="tb-stagger flex flex-col gap-2">
-        {requiredDocs.map((d) => {
-          const uploaded = docs[d.id] === "uploaded";
-          return (
-            <div
-              key={d.id}
-              className={`flex items-center justify-between gap-2 rounded-card border p-md transition ${
-                uploaded ? "border-success bg-success/5" : "border-outline-variant"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Icon
-                  name={uploaded ? "check_circle" : "description"}
-                  className={`text-[20px] ${uploaded ? "text-success" : "text-on-surface-variant"}`}
-                />
-                <span className="font-body-md text-body-md text-on-surface">{d.label}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleDoc(d.id)}
-                className={`flex items-center gap-1 rounded-button px-3 py-1.5 font-label-md text-label-md transition ${
-                  uploaded
-                    ? "bg-error-container text-on-error-container"
-                    : "bg-secondary-container text-on-secondary-container"
-                }`}
-              >
-                <Icon name={uploaded ? "close" : "upload"} className="text-[14px]" />
-                {uploaded ? "حذف" : "رفع"}
-              </button>
-            </div>
-          );
-        })}
+        {requiredDocs.map((d) => (
+          <DocSlot
+            key={d.key}
+            label={d.label}
+            accept={d.accept}
+            objectPath={docPaths[d.key]}
+            uploading={docUploading[d.key]}
+            onFile={(file) => handleDocFile(d.key, file)}
+          />
+        ))}
       </div>
 
       {/* Review status preview */}
@@ -231,7 +340,7 @@ function AuthDriver() {
         </div>
       )}
 
-      <Button className="w-full" icon="send" onClick={handleSubmit} disabled={submitting}>
+      <Button className="w-full" icon="send" onClick={handleSubmit} disabled={submitting || Object.values(docUploading).some(Boolean)}>
         {submitting ? "جاري الإرسال..." : "إرسال للمراجعة"}
       </Button>
 

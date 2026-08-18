@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Badge, Button, Icon, MapCanvas, StatusBadge } from "@/components/tb/shell";
 import { categories } from "@/lib/tb/data";
-import { getSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, getRoleDashboard, getToken } from "@/lib/auth-session";
+
+function storageUrl(objectPath: string): string {
+  const token = getToken();
+  return `/api/storage${objectPath}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
 
 export const Route = createFileRoute("/auth/register-restaurant")({
   beforeLoad: () => {
@@ -32,6 +37,87 @@ const deliveryOptions = [
   { value: "platform", label: "توصيل طلبات بيتك", desc: "مناديبنا بيوصّلوا عنك" },
 ];
 
+/** Upload a file to object storage via presigned URL. Returns objectPath or throws. */
+async function uploadFileToStorage(file: File): Promise<string> {
+  const token = getToken();
+  const urlRes = await fetch("/api/storage/uploads/request-url", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
+  });
+  if (!urlRes.ok) throw new Error("تعذّر الحصول على رابط الرفع");
+  const { uploadURL, objectPath } = (await urlRes.json()) as { uploadURL: string; objectPath: string };
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+  });
+  if (!putRes.ok) throw new Error("فشل رفع الملف إلى التخزين");
+  return objectPath;
+}
+
+function ImageUploadSlot({
+  label,
+  icon,
+  objectPath,
+  uploading,
+  onFile,
+  previewClass,
+}: {
+  label: string;
+  icon: string;
+  objectPath: string | null;
+  uploading: boolean;
+  onFile: (file: File) => void;
+  previewClass?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <label
+      className="relative flex flex-col items-center justify-center gap-1.5 rounded-card border-2 border-dashed border-outline-variant cursor-pointer hover:border-secondary transition overflow-hidden"
+      style={{ minHeight: "7rem" }}
+      onClick={(e) => { e.preventDefault(); inputRef.current?.click(); }}
+    >
+      {objectPath ? (
+        <>
+          <img
+            src={storageUrl(objectPath)}
+            alt={label}
+            className={`absolute inset-0 w-full h-full object-cover ${previewClass ?? ""}`}
+          />
+          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-1">
+            <Icon name="refresh" className="text-[20px] text-white" />
+            <span className="font-label-md text-label-md text-white">تغيير</span>
+          </div>
+        </>
+      ) : uploading ? (
+        <>
+          <Icon name="hourglass_empty" className="text-[24px] text-primary animate-spin" />
+          <span className="font-label-md text-label-md text-on-surface-variant">جاري الرفع...</span>
+        </>
+      ) : (
+        <>
+          <Icon name={icon} className="text-[24px] text-outline" />
+          <span className="font-label-md text-label-md text-on-surface-variant">{label}</span>
+        </>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) { onFile(f); e.target.value = ""; }
+        }}
+      />
+    </label>
+  );
+}
+
 function AuthRegisterRestaurant() {
   const navigate = useNavigate();
   const session = getSession();
@@ -46,6 +132,12 @@ function AuthRegisterRestaurant() {
   const [hours, setHours] = useState("10:00 ص — 2:00 ص");
   const [delivery, setDelivery] = useState("restaurant");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -53,6 +145,23 @@ function AuthRegisterRestaurant() {
     setSelectedCategories((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
     );
+  }
+
+  async function handleImageUpload(
+    file: File,
+    setUrl: (v: string | null) => void,
+    setUploading: (v: boolean) => void,
+  ) {
+    setUploading(true);
+    setError("");
+    try {
+      const objectPath = await uploadFileToStorage(file);
+      setUrl(objectPath);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل رفع الصورة");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSubmit() {
@@ -79,6 +188,8 @@ function AuthRegisterRestaurant() {
           hours: hours.trim() || undefined,
           category: selectedCategories.join(",") || undefined,
           deliveryType: delivery,
+          logoUrl: logoUrl || undefined,
+          coverUrl: coverUrl || undefined,
         }),
       });
       if (!res.ok) {
@@ -114,6 +225,8 @@ function AuthRegisterRestaurant() {
       </label>
     );
   }
+
+  const anyUploading = logoUploading || coverUploading;
 
   return (
     <AuthShell title="تسجيل مطعم جديد" subtitle="ابدأ البيع على طلبات بيتك خطوة بخطوة" back="/auth/register">
@@ -205,15 +318,26 @@ function AuthRegisterRestaurant() {
       </div>
 
       {/* Logo / cover upload slots */}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col items-center justify-center gap-1.5 rounded-card border-2 border-dashed border-outline-variant py-6 cursor-pointer hover:border-secondary transition">
-          <Icon name="add_photo_alternate" className="text-[24px] text-outline" />
-          <span className="font-label-md text-label-md text-on-surface-variant">شعار المطعم</span>
-        </label>
-        <label className="flex flex-col items-center justify-center gap-1.5 rounded-card border-2 border-dashed border-outline-variant py-6 cursor-pointer hover:border-secondary transition">
-          <Icon name="image" className="text-[24px] text-outline" />
-          <span className="font-label-md text-label-md text-on-surface-variant">صورة الغلاف</span>
-        </label>
+      <div className="flex flex-col gap-1.5">
+        <span className="font-label-lg text-label-lg text-on-surface-variant">صور المطعم</span>
+        <div className="grid grid-cols-2 gap-2">
+          <ImageUploadSlot
+            label="شعار المطعم"
+            icon="add_photo_alternate"
+            objectPath={logoUrl}
+            uploading={logoUploading}
+            onFile={(f) => handleImageUpload(f, setLogoUrl, setLogoUploading)}
+          />
+          <ImageUploadSlot
+            label="صورة الغلاف"
+            icon="image"
+            objectPath={coverUrl}
+            uploading={coverUploading}
+            onFile={(f) => handleImageUpload(f, setCoverUrl, setCoverUploading)}
+            previewClass="object-cover"
+          />
+        </div>
+        <p className="font-label-md text-label-md text-on-surface-variant">اختياري — يساعد على تمييز مطعمك للعملاء</p>
       </div>
 
       {/* No KYC badge */}
@@ -250,7 +374,7 @@ function AuthRegisterRestaurant() {
         </div>
       )}
 
-      <Button className="w-full" icon="send" onClick={handleSubmit} disabled={submitting}>
+      <Button className="w-full" icon="send" onClick={handleSubmit} disabled={submitting || anyUploading}>
         {submitting ? "جاري الإرسال..." : "إرسال للتوثيق"}
       </Button>
 
