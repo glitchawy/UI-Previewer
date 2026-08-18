@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AuthShell, Button, Field, Icon } from "@/components/tb/shell";
+import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useRequestOtp } from "@workspace/api-client-react";
 
 export const Route = createFileRoute("/auth/login")({
@@ -21,16 +21,33 @@ const loginRoles: { value: Role; label: string; icon: string }[] = [
   { value: "driver", label: "مندوب", icon: "two_wheeler" },
 ];
 
+// Egyptian mobile: 01 + operator digit (0/1/2/5) + 8 digits
+const EG_PHONE_RE = /^01[0125]\d{8}$/;
+
+function validateEgPhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-]/g, "");
+  if (!cleaned) return "أدخل رقم الموبايل";
+  if (!/^\d+$/.test(cleaned)) return "الرقم يجب أن يحتوي على أرقام فقط";
+  if (cleaned.length !== 11) return "رقم الموبايل يجب أن يكون 11 رقماً";
+  if (!cleaned.startsWith("01")) return "رقم الموبايل المصري يبدأ بـ 01";
+  if (!EG_PHONE_RE.test(cleaned)) return "الشبكة غير معروفة — يجب أن يبدأ برقم 010 أو 011 أو 012 أو 015";
+  return null; // valid
+}
+
 function AuthLogin() {
   const navigate = useNavigate();
   const [role, setRole] = useState<Role>("customer");
   const [phone, setPhone] = useState("");
+  const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
+
+  const cleaned = phone.replace(/[\s\-]/g, "");
+  const inlineError = touched ? validateEgPhone(phone) : null;
 
   const requestOtp = useRequestOtp({
     mutation: {
       onSuccess: () => {
-        navigate({ to: "/auth/otp", search: { role, phone } });
+        navigate({ to: "/auth/otp", search: { role, phone: cleaned } });
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -40,42 +57,57 @@ function AuthLogin() {
   });
 
   function handleSubmit() {
+    setTouched(true);
     setError("");
-    const cleaned = phone.replace(/\s/g, "");
-    if (!cleaned || cleaned.length < 10) {
-      setError("أدخل رقم موبايل صحيح");
+    const validationError = validateEgPhone(phone);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     requestOtp.mutate({ data: { phone: cleaned, role } });
   }
 
   return (
-    <AuthShell title="تسجيل الدخول" subtitle="ادخل برقم موبايلك عشان نبعتلك كود التأكيد" back="/auth/welcome">
+    <AuthShell title="تسجيل الدخول" subtitle="ادخل برقم موبايلك عشان نبعتلك كود التأكيد">
 
+      {/* Phone field */}
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">رقم الموبايل</span>
-        <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary">
-          <span className="font-label-lg text-label-lg text-on-surface-variant">+20</span>
+        <span
+          className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${
+            inlineError ? "border-error" : "border-outline-variant"
+          }`}
+        >
+          <span className="font-label-lg text-label-lg text-on-surface-variant select-none">+20</span>
           <span className="h-5 w-px bg-outline-variant" />
           <Icon name="call" className="text-[20px] text-outline" />
           <input
             type="tel"
-            placeholder="100 123 4567"
+            inputMode="numeric"
+            placeholder="01X XXXX XXXX"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              setError("");
+            }}
+            onBlur={() => setTouched(true)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
+            maxLength={13}
+            dir="ltr"
           />
         </span>
+
+        {/* Inline hint under the field */}
+        {inlineError && !error && (
+          <span className="flex items-center gap-1 font-label-md text-label-md text-error">
+            <Icon name="error" className="text-[16px]" />
+            {inlineError}
+          </span>
+        )}
       </label>
 
-      <div className="flex items-start gap-2 rounded-card bg-secondary-container p-md">
-        <Icon name="info" className="mt-0.5 text-[18px] text-on-secondary-container" />
-        <p className="font-label-md text-label-md text-on-secondary-container">
-          العميل والمطعم لهم حسابات منفصلة. تأكد إنك بتسجل بالحساب الصح.
-        </p>
-      </div>
-
+      {/* Role selector */}
       <div className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">نوع الحساب</span>
         <div className="grid grid-cols-3 gap-2">
@@ -95,8 +127,12 @@ function AuthLogin() {
             </button>
           ))}
         </div>
+        <p className="font-label-md text-label-md text-on-surface-variant">
+          العميل والمطعم والمندوب لهم حسابات منفصلة
+        </p>
       </div>
 
+      {/* API error */}
       {error && (
         <div className="flex items-center gap-2 rounded-card bg-error-container p-md">
           <Icon name="error" className="text-[18px] text-on-error-container" />
@@ -106,24 +142,20 @@ function AuthLogin() {
 
       <Button
         className="w-full"
-        icon="arrow_back"
+        icon="arrow_forward"
         onClick={handleSubmit}
         disabled={requestOtp.isPending}
       >
         {requestOtp.isPending ? "جاري الإرسال..." : "متابعة"}
       </Button>
 
-      <div className="flex items-center gap-2 rounded-card bg-success/10 p-md">
-        <Icon name="sms" className="text-[18px] text-success" />
-        <p className="font-label-md text-label-md text-success">هنبعتلك كود التأكيد برسالة SMS</p>
+      <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-md">
+        <Icon name="sms" className="text-[18px] text-on-surface-variant" />
+        <p className="font-label-md text-label-md text-on-surface-variant">
+          هنبعتلك كود تأكيد برسالة SMS على رقمك المصري
+        </p>
       </div>
 
-      <p className="text-center font-body-md text-body-md text-on-surface-variant">
-        مفيش حساب؟{" "}
-        <a href="/auth/register" className="text-secondary hover:underline">
-          إنشاء حساب جديد
-        </a>
-      </p>
     </AuthShell>
   );
 }
