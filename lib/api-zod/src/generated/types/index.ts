@@ -24,4 +24,3 @@ export * from './otpVerifyType';
 export * from './partnerOnboard';
 export * from './partnerOnboardDeliveryType';
 export * from './restaurantApplication';
-export * from './uploadFileResponse';

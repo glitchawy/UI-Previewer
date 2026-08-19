@@ -1,0 +1,1899 @@
+You are the lead software architect, senior backend engineer, senior React Native engineer, web engineer, database architect, DevOps engineer, QA engineer, security engineer, and product engineer responsible for rebuilding and delivering the complete Talabat Betak platform.
+
+PROJECT NAME:
+Talabat Betak
+
+IMPORTANT:
+This is a complete rebuild of the backend and application architecture.
+
+The existing application/backend must NOT be assumed to be reusable.
+
+The project owner will provide:
+1. Existing UI/design files
+2. Existing logo/assets
+
+These files are reference material for the new implementation.
+
+DO NOT copy old backend logic.
+DO NOT assume old APIs are correct.
+DO NOT assume old database structure is correct.
+DO NOT recreate old backend bugs.
+
+The old system had reliability problems, especially with WhatsApp OTP. The new implementation must solve these problems properly.
+
+==================================================
+1. CORE PRODUCT VISION
+==================================================
+
+Talabat Betak is a marketplace and delivery platform operating initially in Egypt.
+
+The platform connects:
+
+CUSTOMERS
+RESTAURANTS
+RESTAURANT BRANCHES
+RESTAURANT STAFF
+RESTAURANT-OWNED DELIVERY DRIVERS
+TALABAT BETAK DELIVERY DRIVERS
+ADMINS
+SUPER ADMIN
+
+The current platform has separate application concepts for customers, branches/merchants, and delivery.
+
+The new architecture must consolidate these experiences into ONE unified application ecosystem.
+
+The user experience should be role-based.
+
+The system must support:
+
+- Customer experience
+- Restaurant experience
+- Branch management
+- Delivery experience
+- Restaurant performance dashboard
+- Super Admin dashboard
+- Configurable Admin roles and permissions
+
+The Restaurant Dashboard is NOT intended to be a full CRM.
+
+It is primarily a Restaurant Business/Performance Dashboard for orders generated through Talabat Betak.
+
+==================================================
+2. APPLICATION STRUCTURE
+==================================================
+
+Build the platform as a unified ecosystem.
+
+The system should support:
+
+A. Customer interface
+B. Restaurant Owner interface
+C. Branch Manager interface
+D. Branch Staff interface
+E. Delivery Driver interface
+F. Admin interface
+G. Super Admin interface
+
+These can be different role-based experiences inside the same application architecture.
+
+Do not create unnecessary duplicated codebases.
+
+Use reusable components and shared services wherever possible.
+
+==================================================
+3. RESTAURANT STRUCTURE
+==================================================
+
+Each Restaurant Owner can own ONLY ONE Restaurant.
+
+A Restaurant can have multiple Branches.
+
+Structure:
+
+Restaurant Owner
+    |
+    └── Restaurant
+          |
+          ├── Branch 1
+          ├── Branch 2
+          ├── Branch 3
+          └── Branch N
+
+Restaurant-level information includes:
+
+- Restaurant Name
+- Logo
+- Cover Image
+- Description
+- Phone
+- Email
+- Address
+- Location
+- Working Hours
+- Other required operational information
+
+All branches belong to the same Restaurant.
+
+Restaurant Owner can see and manage all branches belonging to their Restaurant.
+
+==================================================
+4. EMPLOYEE / BRANCH ACCESS
+==================================================
+
+A staff member belongs to ONE branch at a time.
+
+A staff member cannot simultaneously work across multiple branches.
+
+If an employee moves to another branch:
+
+- The old branch relationship must be removed.
+- The employee must be created/assigned under the new branch.
+- Appropriate permissions must be assigned.
+- Historical actions must remain auditable.
+
+The Restaurant Owner can manage employees and assign roles/permissions.
+
+Branch Managers and Staff can only access data permitted for their branch.
+
+==================================================
+5. CUSTOMER ACCOUNT
+==================================================
+
+A Customer cannot simply convert their Customer account into a Restaurant Owner account.
+
+A Restaurant Owner must create a separate account.
+
+Customer registration must support WhatsApp OTP.
+
+DO NOT use SMS OTP.
+
+WhatsApp is the required OTP channel.
+
+The project owner already has a WhatsApp OTP service/subscription and will provide credentials/configuration later.
+
+The OTP system must be designed reliably.
+
+Implement:
+
+- OTP generation
+- OTP expiration
+- Attempt limits
+- Resend cooldown
+- Rate limiting
+- Verification state
+- Failed attempt handling
+- Secure OTP storage
+- Provider error handling
+- Retry handling
+- Logging
+- Proper provider abstraction
+
+Never store OTPs in plaintext.
+
+If provider credentials are missing, create the integration abstraction and clearly identify the required environment variables/configuration.
+
+Do not hardcode credentials.
+
+==================================================
+6. CUSTOMER ADDRESSES
+==================================================
+
+A customer can save ONE address only.
+
+The customer can update/edit the saved address.
+
+The customer must have location detection capabilities.
+
+Use:
+
+- Google Maps
+- Geolocation
+- Distance calculation
+- Routing where required
+
+==================================================
+7. CUSTOMER FEATURES
+==================================================
+
+Customer must be able to:
+
+- Register
+- Login
+- Verify via WhatsApp OTP
+- Detect current location
+- Set delivery address
+- Browse restaurants
+- Browse products
+- Browse categories
+- Search restaurants
+- Search products
+- Search categories
+- Autocomplete search
+- Select restaurants by distance
+- Favorite restaurants
+- Favorite products
+- Add products to cart
+- Select product variations
+- Select add-ons
+- Place orders
+- Order from multiple restaurants in the same order
+- Pay using Cash
+- Pay using Visa/online payment
+- Use supported Paymob payment methods
+- Track orders
+- Track delivery driver
+- View driver on map
+- Cancel eligible orders
+- Request refunds where applicable
+- View wallet
+- View wallet transactions
+- Rate restaurant
+- Rate food
+- Rate driver
+- Rate order
+- Receive notifications
+
+DO NOT implement:
+
+- Scheduled orders
+- Reorder
+- Multiple saved addresses
+- Customer loyalty points
+- Customer segmentation
+- Customer marketing campaigns
+
+unless explicitly requested later.
+
+==================================================
+8. MULTI-RESTAURANT ORDER
+==================================================
+
+A customer CAN order from multiple restaurants in the same order/session.
+
+The architecture must properly support multi-restaurant carts/orders.
+
+Do not incorrectly assume:
+
+ONE CART = ONE RESTAURANT.
+
+Design the order domain carefully.
+
+Consider:
+
+- Parent order
+- Restaurant-specific sub-orders
+- Separate preparation
+- Separate restaurant statuses
+- Separate delivery assignment
+- Payment allocation
+- Commission calculations
+- Delivery calculations
+- Cancellation handling
+- Refund handling
+
+If there is a business or technical ambiguity around multi-restaurant delivery behavior, STOP and ask the project owner before implementing the final logic.
+
+==================================================
+9. RESTAURANT VERIFICATION
+==================================================
+
+Restaurants require admin verification before becoming active.
+
+No KYC documents are required for restaurants.
+
+Restaurant registration should support a verification workflow:
+
+PENDING
+    ↓
+UNDER REVIEW
+    ↓
+APPROVED / REJECTED
+    ↓
+ACTIVE
+
+Only authorized admins can approve restaurants.
+
+==================================================
+10. DELIVERY DRIVER VERIFICATION
+==================================================
+
+Delivery Drivers must submit:
+
+- National ID image
+- Criminal record document
+- Required supporting document(s)
+
+The system must support document upload and admin review.
+
+Driver verification statuses should include appropriate states such as:
+
+PENDING
+UNDER_REVIEW
+APPROVED
+REJECTED
+SUSPENDED
+
+Do not allow an unapproved driver to receive normal delivery assignments.
+
+==================================================
+11. RESTAURANT MENU
+==================================================
+
+Products contain:
+
+- Name
+- Description
+- Image
+- Price
+- Category
+- Options
+- Add-ons
+- Availability
+- Inventory relationship
+
+Products support variations.
+
+Example:
+
+Product
+    |
+    ├── Small
+    ├── Medium
+    └── Large
+
+Products support add-ons.
+
+Example:
+
+- Extra Cheese
+- Extra Sauce
+- Extra Meat
+
+Customers can select multiple add-ons.
+
+Add-ons can have prices.
+
+Products can be marked unavailable.
+
+Inventory must be linked to products.
+
+==================================================
+12. BRANCH MENU / INVENTORY
+==================================================
+
+Products are shared across branches of the same Restaurant.
+
+Branches do NOT have separate independent product catalogs.
+
+However:
+
+Inventory is branch-specific.
+
+Example:
+
+Restaurant
+    |
+    ├── Product A
+    ├── Product B
+    └── Product C
+          |
+          ├── Branch 1 Inventory
+          ├── Branch 2 Inventory
+          └── Branch 3 Inventory
+
+Product prices are the same across branches.
+
+A Branch Manager can manage their branch inventory according to permissions.
+
+==================================================
+13. BRANCH WORKING HOURS
+==================================================
+
+Working hours are Restaurant-level.
+
+Branches do NOT have separate working hours.
+
+Implement appropriate controls for restaurant availability and branch operational state.
+
+==================================================
+14. ORDERS
+==================================================
+
+Order lifecycle:
+
+PLACED
+CONFIRMED
+PREPARING
+READY
+ASSIGNED
+PICKED_UP
+DELIVERING
+DELIVERED
+
+Restaurant controls:
+
+PLACED
+CONFIRMED
+PREPARING
+READY
+ASSIGNED
+PICKED_UP
+
+Delivery Driver controls:
+
+DELIVERING
+DELIVERED
+
+The restaurant cannot reject an order.
+
+The customer can cancel an order ONLY before PREPARING.
+
+Cancellation reasons are required.
+
+Store cancellation reason and actor.
+
+All order state transitions must be validated server-side.
+
+Do not allow clients to arbitrarily change order status.
+
+==================================================
+15. ORDER STATE MACHINE
+==================================================
+
+Implement a strict server-side order state machine.
+
+Example:
+
+PLACED
+  ↓
+CONFIRMED
+  ↓
+PREPARING
+  ↓
+READY
+  ↓
+ASSIGNED
+  ↓
+PICKED_UP
+  ↓
+DELIVERING
+  ↓
+DELIVERED
+
+Invalid transitions must be rejected.
+
+Every transition should create an audit/history record containing:
+
+- Actor
+- Role
+- Previous status
+- New status
+- Timestamp
+- Order ID
+- Relevant metadata
+
+==================================================
+16. DELIVERY PROVIDERS
+==================================================
+
+There are TWO delivery models.
+
+DELIVERY_PROVIDER:
+
+RESTAURANT
+TALABAT_BETAK
+
+==================================================
+17. RESTAURANT DELIVERY
+==================================================
+
+If the Restaurant chooses its own delivery:
+
+- Restaurant selects its own driver.
+- Restaurant is responsible for delivery.
+- Restaurant determines the delivery fee.
+- Talabat Betak delivery driver assignment is NOT used.
+
+Restaurant-owned drivers must be managed separately from Talabat Betak drivers.
+
+==================================================
+18. TALABAT BETAK DELIVERY
+==================================================
+
+If Restaurant chooses Talabat Betak delivery:
+
+The platform automatically searches for the nearest AVAILABLE Talabat Betak driver.
+
+Driver assignment workflow:
+
+Restaurant requests Talabat Betak delivery
+        ↓
+Find nearest available driver
+        ↓
+Send delivery offer
+        ↓
+Driver accepts?
+        |
+   ┌────┴────┐
+   YES       NO
+    |         |
+ Assigned   Find next nearest driver
+              |
+              ↓
+        Continue until accepted
+        or no driver available
+
+Drivers can reject delivery offers.
+
+If Driver A rejects:
+
+Driver B is considered.
+
+If Driver B rejects:
+
+Driver C is considered.
+
+Continue according to availability and assignment rules.
+
+This logic MUST be implemented server-side.
+
+Avoid race conditions where multiple drivers accept the same delivery.
+
+Use proper locking/transaction/assignment mechanisms.
+
+==================================================
+19. DELIVERY PRICING
+==================================================
+
+Restaurant delivery:
+
+Restaurant controls the delivery fee.
+
+Talabat Betak delivery:
+
+Super Admin defines distance-based pricing rules.
+
+Example:
+
+0–5 KM = X EGP
+5–10 KM = Y EGP
+10–15 KM = Z EGP
+15–20 KM = A EGP
+
+Pricing must be configurable from Admin Dashboard.
+
+No code changes should be required to modify pricing.
+
+Super Admin must be able to:
+
+- Create pricing tier
+- Edit pricing tier
+- Delete pricing tier
+- Activate/deactivate tier
+- Define minimum/maximum distance
+- Define price
+
+Use Google Maps for distance calculation.
+
+==================================================
+20. DRIVER COMMISSION
+==================================================
+
+Super Admin defines Driver commission.
+
+Driver commission is separate from Delivery Fee.
+
+Example:
+
+Delivery Fee = 50 EGP
+Driver Commission = 70%
+Driver Earnings = 35 EGP
+
+The exact percentage must be configurable.
+
+Different commission rules may be supported if required.
+
+Do not hardcode commission values.
+
+==================================================
+21. RESTAURANT COMMISSION
+==================================================
+
+Talabat Betak earns a percentage from every order generated through the platform.
+
+Restaurant commission is configurable.
+
+Each Restaurant can have a different commission rate.
+
+Super Admin controls commission rates.
+
+Commission applies to:
+
+ORDER VALUE
+
+Commission does NOT include:
+
+DELIVERY FEE
+
+Example:
+
+Order = 500 EGP
+Restaurant commission = 15%
+Commission = 75 EGP
+
+Delivery fee is calculated separately.
+
+==================================================
+22. SETTLEMENTS
+==================================================
+
+Restaurants do not receive money immediately.
+
+Restaurant settlement is calculated weekly.
+
+The system must support:
+
+- Order totals
+- Commission
+- Delivery fees
+- Adjustments
+- Refunds
+- Net payable amount
+- Settlement period
+- Settlement status
+- Settlement history
+
+The Super Admin must be able to review financial data.
+
+The system should generate a clear weekly settlement calculation.
+
+If actual payout processing is not automated yet, create the settlement ledger and admin workflow without inventing a banking integration.
+
+==================================================
+23. PAYMENTS
+==================================================
+
+Supported payment methods:
+
+- Cash
+- Visa / online payment
+- Paymob-supported payment methods
+
+Paymob will be the payment gateway.
+
+Build a proper payment abstraction.
+
+Never hardcode API credentials.
+
+Use environment variables/secrets.
+
+Payment states should include appropriate states such as:
+
+PENDING
+PROCESSING
+SUCCESS
+FAILED
+CANCELLED
+REFUNDED
+PARTIALLY_REFUNDED
+
+The exact Paymob integration details must be implemented using the official API documentation once credentials/configuration are provided.
+
+==================================================
+24. CUSTOMER WALLET
+==================================================
+
+Customer has a Wallet.
+
+Wallet must support:
+
+- Balance
+- Credits
+- Debits
+- Refund credits
+- Transaction history
+- Order references
+- Secure ledger
+
+Do NOT directly modify wallet balance without creating a wallet transaction.
+
+Use an immutable wallet ledger approach.
+
+==================================================
+25. DRIVER WALLET
+==================================================
+
+Driver has a Wallet.
+
+Driver wallet tracks:
+
+- Earnings
+- Commission
+- Adjustments
+- Credits
+- Debits
+- Delivery references
+- Settlement/payment records
+
+Every balance change must have a corresponding transaction.
+
+==================================================
+26. REFUNDS
+==================================================
+
+Restaurant has NO authority over refunds.
+
+Refund decision belongs to Admin according to permissions.
+
+Workflow:
+
+Refund Request
+      ↓
+Authorized Admin
+      ↓
+APPROVE / REJECT
+      ↓
+If approved
+      ↓
+Payment/Wallet refund processing
+
+Admin may override according to permissions.
+
+All refund actions must be logged.
+
+==================================================
+27. RESTAURANT OFFERS
+==================================================
+
+Restaurants can create offers.
+
+However, the restaurant does NOT get:
+
+- Customer segmentation
+- Customer marketing campaigns
+- Automated campaigns
+- Customer coupons
+- Loyalty points
+
+Do not turn the Restaurant Dashboard into a full CRM.
+
+==================================================
+28. RESTAURANT BUSINESS DASHBOARD
+==================================================
+
+Restaurant dashboard is a performance/business dashboard focused ONLY on Talabat Betak activity.
+
+Restaurant can view:
+
+- Revenue
+- Orders
+- Average Order Value
+- Best Products
+- Worst Products
+- Customer Growth
+- Repeat Customers
+- Cancelled Orders
+- Branch Performance
+- Platform commissions
+- Relevant delivery/financial information
+- Profit/performance calculations derived from Talabat Betak orders
+
+Restaurant must NOT access the global customer database.
+
+Restaurant A must not see Restaurant B customer data.
+
+Customer privacy must be enforced server-side.
+
+==================================================
+29. PLATFORM ANALYTICS
+==================================================
+
+Super Admin platform dashboard:
+
+- GMV
+- Revenue
+- Orders
+- Customers
+- Restaurants
+- Active Drivers
+- Top Restaurants
+- Top Areas
+- Growth
+
+Support monthly reporting.
+
+Admins should also be able to generate reports for custom date ranges.
+
+Export reports to Excel.
+
+Do not prioritize PDF/CSV unless requested later.
+
+==================================================
+30. REVIEWS
+==================================================
+
+Customer can rate:
+
+- Restaurant
+- Food
+- Driver
+- Order
+
+Restaurant can respond to reviews.
+
+Admin can remove reviews according to permissions.
+
+There is NO customer rating system.
+
+Reviews must include proper moderation and auditability.
+
+==================================================
+31. SEARCH
+==================================================
+
+Search supports:
+
+- Restaurants
+- Products
+- Categories
+
+Autocomplete is required.
+
+Search can use location context.
+
+No advanced filter system is required at this stage.
+
+==================================================
+32. LOCATION
+==================================================
+
+Use Google Maps.
+
+Required capabilities:
+
+- Geolocation
+- Distance calculation
+- Routing
+- Driver tracking
+- Live driver location
+- Customer map view
+
+Customer should be able to see the assigned driver on the map when applicable.
+
+Implement location permissions and privacy carefully.
+
+==================================================
+33. NOTIFICATIONS
+==================================================
+
+Use Firebase Cloud Messaging (FCM) for push notifications.
+
+Required notification events include:
+
+- Order Placed
+- Driver Assigned
+- Order Delivered
+
+The notification architecture should be extensible.
+
+Implement:
+
+- Device token registration
+- Token refresh
+- Multiple devices where appropriate
+- Notification preferences if required
+- Server-side notification triggering
+- Failed delivery handling
+- Notification history where useful
+
+Do not hardcode notification provider credentials.
+
+==================================================
+34. LANGUAGE
+==================================================
+
+The current platform is Egypt-only.
+
+Primary UI language:
+
+Arabic
+
+UI direction:
+
+RTL
+
+Currency:
+
+EGP
+
+Do not implement multi-country or multi-currency functionality now.
+
+However, avoid architectural decisions that make future expansion impossible.
+
+==================================================
+35. MOBILE
+==================================================
+
+Use:
+
+React Native
+
+The application must support:
+
+Android
+iOS
+
+Use shared code wherever possible.
+
+==================================================
+36. WEB
+==================================================
+
+The overall platform must also support Web.
+
+The architecture should allow:
+
+- Customer web experience where appropriate
+- Restaurant web dashboard
+- Admin web dashboard
+
+Do not unnecessarily duplicate business logic between mobile and web.
+
+==================================================
+37. BACKEND
+==================================================
+
+Use:
+
+Node.js
+
+Use a clean modular backend architecture.
+
+Preferred architecture:
+
+MODULAR MONOLITH
+
+Do NOT prematurely create microservices.
+
+Organize the backend into clear domains/modules.
+
+Suggested modules:
+
+auth
+users
+roles
+permissions
+customers
+restaurants
+branches
+employees
+products
+categories
+inventory
+cart
+orders
+delivery
+drivers
+payments
+paymob
+wallets
+refunds
+settlements
+commissions
+pricing
+reviews
+offers
+notifications
+analytics
+reports
+files
+audit
+settings
+
+Each module should have clear boundaries.
+
+==================================================
+38. DATABASE
+==================================================
+
+Use PostgreSQL through the Replit environment.
+
+The database must be relational and properly normalized.
+
+Use:
+
+- Foreign keys
+- Constraints
+- Indexes
+- Transactions
+- Unique constraints
+- Appropriate cascading behavior
+- Soft deletion where appropriate
+- Audit/history tables where needed
+
+Do not create a flat database structure.
+
+Create a proper ERD/database schema before implementing the entire backend.
+
+==================================================
+39. REDIS
+==================================================
+
+Use Redis where useful for:
+
+- Caching
+- Rate limiting
+- OTP throttling
+- Temporary state
+- Queues
+- Delivery assignment coordination
+- Real-time operational workflows where appropriate
+
+Do not use Redis as the primary source of truth for financial data.
+
+PostgreSQL remains authoritative for:
+
+- Orders
+- Payments
+- Wallets
+- Settlements
+- Commissions
+- Financial records
+
+==================================================
+40. FILE STORAGE
+==================================================
+
+Use Supabase Storage for:
+
+- Restaurant logos
+- Restaurant covers
+- Product images
+- Driver verification documents
+- Other uploaded assets
+
+Storage must use secure access policies.
+
+Do not expose sensitive driver documents publicly.
+
+==================================================
+41. AUTHENTICATION
+==================================================
+
+Implement secure authentication.
+
+Use appropriate:
+
+- Access tokens
+- Refresh tokens
+- Secure password handling where passwords are used
+- WhatsApp OTP
+- Role-based authorization
+- Session/device management
+
+Do not store passwords or sensitive authentication data insecurely.
+
+==================================================
+42. ROLE BASED ACCESS CONTROL
+==================================================
+
+The system must use RBAC.
+
+Roles include at minimum:
+
+SUPER_ADMIN
+ADMIN
+RESTAURANT_OWNER
+BRANCH_MANAGER
+BRANCH_STAFF
+DELIVERY_DRIVER
+CUSTOMER
+
+Do not hardcode permissions only in frontend code.
+
+Authorization MUST be enforced server-side.
+
+==================================================
+43. ADMIN PERMISSIONS
+==================================================
+
+SUPER ADMIN is the master authority.
+
+Super Admin can:
+
+- Create admins
+- Create roles
+- Define permissions
+- Modify permissions
+- Manage restaurants
+- Approve restaurants
+- Suspend restaurants
+- Manage customers
+- Suspend customers
+- Manage drivers
+- Approve drivers
+- Suspend drivers
+- Manage orders
+- Modify orders according to policy
+- Manage refunds
+- Manage payments
+- Manage commissions
+- Manage delivery pricing
+- Manage driver commissions
+- View financial data
+- View analytics
+- Manage system settings
+- View audit logs
+
+The Super Admin can define exactly what other Admin positions can do.
+
+Example:
+
+ADMIN_ROLE:
+Operations Admin
+
+Permissions:
+- view_orders
+- manage_drivers
+- assign_drivers
+- view_restaurants
+
+But not:
+
+- manage_financial_settings
+- change_commission
+- delete_restaurants
+
+Permissions must be database-driven.
+
+==================================================
+44. CUSTOMER DATA PRIVACY
+==================================================
+
+This is critical.
+
+Only authorized Super Admin-level users should have access to the global customer data according to configured permissions.
+
+Restaurant A cannot access Restaurant B customer data.
+
+Restaurant users should only see the customer information necessary for their own orders.
+
+Never rely on frontend hiding.
+
+Enforce data isolation in backend queries/services.
+
+Test cross-tenant access explicitly.
+
+==================================================
+45. SECURITY
+==================================================
+
+Implement:
+
+- 2FA for Admin/Super Admin
+- Secure authentication
+- RBAC
+- Rate limiting
+- Input validation
+- SQL injection protection
+- XSS protection
+- CSRF protection where applicable
+- Secure headers
+- Secure file uploads
+- API authorization
+- Secret management
+- Audit logging
+- Encryption in transit
+- Sensitive-data protection
+
+Admin accounts MUST use 2FA.
+
+==================================================
+46. AUDIT LOG
+==================================================
+
+Create audit logs for sensitive actions.
+
+Examples:
+
+- Admin created
+- Permission changed
+- Restaurant approved
+- Restaurant suspended
+- Customer suspended
+- Driver approved
+- Driver suspended
+- Order manually modified
+- Refund approved
+- Refund rejected
+- Commission changed
+- Delivery pricing changed
+- Wallet adjustment
+- Settlement modification
+
+Each log should include appropriate:
+
+- Actor
+- Role
+- Action
+- Entity
+- Entity ID
+- Timestamp
+- Previous state where applicable
+- New state where applicable
+- IP/device metadata where appropriate
+
+Audit logs should not be casually editable/deletable.
+
+==================================================
+47. DATA RETENTION
+==================================================
+
+Implement a configurable data retention strategy.
+
+Do not arbitrarily delete important financial/audit/order records.
+
+Before implementing destructive retention behavior, clearly identify:
+
+- What data is retained
+- How long it is retained
+- What can be anonymized
+- What must remain for financial/audit purposes
+
+If the legal retention period is unknown, ASK THE PROJECT OWNER before implementing automatic deletion.
+
+==================================================
+48. UI/UX
+==================================================
+
+The project owner will provide existing UI files.
+
+IMPORTANT:
+
+Use those files as the primary visual reference.
+
+Do not redesign the entire UI unnecessarily.
+
+Analyze:
+
+- Layout
+- Typography
+- Colors
+- Spacing
+- Components
+- Navigation
+- Cards
+- Buttons
+- Forms
+- RTL behavior
+- Mobile responsiveness
+
+Preserve the existing visual identity where practical.
+
+The logo will also be provided separately.
+
+Do not replace the logo without permission.
+
+If a UI screen exists but backend behavior is unclear, do not invent business logic.
+
+Ask the project owner when necessary.
+
+==================================================
+49. REPLIT IMPLEMENTATION STRATEGY
+==================================================
+
+Do NOT attempt to blindly generate the entire project in one uncontrolled coding pass.
+
+Work in controlled phases.
+
+PHASE 0:
+Requirements analysis
+
+PHASE 1:
+Architecture proposal
+
+PHASE 2:
+Database/ERD
+
+PHASE 3:
+Authentication/RBAC
+
+PHASE 4:
+Core backend modules
+
+PHASE 5:
+Customer experience
+
+PHASE 6:
+Restaurant/Branch experience
+
+PHASE 7:
+Delivery system
+
+PHASE 8:
+Payments/Wallets/Refunds
+
+PHASE 9:
+Admin/Super Admin
+
+PHASE 10:
+Analytics/Reports
+
+PHASE 11:
+Notifications/Maps
+
+PHASE 12:
+Integration testing
+
+PHASE 13:
+Security testing
+
+PHASE 14:
+Deployment
+
+==================================================
+50. STOP-AND-ASK RULE
+==================================================
+
+This is one of the most important instructions.
+
+If you encounter a requirement that is:
+
+- Ambiguous
+- Contradictory
+- Missing
+- Financially significant
+- Security-sensitive
+- Legally sensitive
+- Impossible to infer safely
+- Requires choosing between multiple valid business models
+
+DO NOT GUESS.
+
+Instead:
+
+1. Explain the issue.
+2. Give the available options.
+3. Recommend an option if appropriate.
+4. Ask the project owner for the decision.
+5. WAIT for the answer.
+6. Continue implementation only after receiving the answer.
+
+Do NOT repeatedly ask about simple technical implementation details that can safely be determined by an experienced engineer.
+
+Use engineering judgment for technical implementation.
+
+Use the project owner's decision for business rules.
+
+==================================================
+51. TESTING REQUIREMENTS
+==================================================
+
+Testing is mandatory.
+
+Implement appropriate:
+
+- Unit tests
+- Integration tests
+- API tests
+- Database tests
+- Authentication tests
+- Authorization tests
+- Order state tests
+- Payment tests
+- Wallet tests
+- Refund tests
+- Delivery assignment tests
+- Commission tests
+- Settlement tests
+- Notification tests
+- File upload tests
+
+Especially test:
+
+MULTI-RESTAURANT ORDER
+
+DELIVERY DRIVER REJECTION
+
+NEXT DRIVER ASSIGNMENT
+
+WALLET TRANSACTIONS
+
+REFUNDS
+
+RESTAURANT COMMISSION
+
+DELIVERY PRICING
+
+ROLE PERMISSIONS
+
+CROSS-RESTAURANT DATA ISOLATION
+
+OTP RELIABILITY
+
+==================================================
+52. CRITICAL TEST CASES
+==================================================
+
+Test at minimum:
+
+CASE 1:
+Customer orders from multiple restaurants.
+
+CASE 2:
+Restaurant confirms order.
+
+CASE 3:
+Customer cancels before PREPARING.
+
+CASE 4:
+Customer attempts cancellation after PREPARING.
+
+Expected:
+Reject cancellation.
+
+CASE 5:
+Driver A rejects delivery.
+
+Expected:
+System offers to next eligible nearest driver.
+
+CASE 6:
+Two drivers attempt to accept the same order.
+
+Expected:
+Only one succeeds.
+
+CASE 7:
+Restaurant A attempts to access Restaurant B customer information.
+
+Expected:
+Authorization failure.
+
+CASE 8:
+Unauthorized admin attempts financial settings.
+
+Expected:
+Permission denied.
+
+CASE 9:
+Admin changes restaurant commission.
+
+Expected:
+Audit log generated.
+
+CASE 10:
+Super Admin changes delivery pricing tier.
+
+Expected:
+Audit log generated.
+
+CASE 11:
+Wallet balance changes.
+
+Expected:
+Wallet transaction created.
+
+CASE 12:
+Refund approved.
+
+Expected:
+Correct refund transaction/ledger behavior.
+
+CASE 13:
+WhatsApp OTP expires.
+
+Expected:
+Verification fails.
+
+CASE 14:
+Too many OTP requests.
+
+Expected:
+Rate limiting.
+
+CASE 15:
+Invalid OTP repeatedly entered.
+
+Expected:
+Temporary blocking according to configured policy.
+
+==================================================
+53. FINANCIAL DATA INTEGRITY
+==================================================
+
+Financial operations require special care.
+
+Never calculate important financial values only on the frontend.
+
+All calculations must be server-side.
+
+Use database transactions for:
+
+- Orders
+- Payments
+- Wallets
+- Refunds
+- Commissions
+- Settlements
+
+Avoid floating point errors.
+
+Use appropriate decimal/numeric database types for EGP financial values.
+
+Never use JavaScript floating point arithmetic carelessly for money.
+
+==================================================
+54. OBSERVABILITY
+==================================================
+
+Implement structured logging.
+
+Logs should make it possible to diagnose:
+
+- OTP failures
+- Payment failures
+- Delivery assignment failures
+- Notification failures
+- API failures
+- Database failures
+- Authentication failures
+
+Do not log sensitive secrets, OTPs, passwords, payment credentials, or private documents.
+
+==================================================
+55. ERROR HANDLING
+==================================================
+
+Build standardized API error responses.
+
+Errors should be:
+
+- Consistent
+- Meaningful
+- Safe
+- Logged server-side where appropriate
+
+Do not expose internal stack traces to end users.
+
+==================================================
+56. API DESIGN
+==================================================
+
+Create a clean versioned API.
+
+Example:
+
+/api/v1/...
+
+Use:
+
+- Validation schemas
+- Authentication middleware
+- Authorization middleware
+- Service layer
+- Repository/data layer where appropriate
+- Consistent response format
+
+Do not put all business logic inside controllers.
+
+==================================================
+57. CODE QUALITY
+==================================================
+
+Prioritize:
+
+- Maintainability
+- Readability
+- Type safety
+- Reusability
+- Clear naming
+- Separation of concerns
+- Modular architecture
+
+Avoid:
+
+- Giant files
+- Duplicate business logic
+- Hardcoded business rules
+- Hardcoded financial values
+- Hardcoded permissions
+- Hardcoded delivery prices
+- Hardcoded commission rates
+- Hardcoded API credentials
+
+==================================================
+58. CONFIGURATION
+==================================================
+
+Use environment variables/secrets for:
+
+- Database
+- Redis
+- Paymob
+- WhatsApp OTP provider
+- Firebase
+- Google Maps
+- Storage
+- JWT secrets
+- Encryption secrets
+- Other third-party services
+
+Create a clear example environment configuration file without exposing actual secrets.
+
+==================================================
+59. DOCUMENTATION
+==================================================
+
+Create documentation for:
+
+- Architecture
+- Database
+- ERD
+- API
+- Authentication
+- RBAC
+- Deployment
+- Environment variables
+- Payment integration
+- WhatsApp OTP
+- Google Maps
+- Notifications
+- Wallet
+- Delivery assignment
+- Financial calculations
+- Testing
+- Troubleshooting
+
+The documentation should be updated as implementation progresses.
+
+==================================================
+60. FUTURE POS INTEGRATION
+==================================================
+
+POS integration is NOT part of V1.
+
+However, structure the architecture so future POS integration can be added without rewriting the entire order system.
+
+Do not implement fake POS functionality.
+
+Create clean extension points only where appropriate.
+
+==================================================
+61. FUTURE EXPANSION
+==================================================
+
+Current scope:
+
+EGYPT
+EGP
+ARABIC
+RTL
+
+Do not implement multi-country or multi-currency now.
+
+But avoid architecture that makes future expansion impossible.
+
+==================================================
+62. DEPLOYMENT
+==================================================
+
+The project will run on Replit.
+
+Prepare the application for production deployment.
+
+Ensure:
+
+- Production environment configuration
+- Secure secrets
+- Database migrations
+- Database backups/strategy where supported
+- Logging
+- Health checks
+- Error handling
+- Build scripts
+- Start scripts
+- Proper environment separation
+
+Do not assume development configuration is production-ready.
+
+==================================================
+63. DATABASE MIGRATIONS
+==================================================
+
+Use proper migration management.
+
+Never manually destroy production data to fix schema changes.
+
+Every schema change must be reproducible.
+
+Seed only safe development/test data.
+
+Never put fake production credentials or secrets into seed scripts.
+
+==================================================
+64. DEVELOPMENT WORKFLOW
+==================================================
+
+For each module:
+
+1. Analyze requirements.
+2. Define data model.
+3. Implement backend.
+4. Add validation.
+5. Add authorization.
+6. Add tests.
+7. Run tests.
+8. Fix failures.
+9. Document behavior.
+10. Integrate frontend.
+11. Run end-to-end checks.
+
+Do not move forward while core tests are failing unless explicitly approved.
+
+==================================================
+65. UI FILE ANALYSIS
+==================================================
+
+When the project owner uploads the UI files:
+
+FIRST:
+
+Analyze them.
+
+Identify:
+
+- Screens
+- Navigation
+- Components
+- Forms
+- Tables
+- Modals
+- Cards
+- States
+- Empty states
+- Loading states
+- Error states
+- Responsive behavior
+
+Then map each screen to backend requirements.
+
+Do not immediately rewrite the UI.
+
+==================================================
+66. FINAL QUALITY CHECK
+==================================================
+
+Before declaring the project complete, perform:
+
+ARCHITECTURE REVIEW
+
+DATABASE REVIEW
+
+SECURITY REVIEW
+
+RBAC REVIEW
+
+FINANCIAL LOGIC REVIEW
+
+ORDER STATE REVIEW
+
+DELIVERY ASSIGNMENT REVIEW
+
+WALLET REVIEW
+
+PAYMENT REVIEW
+
+REFUND REVIEW
+
+DATA PRIVACY REVIEW
+
+MOBILE REVIEW
+
+WEB REVIEW
+
+ADMIN REVIEW
+
+TEST REVIEW
+
+DEPLOYMENT REVIEW
+
+DOCUMENTATION REVIEW
+
+==================================================
+67. DO NOT CLAIM COMPLETION PREMATURELY
+==================================================
+
+Never say:
+
+"Everything is complete"
+
+unless:
+
+- Build passes
+- Tests pass
+- Database migrations work
+- Critical workflows work
+- Authorization works
+- Financial calculations are validated
+- Delivery assignment is tested
+- Wallet logic is tested
+- Payment integration is validated or clearly marked pending credentials
+- UI flows are connected
+- Production configuration is documented
+
+If something is pending because credentials/API access are unavailable, clearly state:
+
+PENDING EXTERNAL CONFIGURATION
+
+and explain exactly what is required.
+
+==================================================
+68. PROJECT OWNER COMMUNICATION
+==================================================
+
+The project owner is not expected to be a software architect.
+
+When asking questions:
+
+- Ask in simple language.
+- Explain why the decision matters.
+- Give practical options.
+- Recommend the best option when appropriate.
+- Never ask unnecessary technical questions.
+
+Example:
+
+BAD:
+"Which ORM abstraction strategy do you want?"
+
+GOOD:
+"We need to choose how the backend communicates with PostgreSQL. I recommend using [X] because it gives us migrations, type safety, and easier maintenance. Should I proceed with that?"
+
+==================================================
+69. MOST IMPORTANT BUSINESS RULE
+==================================================
+
+Do not invent business rules.
+
+Technical decisions:
+Use professional engineering judgment.
+
+Business decisions:
+Ask the project owner if they cannot be safely inferred.
+
+==================================================
+70. STARTING ACTION
+==================================================
+
+DO NOT immediately start generating thousands of lines of code.
+
+First perform a complete project analysis.
+
+Then produce:
+
+1. System Architecture Proposal
+2. Module Breakdown
+3. Database/ERD Proposal
+4. Role & Permission Matrix
+5. Order State Machine
+6. Delivery Assignment Flow
+7. Payment Flow
+8. Wallet Flow
+9. Refund Flow
+10. Settlement Flow
+11. API Architecture
+12. Frontend Architecture
+13. Security Architecture
+14. Testing Strategy
+15. Development Phases
+
+Then identify ONLY the business-critical questions that cannot be safely inferred.
+
+WAIT for the project owner's answers to those questions.
+
+After approval, begin implementation phase-by-phase.
+
+==================================================
+END OF MASTER SPECIFICATION
+==================================================

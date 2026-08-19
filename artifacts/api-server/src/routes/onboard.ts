@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, ne } from "drizzle-orm";
 import { db, usersTable, restaurantsTable, driverProfilesTable } from "@workspace/db";
 import { OnboardPartnerBody, OnboardDriverBody } from "@workspace/api-zod";
 import type { Request } from "express";
@@ -29,6 +29,26 @@ router.post("/onboard/partner", async (req, res): Promise<void> => {
   }
   if (user.role !== "partner") {
     res.status(403).json({ error: "هذا الحساب ليس حساب شريك" });
+    return;
+  }
+
+  // Block re-submission if an active (non-REJECTED) application already exists
+  const existing = await db
+    .select({ id: restaurantsTable.id, status: restaurantsTable.status })
+    .from(restaurantsTable)
+    .where(
+      and(
+        eq(restaurantsTable.ownerUserId, user.id),
+        ne(restaurantsTable.status, "REJECTED"),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    res.status(409).json({
+      error: "يوجد طلب مسجّل بالفعل — لا يمكن تقديم طلب جديد",
+      status: existing[0].status,
+    });
     return;
   }
 
@@ -74,6 +94,26 @@ router.post("/onboard/driver", async (req, res): Promise<void> => {
   }
   if (user.role !== "driver") {
     res.status(403).json({ error: "هذا الحساب ليس حساب مندوب" });
+    return;
+  }
+
+  // Block re-submission if an active (non-REJECTED) application already exists
+  const existing = await db
+    .select({ id: driverProfilesTable.id, status: driverProfilesTable.status })
+    .from(driverProfilesTable)
+    .where(
+      and(
+        eq(driverProfilesTable.userId, user.id),
+        ne(driverProfilesTable.status, "REJECTED"),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    res.status(409).json({
+      error: "يوجد طلب مسجّل بالفعل — لا يمكن تقديم طلب جديد",
+      status: existing[0].status,
+    });
     return;
   }
 
@@ -183,7 +223,6 @@ router.get("/admin/drivers", async (req, res): Promise<void> => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/onboard/status — current user's own application status
-// Used by partner/driver dashboards to unlock functionality once approved.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/onboard/status", async (req, res): Promise<void> => {
   const user = await getUserFromToken(req);
@@ -219,6 +258,7 @@ router.get("/onboard/status", async (req, res): Promise<void> => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/onboard/partner — update file URLs on existing restaurant application
+// Only allowed when the application is PENDING or REJECTED.
 // ─────────────────────────────────────────────────────────────────────────────
 router.patch("/onboard/partner", async (req, res): Promise<void> => {
   const user = await getUserFromToken(req);
@@ -255,6 +295,16 @@ router.patch("/onboard/partner", async (req, res): Promise<void> => {
     return;
   }
 
+  // Only allow re-upload when application is PENDING or REJECTED
+  const { status } = existing[0];
+  if (status !== "PENDING" && status !== "REJECTED") {
+    res.status(422).json({
+      error: "لا يمكن تعديل المستندات بعد قبول الطلب أو وضعه قيد المراجعة",
+      status,
+    });
+    return;
+  }
+
   const rows = await db
     .update(restaurantsTable)
     .set(updates)
@@ -267,6 +317,7 @@ router.patch("/onboard/partner", async (req, res): Promise<void> => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/onboard/driver — update file URLs on existing driver application
+// Only allowed when the application is PENDING or REJECTED.
 // ─────────────────────────────────────────────────────────────────────────────
 router.patch("/onboard/driver", async (req, res): Promise<void> => {
   const user = await getUserFromToken(req);
@@ -310,6 +361,16 @@ router.patch("/onboard/driver", async (req, res): Promise<void> => {
     return;
   }
 
+  // Only allow re-upload when application is PENDING or REJECTED
+  const { status } = existing[0];
+  if (status !== "PENDING" && status !== "REJECTED") {
+    res.status(422).json({
+      error: "لا يمكن تعديل المستندات بعد قبول الطلب أو وضعه قيد المراجعة",
+      status,
+    });
+    return;
+  }
+
   const rows = await db
     .update(driverProfilesTable)
     .set(updates)
@@ -320,15 +381,37 @@ router.patch("/onboard/driver", async (req, res): Promise<void> => {
   res.json({ success: true, id: rows[0].id, status: rows[0].status });
 });
 
-const RESTAURANT_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "ACTIVE"] as const;
-const DRIVER_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "SUSPENDED"] as const;
-type RestaurantStatus = (typeof RESTAURANT_STATUSES)[number];
-type DriverStatus = (typeof DRIVER_STATUSES)[number];
+// ─────────────────────────────────────────────────────────────────────────────
+// Valid status transitions enforced server-side.
+//
+// Restaurants:
+//   PENDING      → UNDER_REVIEW | REJECTED
+//   UNDER_REVIEW → APPROVED | REJECTED
+//   APPROVED     → ACTIVE | REJECTED          (REJECTED here = effectively suspended)
+//   ACTIVE       → REJECTED
+//
+// Drivers:
+//   PENDING      → UNDER_REVIEW | REJECTED
+//   UNDER_REVIEW → APPROVED | REJECTED
+//   APPROVED     → SUSPENDED
+//   SUSPENDED    → APPROVED                   (reinstatement)
+//   REJECTED     → UNDER_REVIEW               (allow re-review after re-upload)
+// ─────────────────────────────────────────────────────────────────────────────
+const RESTAURANT_TRANSITIONS: Record<string, string[]> = {
+  PENDING:      ["UNDER_REVIEW", "REJECTED"],
+  UNDER_REVIEW: ["APPROVED", "REJECTED"],
+  APPROVED:     ["ACTIVE", "REJECTED"],
+  ACTIVE:       ["REJECTED"],
+  REJECTED:     ["UNDER_REVIEW"],
+};
 
-function parseStatus<T extends string>(body: unknown, allowed: readonly T[]): T | null {
-  const status = (body as { status?: unknown } | null)?.status;
-  return typeof status === "string" && (allowed as readonly string[]).includes(status) ? (status as T) : null;
-}
+const DRIVER_TRANSITIONS: Record<string, string[]> = {
+  PENDING:      ["UNDER_REVIEW", "REJECTED"],
+  UNDER_REVIEW: ["APPROVED", "REJECTED"],
+  APPROVED:     ["SUSPENDED"],
+  SUSPENDED:    ["APPROVED"],
+  REJECTED:     ["UNDER_REVIEW"],
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/admin/restaurants/:id/status — approve/reject a restaurant (admin)
@@ -340,21 +423,43 @@ router.patch("/admin/restaurants/:id/status", async (req, res): Promise<void> =>
     res.status(400).json({ error: "معرّف غير صحيح" });
     return;
   }
-  const status: RestaurantStatus | null = parseStatus(req.body, RESTAURANT_STATUSES);
-  if (!status) {
+
+  const newStatus = (req.body as { status?: unknown })?.status;
+  if (typeof newStatus !== "string") {
     res.status(400).json({ error: "حالة غير صحيحة" });
     return;
   }
-  const rows = await db
-    .update(restaurantsTable)
-    .set({ status })
+
+  // Fetch current status first to validate the transition
+  const current = await db
+    .select({ status: restaurantsTable.status })
+    .from(restaurantsTable)
     .where(eq(restaurantsTable.id, id))
-    .returning();
-  if (rows.length === 0) {
+    .limit(1);
+
+  if (current.length === 0) {
     res.status(404).json({ error: "لم يتم العثور على الطلب" });
     return;
   }
-  req.log.info({ restaurantId: id, status: status }, "Restaurant status updated");
+
+  const currentStatus = current[0].status;
+  const allowed = RESTAURANT_TRANSITIONS[currentStatus] ?? [];
+  if (!allowed.includes(newStatus)) {
+    res.status(422).json({
+      error: `لا يمكن الانتقال من "${currentStatus}" إلى "${newStatus}"`,
+      currentStatus,
+      allowedTransitions: allowed,
+    });
+    return;
+  }
+
+  const rows = await db
+    .update(restaurantsTable)
+    .set({ status: newStatus as typeof restaurantsTable.$inferSelect.status })
+    .where(eq(restaurantsTable.id, id))
+    .returning();
+
+  req.log.info({ restaurantId: id, from: currentStatus, to: newStatus }, "Restaurant status updated");
   res.json({ success: true, id, status: rows[0].status });
 });
 
@@ -368,21 +473,43 @@ router.patch("/admin/drivers/:id/status", async (req, res): Promise<void> => {
     res.status(400).json({ error: "معرّف غير صحيح" });
     return;
   }
-  const status: DriverStatus | null = parseStatus(req.body, DRIVER_STATUSES);
-  if (!status) {
+
+  const newStatus = (req.body as { status?: unknown })?.status;
+  if (typeof newStatus !== "string") {
     res.status(400).json({ error: "حالة غير صحيحة" });
     return;
   }
-  const rows = await db
-    .update(driverProfilesTable)
-    .set({ status })
+
+  // Fetch current status first to validate the transition
+  const current = await db
+    .select({ status: driverProfilesTable.status })
+    .from(driverProfilesTable)
     .where(eq(driverProfilesTable.id, id))
-    .returning();
-  if (rows.length === 0) {
+    .limit(1);
+
+  if (current.length === 0) {
     res.status(404).json({ error: "لم يتم العثور على الطلب" });
     return;
   }
-  req.log.info({ driverProfileId: id, status: status }, "Driver status updated");
+
+  const currentStatus = current[0].status;
+  const allowed = DRIVER_TRANSITIONS[currentStatus] ?? [];
+  if (!allowed.includes(newStatus)) {
+    res.status(422).json({
+      error: `لا يمكن الانتقال من "${currentStatus}" إلى "${newStatus}"`,
+      currentStatus,
+      allowedTransitions: allowed,
+    });
+    return;
+  }
+
+  const rows = await db
+    .update(driverProfilesTable)
+    .set({ status: newStatus as typeof driverProfilesTable.$inferSelect.status })
+    .where(eq(driverProfilesTable.id, id))
+    .returning();
+
+  req.log.info({ driverProfileId: id, from: currentStatus, to: newStatus }, "Driver status updated");
   res.json({ success: true, id, status: rows[0].status });
 });
 

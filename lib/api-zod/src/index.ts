@@ -23,3 +23,4 @@ export type { OtpVerifyType } from "./generated/types/otpVerifyType";
 export type { PartnerOnboard } from "./generated/types/partnerOnboard";
 export type { PartnerOnboardDeliveryType } from "./generated/types/partnerOnboardDeliveryType";
 export type { RestaurantApplication } from "./generated/types/restaurantApplication";
+// UploadFileResponse is intentionally omitted — conflicts with Zod export in generated/api.ts

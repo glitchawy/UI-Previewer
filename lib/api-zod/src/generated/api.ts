@@ -73,8 +73,7 @@ export const VerifyOtpResponse = zod.object({
  */
 export const UpdateLocationBody = zod.object({
   "lat": zod.number(),
-  "lng": zod.number(),
-  "token": zod.string()
+  "lng": zod.number()
 })
 
 export const UpdateLocationResponse = zod.object({

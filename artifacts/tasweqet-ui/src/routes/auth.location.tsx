@@ -137,7 +137,7 @@ function AuthLocation() {
   function handleConfirm() {
     const token = getToken();
     if (geo.status === "success" && token) {
-      updateLocation.mutate({ data: { lat: geo.lat, lng: geo.lng, token } });
+      updateLocation.mutate({ data: { lat: geo.lat, lng: geo.lng } });
     } else {
       navigate({ to: "/auth/onboard-customer" });
     }

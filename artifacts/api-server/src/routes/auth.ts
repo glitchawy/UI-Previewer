@@ -241,7 +241,14 @@ router.patch("/auth/location", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { lat, lng, token } = parsed.data;
+  const { lat, lng } = parsed.data;
+
+  const auth = req.headers.authorization;
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ error: "غير مصرح" });
+    return;
+  }
 
   const rows = await db
     .select()

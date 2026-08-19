@@ -187,7 +187,6 @@ export interface AuthSession {
 export interface LocationUpdate {
   lat: number;
   lng: number;
-  token: string;
 }
 
 export interface LocationSaveResult {

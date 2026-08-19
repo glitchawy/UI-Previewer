@@ -533,14 +533,12 @@ components:
 
     LocationUpdate:
       type: object
-      required: [lat, lng, token]
+      required: [lat, lng]
       properties:
         lat:
           type: number
         lng:
           type: number
-        token:
-          type: string
 
     LocationSaveResult:
       type: object
