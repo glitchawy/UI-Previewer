@@ -66,11 +66,11 @@ function storageUrl(objectPath: string): string {
 
 async function uploadFileToStorage(file: File): Promise<string> {
   const token = getToken();
-  const contentType = file.type || "application/octet-stream";
+  // POST the raw file bytes; server validates type via magic-byte detection
   const res = await fetch("/api/storage/uploads", {
     method: "POST",
     headers: {
-      "Content-Type": contentType,
+      "Content-Type": file.type || "application/octet-stream",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: file,
@@ -232,6 +232,7 @@ function AuthPending() {
 
   // Application status from the server
   const [appStatus, setAppStatus] = useState<string | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   // Update documents panel
   const [showUpdate, setShowUpdate] = useState(false);
@@ -261,14 +262,41 @@ function AuthPending() {
   const [patching, setPatching] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function refresh() {
+      const token = getToken();
+      setStatusLoading(true);
+      try {
+        const r = await fetch("/api/onboard/status", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!r.ok || cancelled) return;
+        const d = (await r.json()) as { status?: string | null };
+        if (!cancelled) setAppStatus(d.status ?? null);
+      } catch {
+        // silently ignore network errors during polling
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    }
+
+    refresh();
+    const interval = setInterval(refresh, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  function manualRefresh() {
     const token = getToken();
+    setStatusLoading(true);
     fetch("/api/onboard/status", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((r) => r.json())
       .then((d: { status?: string | null }) => setAppStatus(d.status ?? null))
-      .catch(() => {/* silently ignore */});
-  }, []);
+      .catch(() => {})
+      .finally(() => setStatusLoading(false));
+  }
 
   const canUpdate = appStatus === "PENDING" || appStatus === "REJECTED";
 
@@ -404,10 +432,36 @@ function AuthPending() {
           <p className="font-headline-md text-headline-md text-on-surface">{cfg.title}</p>
           <p className="mt-1 font-body-md text-body-md text-on-surface-variant">{cfg.subtitle}</p>
         </div>
-        <Badge tone="info">
-          <Icon name="schedule" className="text-[14px]" />
-          {cfg.eta}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge tone="info">
+            <Icon name="schedule" className="text-[14px]" />
+            {cfg.eta}
+          </Badge>
+          <button
+            type="button"
+            onClick={manualRefresh}
+            disabled={statusLoading}
+            title="تحديث الحالة"
+            className="flex items-center justify-center rounded-full p-1 text-on-surface-variant transition hover:bg-surface-container disabled:opacity-50"
+          >
+            <Icon
+              name="refresh"
+              className={`text-[18px] ${statusLoading ? "animate-spin" : ""}`}
+            />
+          </button>
+        </div>
+        {appStatus && (
+          <p className="font-label-md text-label-md text-on-surface-variant">
+            الحالة الحالية:{" "}
+            <span className={`font-label-lg ${
+              appStatus === "APPROVED" || appStatus === "ACTIVE" ? "text-success" :
+              appStatus === "REJECTED" ? "text-error" :
+              "text-secondary"
+            }`}>
+              {{ PENDING: "قيد الانتظار", UNDER_REVIEW: "قيد المراجعة", APPROVED: "مقبول", ACTIVE: "نشط", REJECTED: "مرفوض", SUSPENDED: "موقوف" }[appStatus] ?? appStatus}
+            </span>
+          </p>
+        )}
       </div>
 
       {/* Progress stepper */}
