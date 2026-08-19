@@ -116,6 +116,27 @@ function ImageUploadSlot({
   );
 }
 
+function Field({ label, placeholder, value, onChange, onClear, type = "text", icon }: {
+  label: string; placeholder: string; value: string;
+  onChange: (v: string) => void; onClear?: () => void; type?: string; icon?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="font-label-lg text-label-lg text-on-surface-variant">{label}</span>
+      <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary transition">
+        {icon && <Icon name={icon} className="text-[20px] text-outline shrink-0" />}
+        <input
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => { onChange(e.target.value); onClear?.(); }}
+          className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
+        />
+      </span>
+    </label>
+  );
+}
+
 function AuthRegisterRestaurant() {
   const navigate = useNavigate();
   const session = getSession();
@@ -214,28 +235,8 @@ function AuthRegisterRestaurant() {
     }
   }
 
-  function Field({ label, placeholder, value, onChange, type = "text", icon }: {
-    label: string; placeholder: string; value: string;
-    onChange: (v: string) => void; type?: string; icon?: string;
-  }) {
-    return (
-      <label className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">{label}</span>
-        <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary transition">
-          {icon && <Icon name={icon} className="text-[20px] text-outline shrink-0" />}
-          <input
-            type={type}
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => { onChange(e.target.value); setError(""); }}
-            className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
-          />
-        </span>
-      </label>
-    );
-  }
-
   const anyUploading = logoUploading || coverUploading;
+  const clearError = () => setError("");
 
   return (
     <AuthShell title="تسجيل مطعم جديد" subtitle="ابدأ البيع على طلبات بيتك خطوة بخطوة" back="/auth/register">
@@ -251,14 +252,14 @@ function AuthRegisterRestaurant() {
 
       {/* Owner info */}
       <p className="font-label-lg text-label-lg text-on-surface">بيانات المالك</p>
-      <Field label="اسم المالك" placeholder="هاني رمضان" value={ownerName} onChange={setOwnerName} icon="person" />
-      <Field label="البريد الإلكتروني (اختياري)" placeholder="owner@restaurant.eg" value={email} onChange={setEmail} type="email" icon="mail" />
+      <Field label="اسم المالك" placeholder="هاني رمضان" value={ownerName} onChange={setOwnerName} icon="person" onClear={clearError} />
+      <Field label="البريد الإلكتروني (اختياري)" placeholder="owner@restaurant.eg" value={email} onChange={setEmail} type="email" icon="mail" onClear={clearError} />
 
       <hr className="border-outline-variant" />
 
       {/* Restaurant info */}
       <p className="font-label-lg text-label-lg text-on-surface">بيانات المطعم</p>
-      <Field label="اسم المطعم" placeholder="برجر هاوس" value={restaurantName} onChange={setRestaurantName} icon="storefront" />
+      <Field label="اسم المطعم" placeholder="برجر هاوس" value={restaurantName} onChange={setRestaurantName} icon="storefront" onClear={clearError} />
 
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">الوصف (اختياري)</span>
@@ -296,11 +297,11 @@ function AuthRegisterRestaurant() {
         </div>
       </div>
 
-      <Field label="هاتف المطعم" placeholder="0100 123 4567" value={phone} onChange={setPhone} type="tel" icon="call" />
-      <Field label="العنوان" placeholder="شارع 9، المعادي، القاهرة" value={address} onChange={setAddress} icon="place" />
+      <Field label="هاتف المطعم" placeholder="0100 123 4567" value={phone} onChange={setPhone} type="tel" icon="call" onClear={clearError} />
+      <Field label="العنوان" placeholder="شارع 9، المعادي، القاهرة" value={address} onChange={setAddress} icon="place" onClear={clearError} />
       <MapCanvas height="h-40" />
-      <Field label="عدد الفروع" placeholder="1" value={branches} onChange={setBranches} type="number" icon="store" />
-      <Field label="مواعيد العمل" placeholder="10:00 ص — 2:00 ص" value={hours} onChange={setHours} icon="schedule" />
+      <Field label="عدد الفروع" placeholder="1" value={branches} onChange={setBranches} type="number" icon="store" onClear={clearError} />
+      <Field label="مواعيد العمل" placeholder="10:00 ص — 2:00 ص" value={hours} onChange={setHours} icon="schedule" onClear={clearError} />
 
       {/* Delivery type */}
       <div className="flex flex-col gap-1.5">
