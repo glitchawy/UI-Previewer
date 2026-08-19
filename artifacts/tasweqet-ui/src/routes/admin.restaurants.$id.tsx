@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Bars, Button, Card, DashboardShell, Field, Icon, SectionTitle, Stat, StatusBadge } from "@/components/tb/shell";
+import { Badge, Bars, Button, Card, DashboardShell, Field, Icon, SectionTitle, Stat, StatusBadge } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
 import { EGP, branches, restaurantOf, restaurantStats } from "@/lib/tb/data";
 import { useEffect } from "react";
@@ -130,22 +130,54 @@ function StoredRestaurantDetail({ appId }: { appId: number }) {
               <Card className="p-md">
                 <SectionTitle title="الصور المرفوعة" icon="image" />
                 <div className="grid grid-cols-2 gap-3">
-                  {app.logoUrl && (
-                    <div className="flex flex-col gap-1 rounded-card border border-outline-variant overflow-hidden">
-                      <a href={storageUrl(app.logoUrl!)} target="_blank" rel="noreferrer">
-                        <img src={storageUrl(app.logoUrl!)} alt="شعار المطعم" className="w-full h-32 object-contain bg-surface-container" />
-                      </a>
-                      <p className="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant">شعار المطعم</p>
-                    </div>
-                  )}
-                  {app.coverUrl && (
-                    <div className="flex flex-col gap-1 rounded-card border border-outline-variant overflow-hidden">
-                      <a href={storageUrl(app.coverUrl)} target="_blank" rel="noreferrer">
-                        <img src={storageUrl(app.coverUrl)} alt="صورة الغلاف" className="w-full h-32 object-cover bg-surface-container" />
-                      </a>
-                      <p className="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant">صورة الغلاف</p>
-                    </div>
-                  )}
+                  {app.logoUrl && (() => {
+                    const isReUploaded = app.logoUploadedAt !== null;
+                    return (
+                      <div className="flex flex-col gap-1 rounded-card border border-outline-variant overflow-hidden">
+                        <a href={storageUrl(app.logoUrl!)} target="_blank" rel="noreferrer">
+                          <img src={storageUrl(app.logoUrl!)} alt="شعار المطعم" className="w-full h-32 object-contain bg-surface-container" />
+                        </a>
+                        <p className="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant">شعار المطعم</p>
+                        <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+                          {isReUploaded ? (
+                            <Badge tone="warn" className="text-[11px]">
+                              <Icon name="upload" className="text-[11px]" />
+                              أُعيد الرفع
+                            </Badge>
+                          ) : null}
+                          <span className="font-label-sm text-label-sm text-on-surface-variant">
+                            {isReUploaded
+                              ? `أُعيد الرفع: ${new Date(app.logoUploadedAt!).toLocaleString("ar-EG")}`
+                              : `رُفع: ${new Date(app.createdAt).toLocaleString("ar-EG")}`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {app.coverUrl && (() => {
+                    const isReUploaded = app.coverUploadedAt !== null;
+                    return (
+                      <div className="flex flex-col gap-1 rounded-card border border-outline-variant overflow-hidden">
+                        <a href={storageUrl(app.coverUrl!)} target="_blank" rel="noreferrer">
+                          <img src={storageUrl(app.coverUrl!)} alt="صورة الغلاف" className="w-full h-32 object-cover bg-surface-container" />
+                        </a>
+                        <p className="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant">صورة الغلاف</p>
+                        <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+                          {isReUploaded ? (
+                            <Badge tone="warn" className="text-[11px]">
+                              <Icon name="upload" className="text-[11px]" />
+                              أُعيد الرفع
+                            </Badge>
+                          ) : null}
+                          <span className="font-label-sm text-label-sm text-on-surface-variant">
+                            {isReUploaded
+                              ? `أُعيد الرفع: ${new Date(app.coverUploadedAt!).toLocaleString("ar-EG")}`
+                              : `رُفع: ${new Date(app.createdAt).toLocaleString("ar-EG")}`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </Card>
             )}

@@ -15,6 +15,13 @@
       "when": 1755558000000,
       "tag": "0001_add_upload_urls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1755644400000,
+      "tag": "0002_add_doc_upload_timestamps",
+      "breakpoints": true
     }
   ]
 }

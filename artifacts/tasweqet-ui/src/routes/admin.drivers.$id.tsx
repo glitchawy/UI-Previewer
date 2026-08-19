@@ -80,11 +80,11 @@ function StoredDriverDetail({ appId }: { appId: number }) {
     }
   }
 
-  const uploadedDocs: { key: string; label: string; url: string }[] = [
-    { key: "nationalIdFrontUrl", label: docLabels["national_id_front"], url: app?.nationalIdFrontUrl ?? "" },
-    { key: "nationalIdBackUrl",  label: docLabels["national_id_back"],  url: app?.nationalIdBackUrl ?? "" },
-    { key: "criminalRecordUrl",  label: docLabels["criminal_record"],   url: app?.criminalRecordUrl ?? "" },
-    { key: "licenseUrl",         label: docLabels["license"],           url: app?.licenseUrl ?? "" },
+  const uploadedDocs: { key: string; label: string; url: string; uploadedAt: string | null }[] = [
+    { key: "nationalIdFrontUrl", label: docLabels["national_id_front"], url: app?.nationalIdFrontUrl ?? "", uploadedAt: app?.nationalIdFrontUploadedAt ?? null },
+    { key: "nationalIdBackUrl",  label: docLabels["national_id_back"],  url: app?.nationalIdBackUrl ?? "",  uploadedAt: app?.nationalIdBackUploadedAt ?? null },
+    { key: "criminalRecordUrl",  label: docLabels["criminal_record"],   url: app?.criminalRecordUrl ?? "",  uploadedAt: app?.criminalRecordUploadedAt ?? null },
+    { key: "licenseUrl",         label: docLabels["license"],           url: app?.licenseUrl ?? "",         uploadedAt: app?.licenseUploadedAt ?? null },
   ].filter((d) => d.url);
 
   return (
@@ -114,38 +114,53 @@ function StoredDriverDetail({ appId }: { appId: number }) {
                 <p className="font-body-md text-body-md text-on-surface-variant">لا توجد مستندات مرفوعة.</p>
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {uploadedDocs.map((doc) => (
-                    <div key={doc.key} className="flex flex-col gap-2 rounded-card border border-outline-variant overflow-hidden">
-                      <a href={storageUrl(doc.url)} target="_blank" rel="noreferrer" className="block">
-                        <img
-                          src={storageUrl(doc.url)}
-                          alt={doc.label}
-                          className="w-full h-40 object-cover bg-surface-container"
-                          onError={(e) => {
-                            const img = e.target as HTMLImageElement;
-                            img.style.display = "none";
-                            img.nextElementSibling?.classList.remove("hidden");
-                          }}
-                        />
-                        <div className="hidden flex items-center justify-center h-40 bg-surface-container">
-                          <Icon name="description" className="text-[40px] text-on-surface-variant" />
-                        </div>
-                      </a>
-                      <div className="flex items-center gap-2 px-3 py-2">
-                        <Icon name="check_circle" className="text-[16px] text-success flex-shrink-0" />
-                        <span className="font-label-md text-label-md text-on-surface truncate">{doc.label}</span>
-                        <a
-                          href={storageUrl(doc.url)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mr-auto flex items-center gap-1 font-label-md text-label-md text-primary"
-                        >
-                          <Icon name="open_in_new" className="text-[14px]" />
-                          فتح
+                  {uploadedDocs.map((doc) => {
+                    const isReUploaded = doc.uploadedAt !== null;
+                    const timestampLabel = isReUploaded
+                      ? `أُعيد الرفع: ${new Date(doc.uploadedAt!).toLocaleString("ar-EG")}`
+                      : `رُفع: ${new Date(app!.createdAt).toLocaleString("ar-EG")}`;
+                    return (
+                      <div key={doc.key} className="flex flex-col gap-2 rounded-card border border-outline-variant overflow-hidden">
+                        <a href={storageUrl(doc.url)} target="_blank" rel="noreferrer" className="block">
+                          <img
+                            src={storageUrl(doc.url)}
+                            alt={doc.label}
+                            className="w-full h-40 object-cover bg-surface-container"
+                            onError={(e) => {
+                              const img = e.target as HTMLImageElement;
+                              img.style.display = "none";
+                              img.nextElementSibling?.classList.remove("hidden");
+                            }}
+                          />
+                          <div className="hidden flex items-center justify-center h-40 bg-surface-container">
+                            <Icon name="description" className="text-[40px] text-on-surface-variant" />
+                          </div>
                         </a>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <Icon name="check_circle" className="text-[16px] text-success flex-shrink-0" />
+                          <span className="font-label-md text-label-md text-on-surface truncate">{doc.label}</span>
+                          <a
+                            href={storageUrl(doc.url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mr-auto flex items-center gap-1 font-label-md text-label-md text-primary"
+                          >
+                            <Icon name="open_in_new" className="text-[14px]" />
+                            فتح
+                          </a>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+                          {isReUploaded ? (
+                            <Badge tone="warn" className="text-[11px]">
+                              <Icon name="upload" className="text-[11px]" />
+                              أُعيد الرفع
+                            </Badge>
+                          ) : null}
+                          <span className="font-label-sm text-label-sm text-on-surface-variant">{timestampLabel}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>

@@ -182,7 +182,9 @@ router.get("/admin/restaurants", async (req, res): Promise<void> => {
       category: r.category,
       deliveryType: r.deliveryType,
       logoUrl: r.logoUrl,
+      logoUploadedAt: r.logoUploadedAt?.toISOString() ?? null,
       coverUrl: r.coverUrl,
+      coverUploadedAt: r.coverUploadedAt?.toISOString() ?? null,
       status: r.status,
       createdAt: r.createdAt.toISOString(),
     })),
@@ -211,9 +213,13 @@ router.get("/admin/drivers", async (req, res): Promise<void> => {
       vehicleType: d.vehicleType,
       documents: d.documents,
       nationalIdFrontUrl: d.nationalIdFrontUrl,
+      nationalIdFrontUploadedAt: d.nationalIdFrontUploadedAt?.toISOString() ?? null,
       nationalIdBackUrl: d.nationalIdBackUrl,
+      nationalIdBackUploadedAt: d.nationalIdBackUploadedAt?.toISOString() ?? null,
       criminalRecordUrl: d.criminalRecordUrl,
+      criminalRecordUploadedAt: d.criminalRecordUploadedAt?.toISOString() ?? null,
       licenseUrl: d.licenseUrl,
+      licenseUploadedAt: d.licenseUploadedAt?.toISOString() ?? null,
       phone: phone ?? null,
       status: d.status,
       createdAt: d.createdAt.toISOString(),
@@ -273,18 +279,22 @@ router.patch("/onboard/partner", async (req, res): Promise<void> => {
 
   // Only accept file URL fields
   const body = req.body as Record<string, unknown>;
-  const updates: { logoUrl?: string | null; coverUrl?: string | null } = {};
-  if (typeof body.logoUrl === "string") updates.logoUrl = body.logoUrl.trim() || null;
-  if (typeof body.coverUrl === "string") updates.coverUrl = body.coverUrl.trim() || null;
+  const incomingLogo = typeof body.logoUrl === "string" ? body.logoUrl.trim() || null : undefined;
+  const incomingCover = typeof body.coverUrl === "string" ? body.coverUrl.trim() || null : undefined;
 
-  if (Object.keys(updates).length === 0) {
+  if (incomingLogo === undefined && incomingCover === undefined) {
     res.status(400).json({ error: "لم يتم إرسال أي تحديثات" });
     return;
   }
 
-  // Find the latest application for this partner
+  // Find the latest application for this partner and read existing URLs
   const existing = await db
-    .select({ id: restaurantsTable.id, status: restaurantsTable.status })
+    .select({
+      id: restaurantsTable.id,
+      status: restaurantsTable.status,
+      logoUrl: restaurantsTable.logoUrl,
+      coverUrl: restaurantsTable.coverUrl,
+    })
     .from(restaurantsTable)
     .where(eq(restaurantsTable.ownerUserId, user.id))
     .orderBy(desc(restaurantsTable.createdAt))
@@ -303,6 +313,22 @@ router.patch("/onboard/partner", async (req, res): Promise<void> => {
       status,
     });
     return;
+  }
+
+  const now = new Date();
+  const updates: { logoUrl?: string | null; logoUploadedAt?: Date; coverUrl?: string | null; coverUploadedAt?: Date } = {};
+  if (incomingLogo !== undefined) {
+    updates.logoUrl = incomingLogo;
+    // Only stamp when replacing an existing upload (null → URL is a first upload, not a re-upload)
+    if (incomingLogo !== null && existing[0].logoUrl !== null && incomingLogo !== existing[0].logoUrl) {
+      updates.logoUploadedAt = now;
+    }
+  }
+  if (incomingCover !== undefined) {
+    updates.coverUrl = incomingCover;
+    if (incomingCover !== null && existing[0].coverUrl !== null && incomingCover !== existing[0].coverUrl) {
+      updates.coverUploadedAt = now;
+    }
   }
 
   const rows = await db
@@ -332,25 +358,26 @@ router.patch("/onboard/driver", async (req, res): Promise<void> => {
 
   // Only accept file URL fields
   const body = req.body as Record<string, unknown>;
-  const updates: {
-    nationalIdFrontUrl?: string | null;
-    nationalIdBackUrl?: string | null;
-    criminalRecordUrl?: string | null;
-    licenseUrl?: string | null;
-  } = {};
-  if (typeof body.nationalIdFrontUrl === "string") updates.nationalIdFrontUrl = body.nationalIdFrontUrl.trim() || null;
-  if (typeof body.nationalIdBackUrl === "string") updates.nationalIdBackUrl = body.nationalIdBackUrl.trim() || null;
-  if (typeof body.criminalRecordUrl === "string") updates.criminalRecordUrl = body.criminalRecordUrl.trim() || null;
-  if (typeof body.licenseUrl === "string") updates.licenseUrl = body.licenseUrl.trim() || null;
+  const incomingNidFront   = typeof body.nationalIdFrontUrl  === "string" ? body.nationalIdFrontUrl.trim()  || null : undefined;
+  const incomingNidBack    = typeof body.nationalIdBackUrl   === "string" ? body.nationalIdBackUrl.trim()   || null : undefined;
+  const incomingCriminal   = typeof body.criminalRecordUrl   === "string" ? body.criminalRecordUrl.trim()   || null : undefined;
+  const incomingLicense    = typeof body.licenseUrl          === "string" ? body.licenseUrl.trim()          || null : undefined;
 
-  if (Object.keys(updates).length === 0) {
+  if (incomingNidFront === undefined && incomingNidBack === undefined && incomingCriminal === undefined && incomingLicense === undefined) {
     res.status(400).json({ error: "لم يتم إرسال أي تحديثات" });
     return;
   }
 
-  // Find the latest application for this driver
+  // Find the latest application for this driver and read existing URLs
   const existing = await db
-    .select({ id: driverProfilesTable.id, status: driverProfilesTable.status })
+    .select({
+      id: driverProfilesTable.id,
+      status: driverProfilesTable.status,
+      nationalIdFrontUrl: driverProfilesTable.nationalIdFrontUrl,
+      nationalIdBackUrl: driverProfilesTable.nationalIdBackUrl,
+      criminalRecordUrl: driverProfilesTable.criminalRecordUrl,
+      licenseUrl: driverProfilesTable.licenseUrl,
+    })
     .from(driverProfilesTable)
     .where(eq(driverProfilesTable.userId, user.id))
     .orderBy(desc(driverProfilesTable.createdAt))
@@ -369,6 +396,43 @@ router.patch("/onboard/driver", async (req, res): Promise<void> => {
       status,
     });
     return;
+  }
+
+  const now = new Date();
+  const updates: {
+    nationalIdFrontUrl?: string | null;
+    nationalIdFrontUploadedAt?: Date;
+    nationalIdBackUrl?: string | null;
+    nationalIdBackUploadedAt?: Date;
+    criminalRecordUrl?: string | null;
+    criminalRecordUploadedAt?: Date;
+    licenseUrl?: string | null;
+    licenseUploadedAt?: Date;
+  } = {};
+  if (incomingNidFront !== undefined) {
+    updates.nationalIdFrontUrl = incomingNidFront;
+    // Only stamp when replacing an existing upload (null → URL is a first upload, not a re-upload)
+    if (incomingNidFront !== null && existing[0].nationalIdFrontUrl !== null && incomingNidFront !== existing[0].nationalIdFrontUrl) {
+      updates.nationalIdFrontUploadedAt = now;
+    }
+  }
+  if (incomingNidBack !== undefined) {
+    updates.nationalIdBackUrl = incomingNidBack;
+    if (incomingNidBack !== null && existing[0].nationalIdBackUrl !== null && incomingNidBack !== existing[0].nationalIdBackUrl) {
+      updates.nationalIdBackUploadedAt = now;
+    }
+  }
+  if (incomingCriminal !== undefined) {
+    updates.criminalRecordUrl = incomingCriminal;
+    if (incomingCriminal !== null && existing[0].criminalRecordUrl !== null && incomingCriminal !== existing[0].criminalRecordUrl) {
+      updates.criminalRecordUploadedAt = now;
+    }
+  }
+  if (incomingLicense !== undefined) {
+    updates.licenseUrl = incomingLicense;
+    if (incomingLicense !== null && existing[0].licenseUrl !== null && incomingLicense !== existing[0].licenseUrl) {
+      updates.licenseUploadedAt = now;
+    }
   }
 
   const rows = await db
