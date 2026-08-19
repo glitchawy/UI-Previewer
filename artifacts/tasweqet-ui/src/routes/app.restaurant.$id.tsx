@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { MobileShell, Icon, Badge, Button } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
+import { FavButton } from "@/lib/tb/favorites";
 
 export const Route = createFileRoute("/app/restaurant/$id")({
   head: () => ({
@@ -118,6 +119,7 @@ function AppRestaurantId() {
         <Link to="/app" className="absolute right-3 top-3 z-20 flex size-9 items-center justify-center rounded-full bg-surface-container-lowest/90 text-on-surface">
           <Icon name="arrow_forward" />
         </Link>
+        <FavButton targetType="restaurant" targetId={Number(id)} className="absolute left-3 top-3 z-20 size-9" />
         {r.coverUrl ? (
           <img src={`/api/storage${r.coverUrl}`} alt={r.name} className="h-44 w-full object-cover" />
         ) : (
@@ -177,7 +179,8 @@ function AppRestaurantId() {
         ) : (
           filtered.map((p) => (
             <button key={p.id} type="button" onClick={() => openSheet(p)}
-              className="flex items-center gap-3 rounded-card border border-outline-variant bg-surface-container-lowest p-md text-right transition hover:border-secondary active:scale-[0.99]">
+              className="relative flex items-center gap-3 rounded-card border border-outline-variant bg-surface-container-lowest p-md text-right transition hover:border-secondary active:scale-[0.99]">
+              <FavButton targetType="product" targetId={p.id} className="absolute left-2 top-2" />
               {p.imageUrl ? (
                 <img src={`/api/storage${p.imageUrl}`} alt={p.name} className="size-20 shrink-0 rounded-button object-cover" />
               ) : (

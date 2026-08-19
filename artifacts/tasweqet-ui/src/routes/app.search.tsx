@@ -1,108 +1,217 @@
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppBar, MobileShell, Icon, Card, SectionTitle } from "@/components/tb/shell";
-import { categories, restaurants, products } from "@/lib/tb/data";
 import { customerTabs } from "@/lib/tb/nav";
+import { FavButton } from "@/lib/tb/favorites";
 
 export const Route = createFileRoute("/app/search")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "طلبات بيتك | البحث" },
-      { name: "description", content: "دور على مطاعم وأكلات ومنتجات في طلبات بيتك" },
-      { property: "og:title", content: "طلبات بيتك | البحث" },
-      { property: "og:description", content: "دور على مطاعم وأكلات ومنتجات في طلبات بيتك" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "description", content: "دور على مطاعم وأكلات وفئات في طلبات بيتك" },
     ],
   }),
   component: AppSearch,
 });
 
-const recent = ["برجر", "بيتزا روما", "كشري", "حلويات"];
+const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minimumFractionDigits: 0 })} ج.م`;
+
+type SearchRestaurant = { id: number; name: string; description: string | null; category: string | null; logoUrl: string | null };
+type SearchProduct = { id: number; name: string; description: string | null; imageUrl: string | null; basePrice: string; restaurantId: number; restaurantName: string };
+type SearchCategory = { id: number; name: string; restaurantId: number; restaurantName: string };
+type Suggestion = { type: "restaurant" | "product" | "category"; id: number; label: string; restaurantId?: number };
+type SearchData = { restaurants: SearchRestaurant[]; products: SearchProduct[]; categories: SearchCategory[]; suggestions: Suggestion[] };
+
+const EMPTY: SearchData = { restaurants: [], products: [], categories: [], suggestions: [] };
+
+const RECENT_KEY = "tb_recent_searches";
+function getRecent(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as string[]; } catch { return []; }
+}
+function pushRecent(q: string) {
+  const list = [q, ...getRecent().filter((r) => r !== q)].slice(0, 6);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+}
 
 function AppSearch() {
+  const { q: initialQ } = Route.useSearch();
+  const [query, setQuery] = useState(initialQ ?? "");
+  const [data, setData] = useState<SearchData>(EMPTY);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [recent, setRecent] = useState(getRecent());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef("");
+
+  const runSearch = useCallback(async (q: string, autocompleteOnly: boolean) => {
+    latest.current = q;
+    if (q.trim().length < 2) { setData(EMPTY); setSuggestions([]); return; }
+    if (!autocompleteOnly) setLoading(true);
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}${autocompleteOnly ? "&autocomplete=true" : ""}`);
+      const d = (await r.json()) as SearchData;
+      if (latest.current !== q) return;
+      if (autocompleteOnly) {
+        setSuggestions(d.suggestions);
+      } else {
+        setData(d);
+        setSuggestions([]);
+        pushRecent(q.trim());
+        setRecent(getRecent());
+      }
+    } catch {
+      if (latest.current === q) { setData(EMPTY); setSuggestions([]); }
+    }
+    if (latest.current === q) setLoading(false);
+  }, []);
+
+  // Initial query from URL (e.g. category chip link)
+  useEffect(() => {
+    if (initialQ) runSearch(initialQ, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleChange(val: string) {
+    setQuery(val);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => runSearch(val, true), 350);
+  }
+
+  function submit(q: string) {
+    setQuery(q);
+    if (timer.current) clearTimeout(timer.current);
+    runSearch(q, false);
+  }
+
+  const hasResults = data.restaurants.length + data.products.length + data.categories.length > 0;
+
   return (
     <MobileShell tabs={customerTabs}>
       <AppBar title="البحث" back="/app" />
       <div className="flex flex-col gap-lg p-md">
-        <div className="flex items-center gap-2 rounded-button border border-secondary bg-surface-container-lowest px-3 py-3">
-          <Icon name="search" className="text-on-surface-variant" />
-          <input
-            className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
-            placeholder="دور على مطعم، أكلة أو فئة..."
-            defaultValue="برجر"
-          />
+        <div className="relative">
+          <div className="flex items-center gap-2 rounded-button border border-secondary bg-surface-container-lowest px-3 py-3">
+            <Icon name="search" className="text-on-surface-variant" />
+            <input
+              className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
+              placeholder="دور على مطعم، أكلة أو فئة..."
+              value={query}
+              onChange={(e) => handleChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(query); }}
+              dir="rtl"
+              autoFocus
+            />
+            {loading && <span className="material-symbols-outlined animate-spin text-[18px] text-outline">progress_activity</span>}
+          </div>
+          {suggestions.length > 0 && (
+            <ul className="absolute top-full z-30 mt-1 w-full overflow-hidden rounded-card border border-outline-variant bg-surface-container-lowest shadow-lift">
+              {suggestions.map((s, i) => (
+                <li key={`${s.type}-${s.id}-${i}`}>
+                  <button type="button" onClick={() => submit(s.label)}
+                    className="flex w-full items-center gap-2 px-md py-sm text-right transition hover:bg-surface-container-low">
+                    <Icon name={s.type === "restaurant" ? "storefront" : s.type === "category" ? "category" : "fastfood"}
+                      className="text-[16px] text-outline" />
+                    <span className="font-label-md text-label-md text-on-surface">{s.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        <section>
-          <SectionTitle title="عمليات بحث سابقة" icon="history" />
-          <div className="flex flex-wrap gap-2">
-            {recent.map((r) => (
-              <span
-                key={r}
-                className="rounded-full bg-surface-container-low px-3 py-1.5 font-label-md text-label-md text-on-surface-variant"
-              >
-                {r}
-              </span>
-            ))}
-          </div>
-        </section>
+        {!hasResults && recent.length > 0 && (
+          <section>
+            <SectionTitle title="عمليات بحث سابقة" icon="history" />
+            <div className="flex flex-wrap gap-2">
+              {recent.map((r) => (
+                <button key={r} type="button" onClick={() => submit(r)}
+                  className="rounded-full bg-surface-container-low px-3 py-1.5 font-label-md text-label-md text-on-surface-variant transition hover:bg-surface-container">
+                  {r}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
-        <section>
-          <SectionTitle title="فئات" icon="category" />
-          <div className="tb-stagger flex flex-col gap-2">
-            {categories.slice(0, 2).map((c) => (
-              <Link
-                key={c["id"]}
-                to="/app/category/$id"
-                params={{ id: c["id"] }}
-                className="flex items-center gap-3 rounded-button bg-surface-container-low p-3 transition hover:bg-surface-container"
-              >
-                <Icon name={c["icon"]} className="text-on-surface-variant" />
-                <span className="font-body-md text-body-md text-on-surface">{c["name"]}</span>
-              </Link>
-            ))}
+        {!loading && query.trim().length >= 2 && !hasResults && suggestions.length === 0 && (
+          <div className="flex flex-col items-center gap-3 py-xl text-center">
+            <Icon name="search_off" className="text-[48px] text-outline" />
+            <p className="font-body-md text-body-md text-on-surface-variant">لا توجد نتائج لـ «{query}»</p>
           </div>
-        </section>
+        )}
 
-        <section>
-          <SectionTitle title="مطاعم" icon="storefront" />
-          <div className="tb-stagger flex flex-col gap-2">
-            {restaurants
-              .filter((r) => r["name"].includes("برجر"))
-              .map((r) => (
-                <Link key={r["id"]} to="/app/restaurant/$id" params={{ id: r["id"] }}>
-                  <Card className="flex items-center gap-3 p-3 transition hover:border-secondary">
-                    <img src={r["logo"]} alt={r["name"]} className="size-12 rounded-full object-cover" />
+        {data.categories.length > 0 && (
+          <section>
+            <SectionTitle title="فئات" icon="category" />
+            <div className="tb-stagger flex flex-col gap-2">
+              {data.categories.map((c) => (
+                <Link key={c.id} to="/app/restaurant/$id" params={{ id: String(c.restaurantId) }}
+                  className="flex items-center gap-3 rounded-button bg-surface-container-low p-3 transition hover:bg-surface-container">
+                  <Icon name="category" className="text-on-surface-variant" />
+                  <span className="flex-1 font-body-md text-body-md text-on-surface">{c.name}</span>
+                  <span className="font-label-md text-label-md text-on-surface-variant">{c.restaurantName}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {data.restaurants.length > 0 && (
+          <section>
+            <SectionTitle title="مطاعم" icon="storefront" />
+            <div className="tb-stagger flex flex-col gap-2">
+              {data.restaurants.map((r) => (
+                <Link key={r.id} to="/app/restaurant/$id" params={{ id: String(r.id) }}>
+                  <Card className="relative flex items-center gap-3 p-3 transition hover:border-secondary">
+                    {r.logoUrl ? (
+                      <img src={`/api/storage${r.logoUrl}`} alt={r.name} className="size-12 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex size-12 items-center justify-center rounded-full bg-surface-container">
+                        <Icon name="storefront" className="text-outline" />
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-label-lg text-label-lg text-on-surface">{r["name"]}</p>
-                      <p className="truncate font-label-md text-label-md text-on-surface-variant">{r["description"]}</p>
+                      <p className="truncate font-label-lg text-label-lg text-on-surface">{r.name}</p>
+                      {r.description && <p className="truncate font-label-md text-label-md text-on-surface-variant">{r.description}</p>}
                     </div>
-                    <Icon name="chevron_left" className="text-on-surface-variant" />
+                    <FavButton targetType="restaurant" targetId={r.id} />
                   </Card>
                 </Link>
               ))}
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
 
-        <section>
-          <SectionTitle title="منتجات" icon="fastfood" />
-          <div className="tb-stagger flex flex-col gap-2">
-            {products
-              .filter((p) => p["name"].includes("برجر"))
-              .map((p) => (
-                <Link key={p["id"]} to="/app/product/$id" params={{ id: p["id"] }}>
-                  <Card className="flex items-center gap-3 p-3 transition hover:border-secondary">
-                    <img src={p["image"]} alt={p["name"]} className="size-12 rounded-card object-cover" />
+        {data.products.length > 0 && (
+          <section>
+            <SectionTitle title="منتجات" icon="fastfood" />
+            <div className="tb-stagger flex flex-col gap-2">
+              {data.products.map((p) => (
+                <Link key={p.id} to="/app/product/$id" params={{ id: String(p.id) }}>
+                  <Card className="relative flex items-center gap-3 p-3 transition hover:border-secondary">
+                    {p.imageUrl ? (
+                      <img src={`/api/storage${p.imageUrl}`} alt={p.name} className="size-12 rounded-card object-cover" />
+                    ) : (
+                      <span className="flex size-12 items-center justify-center rounded-card bg-surface-container">
+                        <Icon name="fastfood" className="text-outline" />
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-label-lg text-label-lg text-on-surface">{p["name"]}</p>
-                      <p className="truncate font-label-md text-label-md text-on-surface-variant">{p["description"]}</p>
+                      <p className="truncate font-label-lg text-label-lg text-on-surface">{p.name}</p>
+                      <p className="truncate font-label-md text-label-md text-on-surface-variant">
+                        {p.restaurantName} · {EGP(p.basePrice)}
+                      </p>
                     </div>
-                    <Icon name="chevron_left" className="text-on-surface-variant" />
+                    <FavButton targetType="product" targetId={p.id} />
                   </Card>
                 </Link>
               ))}
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
       </div>
     </MobileShell>
   );

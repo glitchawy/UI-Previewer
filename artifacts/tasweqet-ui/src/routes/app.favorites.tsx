@@ -1,71 +1,119 @@
+import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AppBar, MobileShell, Icon, Card, Badge } from "@/components/tb/shell";
-import { restaurants, products, EGP } from "@/lib/tb/data";
+import { AppBar, MobileShell, Icon, Card } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
+import { getToken } from "@/lib/auth-session";
+import { FavButton, useFavoriteIds } from "@/lib/tb/favorites";
 
 export const Route = createFileRoute("/app/favorites")({
   head: () => ({
     meta: [
       { title: "طلبات بيتك | المفضلة" },
       { name: "description", content: "مطاعمك ومنتجاتك المفضلة في مكان واحد" },
-      { property: "og:title", content: "طلبات بيتك | المفضلة" },
-      { property: "og:description", content: "مطاعمك ومنتجاتك المفضلة في مكان واحد" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AppFavorites,
 });
 
+const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minimumFractionDigits: 0 })} ج.م`;
+
+type FavRestaurant = { id: number; name: string; description: string | null; category: string | null; logoUrl: string | null; coverUrl: string | null; deliveryType: string };
+type FavProduct = { id: number; name: string; description: string | null; imageUrl: string | null; basePrice: string; restaurantId: number; isAvailable: boolean };
+type FavData = { restaurants: FavRestaurant[]; products: FavProduct[] };
+
 function AppFavorites() {
-  const favRestaurants = restaurants.slice(0, 3);
-  const favProducts = products.slice(0, 4);
+  const [data, setData] = useState<FavData>({ restaurants: [], products: [] });
+  const [loading, setLoading] = useState(true);
+  const { isFav } = useFavoriteIds();
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) { setLoading(false); return; }
+    fetch("/api/customer/favorites", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((d: FavData) => setData({ restaurants: d.restaurants, products: d.products }))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Hide items un-hearted since load so removal is reflected immediately
+  const shownRestaurants = data.restaurants.filter((r) => isFav("restaurant", r.id));
+  const shownProducts = data.products.filter((p) => isFav("product", p.id));
+  const empty = shownRestaurants.length === 0 && shownProducts.length === 0;
 
   return (
     <MobileShell tabs={customerTabs}>
       <AppBar title="المفضلة" back="/app/profile" />
       <div className="flex flex-col gap-lg p-md">
-        <section>
-          <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">المطاعم المفضلة</h2>
-          <div className="tb-stagger flex flex-col gap-3">
-            {favRestaurants.map((r) => (
-              <Link key={r["id"]} to="/app/restaurant/$id" params={{ id: r["id"] }}>
-                <Card className="flex items-center gap-3 p-3 transition hover:border-secondary">
-                  <img src={r["logo"]} alt={r["name"]} className="size-14 rounded-full object-cover" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-label-lg text-label-lg text-on-surface">{r["name"]}</p>
-                    <p className="font-label-md text-label-md text-on-surface-variant">
-                      ⭐ {r["rating"]} · {r["distanceKm"]} كم
-                    </p>
-                  </div>
-                  <Icon name="favorite" className="text-error" filled />
-                </Card>
-              </Link>
-            ))}
+        {loading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Icon name="hourglass_empty" className="animate-spin text-[32px] text-on-surface-variant" />
           </div>
-        </section>
+        ) : empty ? (
+          <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-outline-variant py-xl text-center">
+            <Icon name="favorite" className="text-[48px] text-outline" />
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              لسه مفيش مفضلات — دوس على القلب ❤️ على أي مطعم أو منتج
+            </p>
+            <Link to="/app" className="font-label-lg text-label-lg text-secondary">تصفح المطاعم</Link>
+          </div>
+        ) : (
+          <>
+            {shownRestaurants.length > 0 && (
+              <section>
+                <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">المطاعم المفضلة</h2>
+                <div className="tb-stagger flex flex-col gap-3">
+                  {shownRestaurants.map((r) => (
+                    <Link key={r.id} to="/app/restaurant/$id" params={{ id: String(r.id) }}>
+                      <Card className="flex items-center gap-3 p-3 transition hover:border-secondary">
+                        {r.logoUrl ? (
+                          <img src={`/api/storage${r.logoUrl}`} alt={r.name} className="size-14 rounded-full object-cover" />
+                        ) : (
+                          <span className="flex size-14 items-center justify-center rounded-full bg-surface-container">
+                            <Icon name="storefront" className="text-outline" />
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-label-lg text-label-lg text-on-surface">{r.name}</p>
+                          {r.category && <p className="font-label-md text-label-md text-on-surface-variant">{r.category}</p>}
+                        </div>
+                        <FavButton targetType="restaurant" targetId={r.id} />
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        <section>
-          <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">المنتجات المفضلة</h2>
-          <div className="tb-stagger grid grid-cols-2 gap-3">
-            {favProducts.map((p) => (
-              <Link key={p["id"]} to="/app/product/$id" params={{ id: p["id"] }}>
-                <Card className="overflow-hidden transition hover:border-secondary">
-                  <div className="relative">
-                    <img src={p["image"]} alt={p["name"]} className="h-24 w-full object-cover" />
-                    <span className="absolute left-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-surface-container-lowest/90 text-error">
-                      <Icon name="favorite" className="text-[14px]" filled />
-                    </span>
-                  </div>
-                  <div className="p-2">
-                    <p className="truncate font-label-lg text-label-lg text-on-surface">{p["name"]}</p>
-                    <p className="font-label-md text-label-md text-on-surface-variant">{EGP(p["price"])}</p>
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </section>
+            {shownProducts.length > 0 && (
+              <section>
+                <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">المنتجات المفضلة</h2>
+                <div className="tb-stagger grid grid-cols-2 gap-3">
+                  {shownProducts.map((p) => (
+                    <Link key={p.id} to="/app/product/$id" params={{ id: String(p.id) }}>
+                      <Card className="overflow-hidden transition hover:border-secondary">
+                        <div className="relative">
+                          {p.imageUrl ? (
+                            <img src={`/api/storage${p.imageUrl}`} alt={p.name} className="h-24 w-full object-cover" />
+                          ) : (
+                            <div className="flex h-24 items-center justify-center bg-surface-container">
+                              <Icon name="fastfood" className="text-[28px] text-outline" />
+                            </div>
+                          )}
+                          <FavButton targetType="product" targetId={p.id} className="absolute left-1.5 top-1.5 size-7" />
+                        </div>
+                        <div className="p-2">
+                          <p className="truncate font-label-lg text-label-lg text-on-surface">{p.name}</p>
+                          <p className="font-label-md text-label-md text-on-surface-variant">{EGP(p.basePrice)}</p>
+                        </div>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </div>
     </MobileShell>
   );

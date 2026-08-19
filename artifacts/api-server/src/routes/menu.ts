@@ -23,7 +23,7 @@
  */
 
 import { Router } from "express";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, ilike, or, inArray } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -32,6 +32,7 @@ import {
   productsTable,
   productVariantsTable,
   productAddonsTable,
+  branchesTable,
 } from "@workspace/db";
 import type { Request, Response } from "express";
 
@@ -101,8 +102,168 @@ async function loadMenu(restaurantId: number) {
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 
-/** List all active restaurants (customers can browse without auth) */
-router.get("/restaurants", async (_req, res: Response): Promise<void> => {
+/** Haversine distance in km between two points. */
+export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Resolve customer coordinates: explicit query params win, else saved address from session. */
+async function resolveCustomerCoords(req: Request): Promise<{ lat: number; lng: number } | null> {
+  const qLat = Number(req.query.lat);
+  const qLng = Number(req.query.lng);
+  if (Number.isFinite(qLat) && Number.isFinite(qLng) && Math.abs(qLat) <= 90 && Math.abs(qLng) <= 180) {
+    return { lat: qLat, lng: qLng };
+  }
+
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return null;
+  const rows = await db
+    .select({ lat: usersTable.lat, lng: usersTable.lng })
+    .from(usersTable)
+    .where(eq(usersTable.sessionToken, auth.slice(7)))
+    .limit(1);
+  const u = rows[0];
+  if (u && u.lat != null && u.lng != null) return { lat: u.lat, lng: u.lng };
+  return null;
+}
+
+function cairoMinutesNow(date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Cairo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+type HoursEntry = { open: string; close: string; closed: boolean };
+type StructuredHours = Partial<Record<"SAT" | "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI", HoursEntry>>;
+const DAYS: (keyof StructuredHours)[] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+function timeToMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+  const minutes = Number(match[1]) * 60 + Number(match[2]);
+  return minutes <= 1439 ? minutes : null;
+}
+
+function legacyTimeToMinutes(hourText: string, minuteText: string | undefined, marker: string | undefined): number | null {
+  let hour = Number(hourText);
+  const minute = Number(minuteText ?? 0);
+  if (hour > 23 || minute > 59) return null;
+  const normalizedMarker = marker?.toLowerCase();
+  if (normalizedMarker === "ص" || normalizedMarker === "am") {
+    if (hour === 12) hour = 0;
+  } else if (normalizedMarker === "م" || normalizedMarker === "pm") {
+    if (hour < 12) hour += 12;
+  }
+  return hour * 60 + minute;
+}
+
+function cairoDay(date: Date): keyof StructuredHours {
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Cairo", weekday: "short" })
+    .format(date)
+    .toUpperCase()
+    .slice(0, 3);
+  return day as keyof StructuredHours;
+}
+
+/** Evaluate structured partner schedules, with a deliberately tolerant legacy-text fallback. */
+export function isWithinRestaurantHours(hours: string | null, date = new Date()): boolean {
+  if (!hours?.trim()) return true; // No schedule configured: branch operational state decides.
+  try {
+    const parsed: unknown = JSON.parse(hours);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const schedule = parsed as StructuredHours;
+      const day = cairoDay(date);
+      const previousDay = DAYS[(DAYS.indexOf(day) + DAYS.length - 1) % DAYS.length];
+      const now = cairoMinutesNow(date);
+      const current = schedule[day];
+      const previous = schedule[previousDay];
+
+      const parseEntry = (entry: HoursEntry | undefined) => {
+        if (!entry || entry.closed || typeof entry.open !== "string" || typeof entry.close !== "string") return null;
+        const start = timeToMinutes(entry.open);
+        const end = timeToMinutes(entry.close);
+        return start === null || end === null ? null : { start, end };
+      };
+      const today = parseEntry(current);
+      const yesterday = parseEntry(previous);
+
+      // Regular hours are checked on the current Cairo day. Overnight hours
+      // have two portions: today's after opening, and yesterday's until close.
+      const todayOpen = today !== null && (
+        today.start === today.end ||
+        (today.start < today.end && now >= today.start && now < today.end) ||
+        (today.start > today.end && now >= today.start)
+      );
+      const overnightFromYesterday = yesterday !== null &&
+        yesterday.start > yesterday.end && now < yesterday.end;
+      return todayOpen || overnightFromYesterday;
+    }
+  } catch {
+    // Legacy rows predate structured hours and are handled below.
+  }
+
+  const normalized = hours
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .toLowerCase();
+  if (/(مغلق|closed|off)/.test(normalized)) return false;
+
+  // Legacy restaurant registration saves display strings such as
+  // "10:00 ص — 2:00 ص". Support Arabic/English AM-PM markers and overnight ranges.
+  const ranges = [...normalized.matchAll(
+    /(\d{1,2})(?::(\d{2}))?\s*(ص|م|am|pm)?\s*[-–—]\s*(\d{1,2})(?::(\d{2}))?\s*(ص|م|am|pm)?/g,
+  )];
+  if (ranges.length === 0) return true; // Preserve availability for legacy free-text schedules.
+  const now = cairoMinutesNow(date);
+  return ranges.some((match) => {
+    const start = legacyTimeToMinutes(match[1], match[2], match[3]);
+    const end = legacyTimeToMinutes(match[4], match[5], match[6]);
+    if (start === null || end === null) return false;
+    return start === end ? true : start < end ? now >= start && now < end : now >= start || now < end;
+  });
+}
+
+/** Open = in restaurant schedule AND (no branches or at least one operational branch). */
+async function computeOpenMap(
+  restaurants: { id: number; hours: string | null }[],
+): Promise<Map<number, boolean>> {
+  const map = new Map<number, boolean>();
+  const restaurantIds = restaurants.map((r) => r.id);
+  if (restaurantIds.length === 0) return map;
+  const branches = await db
+    .select({ restaurantId: branchesTable.restaurantId, isOpen: branchesTable.isOpen })
+    .from(branchesTable)
+    .where(inArray(branchesTable.restaurantId, restaurantIds));
+  const hasBranches = new Set(branches.map((b) => b.restaurantId));
+  const hasOpen = new Set(branches.filter((b) => b.isOpen).map((b) => b.restaurantId));
+  for (const restaurant of restaurants) {
+    const branchOpen = !hasBranches.has(restaurant.id) || hasOpen.has(restaurant.id);
+    map.set(restaurant.id, branchOpen && isWithinRestaurantHours(restaurant.hours));
+  }
+  return map;
+}
+
+/**
+ * List all active restaurants (customers can browse without auth).
+ * Query params: ?category= (exact match), ?open=true, ?sort=distance,
+ * ?lat=&lng= (else saved address from Bearer session, if any).
+ */
+router.get("/restaurants", async (req, res: Response): Promise<void> => {
+  const conditions = [eq(restaurantsTable.status, "ACTIVE")];
+  const category = typeof req.query.category === "string" ? req.query.category.trim() : "";
+  if (category) conditions.push(eq(restaurantsTable.category, category));
+
   const rows = await db
     .select({
       id: restaurantsTable.id,
@@ -115,11 +276,169 @@ router.get("/restaurants", async (_req, res: Response): Promise<void> => {
       coverUrl: restaurantsTable.coverUrl,
       hours: restaurantsTable.hours,
       status: restaurantsTable.status,
+      lat: restaurantsTable.lat,
+      lng: restaurantsTable.lng,
     })
     .from(restaurantsTable)
-    .where(eq(restaurantsTable.status, "ACTIVE"));
+    .where(and(...conditions));
 
-  res.json(rows);
+  const [coords, openMap] = await Promise.all([
+    resolveCustomerCoords(req),
+    computeOpenMap(rows),
+  ]);
+
+  let result = rows.map((r) => ({
+    ...r,
+    isOpen: openMap.get(r.id) ?? true,
+    distanceKm:
+      coords && r.lat != null && r.lng != null
+        ? Math.round(haversineKm(coords.lat, coords.lng, r.lat, r.lng) * 10) / 10
+        : null,
+  }));
+
+  if (req.query.open === "true") result = result.filter((r) => r.isOpen);
+
+  const radiusText = typeof req.query.radiusKm === "string" ? req.query.radiusKm : "";
+  if (radiusText) {
+    const radiusKm = Number(radiusText);
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0 || radiusKm > 100) {
+      res.status(400).json({ error: "نطاق المسافة يجب أن يكون بين 1 و100 كم" });
+      return;
+    }
+    if (!coords) {
+      res.status(400).json({ error: "حدد عنوان التوصيل أولاً لاستخدام فلتر المسافة" });
+      return;
+    }
+    result = result.filter((r) => r.distanceKm !== null && r.distanceKm <= radiusKm);
+  }
+
+  if (req.query.sort === "distance") {
+    result.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+  }
+
+  res.json(result);
+});
+
+/** Public product detail: product + variants + addons + restaurant summary. */
+router.get("/products/:id", async (req, res: Response): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "معرّف غير صحيح" }); return; }
+
+  const rows = await db
+    .select({ p: productsTable, r: restaurantsTable })
+    .from(productsTable)
+    .innerJoin(restaurantsTable, eq(productsTable.restaurantId, restaurantsTable.id))
+    .where(and(eq(productsTable.id, id), eq(restaurantsTable.status, "ACTIVE")))
+    .limit(1);
+  const row = rows[0];
+  if (!row || !row.p.isAvailable) { res.status(404).json({ error: "المنتج غير موجود" }); return; }
+
+  const [variants, addons] = await Promise.all([
+    db.select().from(productVariantsTable).where(eq(productVariantsTable.productId, id))
+      .orderBy(asc(productVariantsTable.sortOrder), asc(productVariantsTable.id)),
+    db.select().from(productAddonsTable).where(eq(productAddonsTable.productId, id))
+      .orderBy(asc(productAddonsTable.sortOrder), asc(productAddonsTable.id)),
+  ]);
+
+  res.json({
+    ...row.p,
+    variants,
+    addons: addons.filter((a) => a.isAvailable),
+    restaurant: {
+      id: row.r.id,
+      name: row.r.name,
+      logoUrl: row.r.logoUrl,
+      deliveryType: row.r.deliveryType,
+    },
+  });
+});
+
+/**
+ * Unified search across restaurants, products and categories.
+ * ?q= (min 2 chars), ?type=restaurant|product|category, ?autocomplete=true (max 5 suggestions).
+ */
+router.get("/search", async (req, res: Response): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q.length < 2) { res.json({ restaurants: [], products: [], categories: [], suggestions: [] }); return; }
+  if (q.length > 100) { res.status(400).json({ error: "نص البحث طويل جداً" }); return; }
+
+  const type = typeof req.query.type === "string" ? req.query.type : "";
+  const autocomplete = req.query.autocomplete === "true";
+  const limit = autocomplete ? 5 : 20;
+  // Escape backslash first, then LIKE wildcards, so user input matches literally
+  const pattern = `%${q.replace(/\\/g, "\\\\").replace(/[%_]/g, "\\$&")}%`;
+
+  const wantRestaurants = !type || type === "restaurant";
+  const wantProducts = !type || type === "product";
+  const wantCategories = !type || type === "category";
+
+  const [restaurants, products, categories] = await Promise.all([
+    wantRestaurants
+      ? db
+          .select({
+            id: restaurantsTable.id,
+            name: restaurantsTable.name,
+            description: restaurantsTable.description,
+            category: restaurantsTable.category,
+            logoUrl: restaurantsTable.logoUrl,
+          })
+          .from(restaurantsTable)
+          .where(and(
+            eq(restaurantsTable.status, "ACTIVE"),
+            or(ilike(restaurantsTable.name, pattern), ilike(restaurantsTable.description, pattern), ilike(restaurantsTable.category, pattern)),
+          ))
+          .limit(limit)
+      : Promise.resolve([]),
+    wantProducts
+      ? db
+          .select({
+            id: productsTable.id,
+            name: productsTable.name,
+            description: productsTable.description,
+            imageUrl: productsTable.imageUrl,
+            basePrice: productsTable.basePrice,
+            restaurantId: productsTable.restaurantId,
+            restaurantName: restaurantsTable.name,
+          })
+          .from(productsTable)
+          .innerJoin(restaurantsTable, eq(productsTable.restaurantId, restaurantsTable.id))
+          .where(and(
+            eq(restaurantsTable.status, "ACTIVE"),
+            eq(productsTable.isAvailable, true),
+            or(ilike(productsTable.name, pattern), ilike(productsTable.description, pattern)),
+          ))
+          .limit(limit)
+      : Promise.resolve([]),
+    wantCategories
+      ? db
+          .select({
+            id: categoriesTable.id,
+            name: categoriesTable.name,
+            restaurantId: categoriesTable.restaurantId,
+            restaurantName: restaurantsTable.name,
+          })
+          .from(categoriesTable)
+          .innerJoin(restaurantsTable, eq(categoriesTable.restaurantId, restaurantsTable.id))
+          .where(and(
+            eq(restaurantsTable.status, "ACTIVE"),
+            eq(categoriesTable.isActive, true),
+            ilike(categoriesTable.name, pattern),
+          ))
+          .limit(limit)
+      : Promise.resolve([]),
+  ]);
+
+  // Ranked suggestions: prefix matches first, then others; restaurants > categories > products
+  const rank = (name: string) => (name.toLowerCase().startsWith(q.toLowerCase()) ? 0 : 1);
+  const suggestions = [
+    ...restaurants.map((r) => ({ type: "restaurant" as const, id: r.id, label: r.name })),
+    ...categories.map((c) => ({ type: "category" as const, id: c.id, label: c.name, restaurantId: c.restaurantId })),
+    ...products.map((p) => ({ type: "product" as const, id: p.id, label: p.name })),
+  ]
+    .sort((a, b) => rank(a.label) - rank(b.label))
+    .slice(0, 5);
+
+  res.json({ restaurants, products, categories, suggestions });
 });
 
 /** Full public menu for a single restaurant (active restaurants only) */

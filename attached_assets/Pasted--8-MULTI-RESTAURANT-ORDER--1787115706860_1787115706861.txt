@@ -1,0 +1,227 @@
+==================================================
+8. MULTI-RESTAURANT ORDER
+==================================================
+
+A customer CAN order from multiple restaurants in the same order/session.
+
+The architecture must properly support multi-restaurant carts/orders.
+
+Do not incorrectly assume:
+
+ONE CART = ONE RESTAURANT.
+
+Design the order domain carefully.
+
+Consider:
+
+- Parent order
+- Restaurant-specific sub-orders
+- Separate preparation
+- Separate restaurant statuses
+- Separate delivery assignment
+- Payment allocation
+- Commission calculations
+- Delivery calculations
+- Cancellation handling
+- Refund handling
+
+If there is a business or technical ambiguity around multi-restaurant delivery behavior, STOP and ask the project owner before implementing the final logic.
+
+==================================================
+9. RESTAURANT VERIFICATION
+==================================================
+
+Restaurants require admin verification before becoming active.
+
+No KYC documents are required for restaurants.
+
+Restaurant registration should support a verification workflow:
+
+PENDING
+    ↓
+UNDER REVIEW
+    ↓
+APPROVED / REJECTED
+    ↓
+ACTIVE
+
+Only authorized admins can approve restaurants.
+
+==================================================
+10. DELIVERY DRIVER VERIFICATION
+==================================================
+
+Delivery Drivers must submit:
+
+- National ID image
+- Criminal record document
+- Required supporting document(s)
+
+The system must support document upload and admin review.
+
+Driver verification statuses should include appropriate states such as:
+
+PENDING
+UNDER_REVIEW
+APPROVED
+REJECTED
+SUSPENDED
+
+Do not allow an unapproved driver to receive normal delivery assignments.
+
+==================================================
+11. RESTAURANT MENU
+==================================================
+
+Products contain:
+
+- Name
+- Description
+- Image
+- Price
+- Category
+- Options
+- Add-ons
+- Availability
+- Inventory relationship
+
+Products support variations.
+
+Example:
+
+Product
+    |
+    ├── Small
+    ├── Medium
+    └── Large
+
+Products support add-ons.
+
+Example:
+
+- Extra Cheese
+- Extra Sauce
+- Extra Meat
+
+Customers can select multiple add-ons.
+
+Add-ons can have prices.
+
+Products can be marked unavailable.
+
+Inventory must be linked to products.
+
+==================================================
+12. BRANCH MENU / INVENTORY
+==================================================
+
+Products are shared across branches of the same Restaurant.
+
+Branches do NOT have separate independent product catalogs.
+
+However:
+
+Inventory is branch-specific.
+
+Example:
+
+Restaurant
+    |
+    ├── Product A
+    ├── Product B
+    └── Product C
+          |
+          ├── Branch 1 Inventory
+          ├── Branch 2 Inventory
+          └── Branch 3 Inventory
+
+Product prices are the same across branches.
+
+A Branch Manager can manage their branch inventory according to permissions.
+
+==================================================
+13. BRANCH WORKING HOURS
+==================================================
+
+Working hours are Restaurant-level.
+
+Branches do NOT have separate working hours.
+
+Implement appropriate controls for restaurant availability and branch operational state.
+
+==================================================
+14. ORDERS
+==================================================
+
+Order lifecycle:
+
+PLACED
+CONFIRMED
+PREPARING
+READY
+ASSIGNED
+PICKED_UP
+DELIVERING
+DELIVERED
+
+Restaurant controls:
+
+PLACED
+CONFIRMED
+PREPARING
+READY
+ASSIGNED
+PICKED_UP
+
+Delivery Driver controls:
+
+DELIVERING
+DELIVERED
+
+The restaurant cannot reject an order.
+
+The customer can cancel an order ONLY before PREPARING.
+
+Cancellation reasons are required.
+
+Store cancellation reason and actor.
+
+All order state transitions must be validated server-side.
+
+Do not allow clients to arbitrarily change order status.
+
+==================================================
+15. ORDER STATE MACHINE
+==================================================
+
+Implement a strict server-side order state machine.
+
+Example:
+
+PLACED
+  ↓
+CONFIRMED
+  ↓
+PREPARING
+  ↓
+READY
+  ↓
+ASSIGNED
+  ↓
+PICKED_UP
+  ↓
+DELIVERING
+  ↓
+DELIVERED
+
+Invalid transitions must be rejected.
+
+Every transition should create an audit/history record containing:
+
+- Actor
+- Role
+- Previous status
+- New status
+- Timestamp
+- Order ID
+- Relevant metadata

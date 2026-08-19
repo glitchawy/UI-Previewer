@@ -24,3 +24,4 @@ export * from "./otp-codes";
 export * from "./categories";
 export * from "./products";
 export * from "./branches";
+export * from "./customer-favorites";

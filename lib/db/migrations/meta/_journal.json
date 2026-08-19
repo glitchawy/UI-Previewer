@@ -64,6 +64,13 @@
       "when": 1755831600000,
       "tag": "0008_customer_address",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1755835200000,
+      "tag": "0009_customer_favorites",
+      "breakpoints": true
     }
   ]
 }
