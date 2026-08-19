@@ -107,22 +107,9 @@ export interface DriverApplication {
   createdAt?: string;
 }
 
-export interface RequestUploadUrlBody {
-  name: string;
-  size: number;
-  contentType: string;
-}
-
-export type RequestUploadUrlResponseMetadata = {
-  name: string;
-  size: number;
-  contentType: string;
-};
-
-export interface RequestUploadUrlResponse {
-  uploadURL: string;
+export interface UploadFileResponse {
+  /** Normalised storage path (e.g. /objects/uploads/uuid) to reference in onboarding payloads */
   objectPath: string;
-  metadata: RequestUploadUrlResponseMetadata;
 }
 
 export interface HealthStatus {

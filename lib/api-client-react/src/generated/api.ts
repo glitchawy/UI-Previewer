@@ -32,9 +32,8 @@ import type {
   OtpRequestResponse,
   OtpVerify,
   PartnerOnboard,
-  RequestUploadUrlBody,
-  RequestUploadUrlResponse,
-  RestaurantApplication
+  RestaurantApplication,
+  UploadFileResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -568,25 +567,28 @@ export const useOnboardDriver = <TError = ErrorType<ErrorResponse>,
       return useMutation(getOnboardDriverMutationOptions(options));
     }
 
-export const getRequestUploadUrlUrl = () => {
+export const getUploadFileUrl = () => {
 
 
 
 
-  return `/api/storage/uploads/request-url`
+  return `/api/storage/uploads`
 }
 
 /**
- * @summary Request a presigned GCS URL for a direct file upload
+ * Send raw file bytes as the request body. The Content-Type header must be
+ * an image type or application/pdf, but the server validates the actual bytes
+ * via magic-byte detection and rejects mismatches. Maximum body size is 10 MB.
+ * @summary Upload a file through the server (enforces 10 MB limit and magic-byte MIME validation)
  */
-export const requestUploadUrl = async (requestUploadUrlBody: RequestUploadUrlBody, options?: Parameters<typeof customFetch>[1]): Promise<RequestUploadUrlResponse> => {
+export const uploadFile = async (uploadFileBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<UploadFileResponse> => {
 
-  return customFetch<RequestUploadUrlResponse>(getRequestUploadUrlUrl(),
+  return customFetch<UploadFileResponse>(getUploadFileUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(requestUploadUrlBody)
+    headers: { 'Content-Type': 'image/jpeg', ...options?.headers },
+    body: uploadFileBody
   }
 );}
 
@@ -594,11 +596,11 @@ export const requestUploadUrl = async (requestUploadUrlBody: RequestUploadUrlBod
 
 
 
-export const getRequestUploadUrlMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<RequestUploadUrlBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<RequestUploadUrlBody>}, TContext> => {
+export const getUploadFileMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadFile>>, TError,{data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadFile>>, TError,{data: BodyType<Blob>}, TContext> => {
 
-const mutationKey = ['requestUploadUrl'];
+const mutationKey = ['uploadFile'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -608,10 +610,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUploadUrl>>, {data: BodyType<RequestUploadUrlBody>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadFile>>, {data: BodyType<Blob>}> = (props) => {
           const {data} = props ?? {};
 
-          return  requestUploadUrl(data,requestOptions)
+          return  uploadFile(data,requestOptions)
         }
 
 
@@ -621,22 +623,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type RequestUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestUploadUrl>>>
-    export type RequestUploadUrlMutationBody = BodyType<RequestUploadUrlBody>
-    export type RequestUploadUrlMutationError = ErrorType<ErrorResponse>
+    export type UploadFileMutationResult = NonNullable<Awaited<ReturnType<typeof uploadFile>>>
+    export type UploadFileMutationBody = BodyType<Blob>
+    export type UploadFileMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Request a presigned GCS URL for a direct file upload
+ * @summary Upload a file through the server (enforces 10 MB limit and magic-byte MIME validation)
  */
-export const useRequestUploadUrl = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<RequestUploadUrlBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useUploadFile = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadFile>>, TError,{data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof requestUploadUrl>>,
+        Awaited<ReturnType<typeof uploadFile>>,
         TError,
-        {data: BodyType<RequestUploadUrlBody>},
+        {data: BodyType<Blob>},
         TContext
       > => {
-      return useMutation(getRequestUploadUrlMutationOptions(options));
+      return useMutation(getUploadFileMutationOptions(options));
     }
 
 export const getListRestaurantApplicationsUrl = () => {

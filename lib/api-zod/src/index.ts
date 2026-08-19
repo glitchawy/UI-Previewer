@@ -2,10 +2,9 @@
 export * from "./generated/api";
 
 // TypeScript interfaces for schema objects that are NOT already exported as Zod
-// validators above. RequestUploadUrlBody, RequestUploadUrlResponse, and
-// RequestUploadUrlResponseMetadata are intentionally omitted here to avoid the
-// duplicate-export ambiguity — the Zod exports from generated/api carry the
-// same type information via z.infer.
+// validators above. UploadFileResponse is intentionally omitted here to avoid
+// the duplicate-export ambiguity — the Zod export from generated/api carries
+// the same type information via z.infer.
 export type { AuthSession } from "./generated/types/authSession";
 export type { AuthUser } from "./generated/types/authUser";
 export type { DriverApplication } from "./generated/types/driverApplication";

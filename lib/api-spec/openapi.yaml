@@ -205,26 +205,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /storage/uploads/request-url:
+  /storage/uploads:
     post:
-      operationId: requestUploadUrl
+      operationId: uploadFile
       tags: [storage]
-      summary: Request a presigned GCS URL for a direct file upload
+      summary: Upload a file through the server (enforces 10 MB limit and magic-byte MIME validation)
+      description: |
+        Send raw file bytes as the request body. The Content-Type header must be
+        an image type or application/pdf, but the server validates the actual bytes
+        via magic-byte detection and rejects mismatches. Maximum body size is 10 MB.
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          application/json:
+          image/jpeg:
             schema:
-              $ref: "#/components/schemas/RequestUploadUrlBody"
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+          image/gif:
+            schema:
+              type: string
+              format: binary
+          image/bmp:
+            schema:
+              type: string
+              format: binary
+          image/tiff:
+            schema:
+              type: string
+              format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
       responses:
         "200":
-          description: Presigned upload URL and object path
+          description: File uploaded successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RequestUploadUrlResponse"
+                $ref: "#/components/schemas/UploadFileResponse"
         "401":
           description: Unauthorized
           content:
@@ -232,7 +261,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Invalid input
+          description: Invalid file type or empty body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: File exceeds 10 MB limit
           content:
             application/json:
               schema:
@@ -417,35 +452,13 @@ components:
         createdAt:
           type: string
 
-    RequestUploadUrlBody:
+    UploadFileResponse:
       type: object
-      required: [name, size, contentType]
+      required: [objectPath]
       properties:
-        name:
-          type: string
-        size:
-          type: number
-        contentType:
-          type: string
-
-    RequestUploadUrlResponse:
-      type: object
-      required: [uploadURL, objectPath, metadata]
-      properties:
-        uploadURL:
-          type: string
         objectPath:
           type: string
-        metadata:
-          type: object
-          required: [name, size, contentType]
-          properties:
-            name:
-              type: string
-            size:
-              type: number
-            contentType:
-              type: string
+          description: Normalised storage path (e.g. /objects/uploads/uuid) to reference in onboarding payloads
 
     HealthStatus:
       type: object

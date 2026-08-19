@@ -44,27 +44,23 @@ const requiredDocs: { key: DocKey; label: string; accept: string }[] = [
   { key: "licenseUrl",          label: "رخصة القيادة",                         accept: "image/*" },
 ];
 
-/** Upload a file to object storage via presigned URL. Returns objectPath or throws. */
+/** Upload a file to object storage via the server proxy. Returns objectPath or throws. */
 async function uploadFileToStorage(file: File): Promise<string> {
   const token = getToken();
-  // Step 1: get presigned URL
-  const urlRes = await fetch("/api/storage/uploads/request-url", {
+  const contentType = file.type || "application/octet-stream";
+  const res = await fetch("/api/storage/uploads", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": contentType,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
-  });
-  if (!urlRes.ok) throw new Error("تعذّر الحصول على رابط الرفع");
-  const { uploadURL, objectPath } = (await urlRes.json()) as { uploadURL: string; objectPath: string };
-  // Step 2: PUT directly to GCS
-  const putRes = await fetch(uploadURL, {
-    method: "PUT",
     body: file,
-    headers: { "Content-Type": file.type || "application/octet-stream" },
   });
-  if (!putRes.ok) throw new Error("فشل رفع الملف إلى التخزين");
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "فشل رفع الملف إلى التخزين");
+  }
+  const { objectPath } = (await res.json()) as { objectPath: string };
   return objectPath;
 }
 
@@ -171,6 +167,17 @@ function AuthDriver() {
   const allUploaded = uploadedCount === requiredDocs.length;
 
   async function handleDocFile(key: DocKey, file: File) {
+    // Client-side pre-checks (belt-and-suspenders before hitting the server)
+    if (file.size > 10_000_000) {
+      setError("حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت");
+      return;
+    }
+    const mime = file.type || "application/octet-stream";
+    if (!mime.startsWith("image/") && mime !== "application/pdf") {
+      setError("نوع الملف غير مقبول — يُسمح فقط بالصور (JPG، PNG، …) أو ملفات PDF");
+      return;
+    }
+
     setDocUploading((prev) => ({ ...prev, [key]: true }));
     setError("");
     try {

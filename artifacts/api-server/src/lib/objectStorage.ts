@@ -133,6 +133,27 @@ export class ObjectStorageService {
     });
   }
 
+  /**
+   * Upload validated bytes directly to GCS and return the normalised
+   * `/objects/…` path.  Used by the server-side upload proxy endpoint so
+   * that size and content-type limits are enforced at the byte sink rather
+   * than relying on client-controlled metadata.
+   */
+  async uploadObjectEntity(
+    data: Buffer,
+    contentType: string,
+  ): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(data, { contentType, resumable: false });
+    const rawUrl = `https://storage.googleapis.com/${bucketName}/${objectName}`;
+    return this.normalizeObjectEntityPath(rawUrl);
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();

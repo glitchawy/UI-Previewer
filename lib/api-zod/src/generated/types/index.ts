@@ -23,6 +23,5 @@ export * from './otpVerifyRole';
 export * from './otpVerifyType';
 export * from './partnerOnboard';
 export * from './partnerOnboardDeliveryType';
-// requestUploadUrlBody, requestUploadUrlResponse, requestUploadUrlResponseMetadata
-// are intentionally omitted — they conflict with Zod schema exports in generated/api.ts
 export * from './restaurantApplication';
+export * from './uploadFileResponse';

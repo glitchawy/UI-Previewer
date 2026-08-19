@@ -138,22 +138,13 @@ export const OnboardDriverResponse = zod.object({
 
 
 /**
- * @summary Request a presigned GCS URL for a direct file upload
+ * Send raw file bytes as the request body. The Content-Type header must be
+ * an image type or application/pdf, but the server validates the actual bytes
+ * via magic-byte detection and rejects mismatches. Maximum body size is 10 MB.
+ * @summary Upload a file through the server (enforces 10 MB limit and magic-byte MIME validation)
  */
-export const RequestUploadUrlBody = zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
-  "contentType": zod.string()
-})
-
-export const RequestUploadUrlResponse = zod.object({
-  "uploadURL": zod.string(),
-  "objectPath": zod.string(),
-  "metadata": zod.object({
-  "name": zod.string(),
-  "size": zod.number(),
-  "contentType": zod.string()
-})
+export const UploadFileResponse = zod.object({
+  "objectPath": zod.string().describe('Normalised storage path (e.g. \/objects\/uploads\/uuid) to reference in onboarding payloads')
 })
 
 

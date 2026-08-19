@@ -1,5 +1,5 @@
 import { Readable } from 'stream';
-import { Router, type IRouter, type Request, type Response } from 'express';
+import express, { Router, type IRouter, type NextFunction, type Request, type Response } from 'express';
 import { eq, or } from 'drizzle-orm';
 import { db, usersTable, restaurantsTable, driverProfilesTable } from '@workspace/db';
 
@@ -66,35 +66,112 @@ async function canUserAccessObject(
   return false;
 }
 
+const MAX_UPLOAD_BYTES = 10_000_000; // 10 MB
+
 /**
- * POST /storage/uploads/request-url
+ * Inspect the first bytes of a buffer and return the canonical MIME type for
+ * allowed formats, or null if the bytes don't match any allowed signature.
  *
- * Request a presigned URL for file upload.
- * Client sends JSON metadata (name, size, contentType) — NOT the file bytes.
- * The file is then PUT directly to the returned GCS presigned URL.
+ * Allowed: JPEG, PNG, WebP, GIF, BMP, TIFF, PDF.
+ * SVG and all other text/executable types are NOT allowed.
+ */
+function detectAllowedMimeType(buf: Buffer): string | null {
+  if (buf.length < 4) return null;
+
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'image/jpeg';
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+
+  // GIF87a / GIF89a: 47 49 46 38
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'image/gif';
+
+  // PDF: %PDF  (25 50 44 46)
+  if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return 'application/pdf';
+
+  // WebP: RIFF????WEBP
+  if (
+    buf.length >= 12 &&
+    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && // RIFF
+    buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50  // WEBP
+  ) return 'image/webp';
+
+  // BMP: BM  (42 4D)
+  if (buf[0] === 0x42 && buf[1] === 0x4D) return 'image/bmp';
+
+  // TIFF little-endian: II*\0  (49 49 2A 00)
+  if (buf[0] === 0x49 && buf[1] === 0x49 && buf[2] === 0x2A && buf[3] === 0x00) return 'image/tiff';
+
+  // TIFF big-endian: MM\0*  (4D 4D 00 2A)
+  if (buf[0] === 0x4D && buf[1] === 0x4D && buf[2] === 0x00 && buf[3] === 0x2A) return 'image/tiff';
+
+  return null;
+}
+
+/**
+ * Middleware: authenticate the caller before the body is buffered.
+ * Attaches `req.authenticatedUser` for downstream handlers.
+ */
+async function requireAuthBeforeBody(
+  req: Request & { authenticatedUser?: typeof usersTable.$inferSelect },
+  res: Response,
+  next: NextFunction,
+) {
+  const user = await getUserFromToken(req);
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  req.authenticatedUser = user;
+  next();
+}
+
+/**
+ * POST /storage/uploads
+ *
+ * Upload a file through the server so that size and content-type limits are
+ * enforced at the byte sink.  The client sends raw file bytes as the body.
+ *
+ * Enforcement order:
+ *  1. Authentication is checked BEFORE the body is buffered so anonymous
+ *     callers cannot force the server to buffer up to 10 MB.
+ *  2. express.raw() with a 10 MB limit buffers the body and 413s if exceeded.
+ *  3. Magic-byte detection validates actual file content independent of the
+ *     caller-controlled Content-Type header.
+ *  4. The server-detected MIME type is stored in GCS (not the client header).
  */
 router.post(
-  '/storage/uploads/request-url',
-  async (req: Request, res: Response) => {
-    const user = await getUserFromToken(req);
-    if (!user) {
-      res.status(401).json({ error: 'Unauthorized' });
+  '/storage/uploads',
+  requireAuthBeforeBody as express.RequestHandler,
+  express.raw({ type: '*/*', limit: MAX_UPLOAD_BYTES }),
+  async (req: Request & { authenticatedUser?: typeof usersTable.$inferSelect }, res: Response) => {
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      res.status(400).json({ error: 'الملف فارغ أو لم يُرسَل بشكل صحيح' });
       return;
     }
 
-    const { name, size, contentType } = req.body as Record<string, unknown>;
-    if (typeof name !== 'string' || typeof size !== 'number' || typeof contentType !== 'string') {
-      res.status(400).json({ error: 'Missing or invalid required fields: name, size, contentType' });
+    // Belt-and-suspenders size check after body-parser limit
+    if (body.length > MAX_UPLOAD_BYTES) {
+      res.status(400).json({ error: 'حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت' });
+      return;
+    }
+
+    // Validate file type from actual bytes — do NOT trust the Content-Type header
+    const detectedMime = detectAllowedMimeType(body);
+    if (!detectedMime) {
+      res.status(400).json({ error: 'نوع الملف غير مقبول — يُسمح فقط بالصور (JPG، PNG، WebP، GIF) أو ملفات PDF' });
       return;
     }
 
     try {
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-      res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+      // Store with the server-detected MIME type, not the client-claimed one
+      const objectPath = await objectStorageService.uploadObjectEntity(body, detectedMime);
+      res.json({ objectPath });
     } catch (error) {
-      req.log.error({ err: error }, 'Error generating upload URL');
-      res.status(500).json({ error: 'Failed to generate upload URL' });
+      req.log.error({ err: error }, 'Error uploading file');
+      res.status(500).json({ error: 'فشل رفع الملف، حاول مرة أخرى' });
     }
   },
 );
@@ -138,6 +215,10 @@ router.get(
  * Serve private object entities.
  * Access allowed only for admins or the user who owns the application
  * that references this objectPath (resolved from the DB).
+ *
+ * Content-Disposition: attachment ensures browsers treat uploads as files to
+ * download rather than render, preventing stored-XSS from malicious uploads.
+ * X-Content-Type-Options: nosniff stops MIME-sniffing by browsers.
  */
 router.get(
   '/storage/objects/*objectPath',
@@ -162,6 +243,9 @@ router.get(
       const response = await objectStorageService.downloadObject(file, 3600);
       res.status(response.status);
       response.headers.forEach((value, key) => res.setHeader(key, value));
+      // Prevent browser from rendering uploaded content in the app origin
+      res.setHeader('Content-Disposition', 'attachment; filename="document"');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       if (response.body) {
         const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
         nodeStream.pipe(res);
