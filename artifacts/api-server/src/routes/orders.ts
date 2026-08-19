@@ -5,6 +5,7 @@ import {
   branchesTable,
   cartItemsTable,
   db,
+  driverProfilesTable,
   orderAddonsTable,
   orderItemsTable,
   orderStatusEventsTable,
@@ -14,10 +15,13 @@ import {
   productsTable,
   productVariantsTable,
   restaurantsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   GetCustomerOrderParams,
   GetCustomerOrderResponse,
+  GetOrderDriverLocationParams,
+  GetOrderDriverLocationResponse,
   ListCustomerOrdersResponse,
   PlaceOrderBody,
   PlaceOrderResponse,
@@ -385,10 +389,27 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
     ready: "الطلب جاهز", picked_up: "الطلب خرج للتوصيل", delivered: "تم توصيل الطلب", cancelled: "تم إلغاء الطلب",
   };
   const timeline = events.length ? events : [{ status: order.status, createdAt: order.createdAt }];
+  const [driver] = order.driverProfileId
+    ? await db.select({
+        name: driverProfilesTable.fullName,
+        phone: usersTable.phone,
+        lat: driverProfilesTable.currentLat,
+        lng: driverProfilesTable.currentLng,
+        updatedAt: driverProfilesTable.locationUpdatedAt,
+      }).from(driverProfilesTable)
+        .innerJoin(usersTable, eq(usersTable.id, driverProfilesTable.userId))
+        .where(eq(driverProfilesTable.id, order.driverProfileId))
+        .limit(1)
+    : [];
   res.json(GetCustomerOrderResponse.parse({
     id: order.id, code: orderCode(order.id), restaurantName: order.restaurantName,
     status: order.status, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus,
-    deliveryAddressText: order.deliveryAddressText, subtotal: Number(order.subtotal),
+    deliveryAddressText: order.deliveryAddressText, deliveryLat: order.deliveryLat, deliveryLng: order.deliveryLng,
+    driverName: driver?.name ?? null, driverPhone: driver?.phone ?? null,
+    driverLat: order.status === "picked_up" ? driver?.lat ?? null : null,
+    driverLng: order.status === "picked_up" ? driver?.lng ?? null : null,
+    driverLocationUpdatedAt: order.status === "picked_up" ? driver?.updatedAt ?? null : null,
+    subtotal: Number(order.subtotal),
     deliveryFee: Number(order.deliveryFee), total: Number(order.total), notes: order.notes,
     createdAt: order.createdAt,
     timeline: timeline.map((event) => ({ status: event.status, at: event.createdAt, label: statusLabels[event.status] })),
@@ -397,6 +418,33 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
       quantity: item.quantity, unitPrice: Number(item.unitPrice), lineTotal: Number(item.lineTotal),
       addons: addons.filter((addon) => addon.orderItemId === item.id).map((addon) => ({ name: addon.name, price: Number(addon.price) })),
     })),
+  }));
+});
+
+router.get("/orders/:id/driver-location", async (req, res: Response): Promise<void> => {
+  const customer = await getCustomer(req);
+  if (!customer) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const parsedParams = GetOrderDriverLocationParams.safeParse(req.params);
+  if (!parsedParams.success || !Number.isInteger(parsedParams.data.id)) {
+    res.status(400).json({ error: "رقم الطلب غير صحيح" }); return;
+  }
+  const [order] = await db.select({
+    driverProfileId: ordersTable.driverProfileId,
+    status: ordersTable.status,
+  }).from(ordersTable)
+    .where(and(eq(ordersTable.id, parsedParams.data.id), eq(ordersTable.customerId, customer.id))).limit(1);
+  if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+  const [driver] = order.driverProfileId && order.status === "picked_up"
+    ? await db.select({
+        lat: driverProfilesTable.currentLat,
+        lng: driverProfilesTable.currentLng,
+        updatedAt: driverProfilesTable.locationUpdatedAt,
+      }).from(driverProfilesTable).where(eq(driverProfilesTable.id, order.driverProfileId)).limit(1)
+    : [];
+  res.json(GetOrderDriverLocationResponse.parse({
+    lat: driver?.lat ?? null,
+    lng: driver?.lng ?? null,
+    updatedAt: driver?.updatedAt ?? null,
   }));
 });
 

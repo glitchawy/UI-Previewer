@@ -8,8 +8,25 @@
  */
 
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable, restaurantsTable } from "@workspace/db";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  db,
+  driverProfilesTable,
+  orderAddonsTable,
+  orderItemsTable,
+  orderStatusEventsTable,
+  ordersTable,
+  restaurantsTable,
+  usersTable,
+} from "@workspace/db";
+import {
+  GetPartnerOrderParams,
+  GetPartnerOrderResponse,
+  ListPartnerOrdersResponse,
+  UpdatePartnerOrderStatusBody,
+  UpdatePartnerOrderStatusParams,
+  UpdatePartnerOrderStatusResponse,
+} from "@workspace/api-zod";
 import type { Request, Response } from "express";
 
 const router = Router();
@@ -56,6 +73,20 @@ function serializeRestaurant(r: typeof restaurantsTable.$inferSelect) {
   };
 }
 
+function orderCode(id: number) {
+  return `TB-${String(id).padStart(6, "0")}`;
+}
+
+const orderStatusLabels: Record<typeof ordersTable.$inferSelect.status, string> = {
+  pending: "تم استلام الطلب",
+  confirmed: "تم تأكيد الطلب",
+  preparing: "جاري تحضير الطلب",
+  ready: "الطلب جاهز للاستلام",
+  picked_up: "استلم الكابتن الطلب",
+  delivered: "تم توصيل الطلب",
+  cancelled: "تم إلغاء الطلب",
+};
+
 // ─── GET profile ──────────────────────────────────────────────────────────────
 
 router.get("/partner/restaurant", async (req, res: Response): Promise<void> => {
@@ -100,6 +131,145 @@ router.patch("/partner/restaurant", async (req, res: Response): Promise<void> =>
     .where(eq(restaurantsTable.id, restaurant.id)).returning();
   req.log.info({ restaurantId: restaurant.id }, "Restaurant profile updated");
   res.json(serializeRestaurant(rows[0]));
+});
+
+router.get("/partner/orders", async (req, res: Response): Promise<void> => {
+  const user = await getPartner(req);
+  if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const restaurant = await getPartnerRestaurant(user.id);
+  if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const orders = await db.select().from(ordersTable)
+    .where(eq(ordersTable.restaurantId, restaurant.id))
+    .orderBy(desc(ordersTable.createdAt));
+  const response = await Promise.all(orders.map(async (order) => {
+    const [customer] = await db.select({ name: usersTable.name, phone: usersTable.phone })
+      .from(usersTable).where(eq(usersTable.id, order.customerId)).limit(1);
+    return {
+      id: order.id,
+      code: orderCode(order.id),
+      customerName: customer?.name ?? null,
+      customerPhone: customer?.phone ?? null,
+      branchName: order.branchName,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      total: Number(order.total),
+      createdAt: order.createdAt,
+    };
+  }));
+  res.json(ListPartnerOrdersResponse.parse(response));
+});
+
+router.get("/partner/orders/:id", async (req, res: Response): Promise<void> => {
+  const user = await getPartner(req);
+  if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const restaurant = await getPartnerRestaurant(user.id);
+  if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const params = GetPartnerOrderParams.safeParse(req.params);
+  if (!params.success || !Number.isInteger(params.data.id)) {
+    res.status(400).json({ error: "رقم الطلب غير صحيح" });
+    return;
+  }
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
+  if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+  if (order.restaurantId !== restaurant.id) {
+    res.status(403).json({ error: "الطلب لا يخص هذا المطعم" });
+    return;
+  }
+  const [customer] = await db.select({ name: usersTable.name, phone: usersTable.phone })
+    .from(usersTable).where(eq(usersTable.id, order.customerId)).limit(1);
+  const [driver] = order.driverProfileId
+    ? await db.select({ name: driverProfilesTable.fullName }).from(driverProfilesTable)
+        .where(eq(driverProfilesTable.id, order.driverProfileId)).limit(1)
+    : [];
+  const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
+  const itemIds = items.map((item) => item.id);
+  const addons = itemIds.length
+    ? await db.select().from(orderAddonsTable).where(inArray(orderAddonsTable.orderItemId, itemIds))
+    : [];
+  const events = await db.select().from(orderStatusEventsTable)
+    .where(eq(orderStatusEventsTable.orderId, order.id))
+    .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
+  const timeline = events.length ? events : [{ status: order.status, createdAt: order.createdAt }];
+  res.json(GetPartnerOrderResponse.parse({
+    id: order.id,
+    code: orderCode(order.id),
+    customerName: customer?.name ?? null,
+    customerPhone: customer?.phone ?? null,
+    branchName: order.branchName,
+    status: order.status,
+    paymentMethod: order.paymentMethod,
+    paymentStatus: order.paymentStatus,
+    total: Number(order.total),
+    createdAt: order.createdAt,
+    deliveryAddressText: order.deliveryAddressText,
+    subtotal: Number(order.subtotal),
+    deliveryFee: Number(order.deliveryFee),
+    notes: order.notes,
+    driverName: driver?.name ?? null,
+    timeline: timeline.map((event) => ({
+      status: event.status,
+      at: event.createdAt,
+      label: orderStatusLabels[event.status],
+    })),
+    items: items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      name: item.productName,
+      variantName: item.variantName,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      lineTotal: Number(item.lineTotal),
+      addons: addons.filter((addon) => addon.orderItemId === item.id)
+        .map((addon) => ({ name: addon.name, price: Number(addon.price) })),
+    })),
+  }));
+});
+
+router.patch("/partner/orders/:id/status", async (req, res: Response): Promise<void> => {
+  const user = await getPartner(req);
+  if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const restaurant = await getPartnerRestaurant(user.id);
+  if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const params = UpdatePartnerOrderStatusParams.safeParse(req.params);
+  const body = UpdatePartnerOrderStatusBody.safeParse(req.body);
+  if (!params.success || !Number.isInteger(params.data.id) || !body.success) {
+    res.status(400).json({ error: "بيانات تحديث الطلب غير صحيحة" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${params.data.id})`);
+    const [order] = await tx.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
+    if (!order) return { error: 404 as const, message: "الطلب غير موجود" };
+    if (order.restaurantId !== restaurant.id) {
+      return { error: 403 as const, message: "الطلب لا يخص هذا المطعم" };
+    }
+    if (order.status === body.data.status) return { order };
+    const validTransition =
+      (body.data.status === "confirmed" && order.status === "pending") ||
+      (body.data.status === "preparing" && order.status === "confirmed") ||
+      (body.data.status === "ready" && order.status === "preparing");
+    if (!validTransition) {
+      return { error: 400 as const, message: "لا يمكن نقل الطلب لهذه المرحلة الآن" };
+    }
+    if (order.paymentMethod === "card" && order.paymentStatus !== "paid") {
+      return { error: 400 as const, message: "لا يمكن تجهيز طلب أونلاين قبل تأكيد الدفع" };
+    }
+    const [updated] = await tx.update(ordersTable).set({ status: body.data.status })
+      .where(and(eq(ordersTable.id, order.id), eq(ordersTable.restaurantId, restaurant.id)))
+      .returning();
+    await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: body.data.status });
+    return { order: updated };
+  });
+  if ("error" in result && result.error) {
+    res.status(result.error).json({ error: result.message });
+    return;
+  }
+  res.json(UpdatePartnerOrderStatusResponse.parse({
+    id: result.order.id,
+    status: result.order.status,
+    updatedAt: result.order.updatedAt,
+  }));
 });
 
 // ─── Working hours ────────────────────────────────────────────────────────────

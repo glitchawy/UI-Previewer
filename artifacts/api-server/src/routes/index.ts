@@ -11,6 +11,7 @@ import customerRouter from "./customer";
 import cartRouter from "./cart";
 import ordersRouter from "./orders";
 import paymentsRouter from "./payments";
+import driverOrdersRouter from "./driver-orders";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(customerRouter);
 router.use(cartRouter);
 router.use(ordersRouter);
 router.use(paymentsRouter);
+router.use(driverOrdersRouter);
 
 export default router;

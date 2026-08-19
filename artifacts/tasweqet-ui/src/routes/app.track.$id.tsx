@@ -1,165 +1,148 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppBar, MobileShell, Icon, Card, Badge, Button, StatusBadge, MapCanvas } from "@/components/tb/shell";
-import { orderOf, ORDER_STATES, stateLabels, orderHistory, drivers } from "@/lib/tb/data";
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  getGetCustomerOrderQueryKey,
+  getGetOrderDriverLocationQueryKey,
+  useGetCustomerOrder,
+  useGetOrderDriverLocation,
+  type OrderStatus,
+} from "@workspace/api-client-react";
+import { AppBar, Badge, Card, EmptyState, Icon, MobileShell } from "@/components/tb/shell";
+import { TrackingMap } from "@/components/tb/tracking-map";
 import { customerTabs } from "@/lib/tb/nav";
+import { formatOrderDate, orderStatusTones } from "@/lib/tb/orders";
 
 export const Route = createFileRoute("/app/track/$id")({
   head: () => ({
     meta: [
       { title: "طلبات بيتك | تتبع الطلب" },
-      { name: "description", content: "تابع حالة طلبك ومكان المندوب لحظة بلحظة" },
-      { property: "og:title", content: "طلبات بيتك | تتبع الطلب" },
-      { property: "og:description", content: "تابع حالة طلبك ومكان المندوب لحظة بلحظة" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "description", content: "تابع حالة طلبك ومكان الكابتن لحظة بلحظة" },
     ],
   }),
   component: AppTrackId,
 });
 
-const cancelReasons = ["غيرت رأيي", "الطلب هياخد وقت كتير", "طلبت بالغلط", "سبب آخر"];
+const timelineSteps = [
+  { label: "تم الاستلام", statuses: ["pending", "confirmed"] as OrderStatus[] },
+  { label: "قيد التحضير", statuses: ["preparing"] as OrderStatus[] },
+  { label: "جاهز", statuses: ["ready"] as OrderStatus[] },
+  { label: "الكابتن في الطريق", statuses: ["picked_up"] as OrderStatus[] },
+  { label: "تم التوصيل", statuses: ["delivered"] as OrderStatus[] },
+];
+
+function statusStep(status: OrderStatus) {
+  if (status === "confirmed" || status === "pending") return 0;
+  if (status === "preparing") return 1;
+  if (status === "ready") return 2;
+  if (status === "picked_up") return 3;
+  if (status === "delivered") return 4;
+  return -1;
+}
 
 function AppTrackId() {
-  const { id } = Route.useParams();
-  const order = orderOf(id);
-  const [showCancel, setShowCancel] = useState(false);
-  const driver = drivers[0]!;
-  const canCancel = ORDER_STATES.indexOf(order["status"] as (typeof ORDER_STATES)[number]) < ORDER_STATES.indexOf("PREPARING");
+  const { id: rawId } = Route.useParams();
+  const parsedId = Number(rawId);
+  const id = Number.isInteger(parsedId) ? parsedId : 0;
+  const orderQuery = useGetCustomerOrder(id, {
+    query: { enabled: id > 0, refetchInterval: 15_000, queryKey: getGetCustomerOrderQueryKey(id) },
+  });
+  const isOutForDelivery = orderQuery.data?.status === "picked_up";
+  const locationQuery = useGetOrderDriverLocation(id, {
+    query: { enabled: id > 0 && isOutForDelivery, refetchInterval: 10_000, queryKey: getGetOrderDriverLocationQueryKey(id) },
+  });
+
+  const order = orderQuery.data;
+  const driverLat = locationQuery.data?.lat ?? order?.driverLat ?? null;
+  const driverLng = locationQuery.data?.lng ?? order?.driverLng ?? null;
+  const locationUpdatedAt = locationQuery.data?.updatedAt ?? order?.driverLocationUpdatedAt ?? null;
+  const currentStep = order ? statusStep(order.status) : -1;
 
   return (
     <MobileShell tabs={customerTabs}>
-      <AppBar title={`تتبع الطلب ${order["code"]}`} back="/app/orders" />
-      <div className="flex flex-col gap-lg p-md">
-        <MapCanvas>
-          <span className="absolute right-[20%] top-[30%] flex size-8 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
-            <Icon name="storefront" className="text-[16px]" />
-          </span>
-          <span className="absolute left-[25%] bottom-[25%] flex size-8 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
-            <Icon name="home" className="text-[16px]" />
-          </span>
-          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <span className="tb-ping absolute inset-0 rounded-full bg-success/30" />
-            <span className="relative flex size-9 items-center justify-center rounded-full bg-success text-on-primary-container">
-              <Icon name="two_wheeler" className="text-[18px]" />
-            </span>
-          </span>
-        </MapCanvas>
-
-        <Card className="flex items-center gap-3 p-3">
-          <img
-            src="https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=200&q=70"
-            alt={driver["name"]}
-            className="size-14 rounded-full object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="font-label-lg text-label-lg text-on-surface">{driver["name"]}</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">
-              ⭐ {driver["rating"]} · {driver["vehicle"]}
-            </p>
-          </div>
-          <button type="button" className="flex size-9 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
-            <Icon name="call" className="text-[18px]" />
-          </button>
-          <button type="button" className="flex size-9 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
-            <Icon name="chat" className="text-[18px]" />
-          </button>
-        </Card>
-
-        <section>
-          <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">حالة الطلب</h2>
-          <div className="flex flex-col gap-3">
-            {ORDER_STATES.map((state, idx) => {
-              const historyIdx = orderHistory.findIndex((h) => h["status"] === state);
-              const currentIdx = orderHistory.length - 1;
-              const completed = historyIdx !== -1 && historyIdx <= currentIdx;
-              const isCurrent = historyIdx === currentIdx;
-              return (
-                <div key={state} className="flex items-start gap-3">
-                  <div className="flex flex-col items-center">
-                    <span
-                      className={`flex size-6 items-center justify-center rounded-full ${
-                        completed
-                          ? isCurrent
-                            ? "bg-primary-container text-on-primary-container"
-                            : "bg-success/20 text-success"
-                          : "bg-surface-container-low text-outline"
-                      }`}
-                    >
-                      <Icon name={completed ? "check" : "circle"} className="text-[14px]" />
-                    </span>
-                    {idx < ORDER_STATES.length - 1 ? (
-                      <span className={`h-6 w-0.5 ${completed ? "bg-success/40" : "bg-outline-variant"}`} />
-                    ) : null}
-                  </div>
-                  <div className="pb-1">
-                    <p className={`font-label-lg text-label-lg ${completed ? "text-on-surface" : "text-outline"}`}>
-                      {stateLabels[state]}
-                    </p>
-                    {historyIdx !== -1 ? (
-                      <p className="font-label-md text-label-md text-on-surface-variant">{orderHistory[historyIdx]?.["at"]}</p>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">الطلبات الفرعية</h2>
-          <div className="flex flex-col gap-2">
-            {order["subOrders"].map((s) => (
-              <Card key={s["id"]} className="flex items-center justify-between p-3">
-                <div>
-                  <p className="font-label-lg text-label-lg text-on-surface">{s["restaurantName"]}</p>
-                  <p className="font-label-md text-label-md text-on-surface-variant">{s["branch"]}</p>
-                </div>
-                <StatusBadge status={s["status"]} label={stateLabels[s["status"]]} />
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        <div className="flex flex-col gap-2">
-          <Button
-            variant="danger"
-            className="w-full"
-            icon="cancel"
-            disabled={!canCancel}
-            onClick={() => setShowCancel(true)}
-          >
-            إلغاء الطلب
-          </Button>
-          <Link to="/app/refund/$id" params={{ id: order["id"] }} className="text-center font-label-md text-label-md text-secondary">
-            طلب استرداد
-          </Link>
+      <AppBar title={order?.code ? `تتبع ${order.code}` : "تتبع الطلب"} back="/app/orders" />
+      {orderQuery.isLoading ? (
+        <div className="flex h-72 items-center justify-center">
+          <Icon name="progress_activity" className="animate-spin text-[38px] text-primary" />
         </div>
-
-        {showCancel ? (
-          <div className="fixed inset-0 z-40 flex items-end justify-center bg-scrim/50">
-            <Card className="w-full max-w-[480px] rounded-b-none p-md">
-              <p className="mb-sm font-headline-md text-headline-md text-on-surface">سبب الإلغاء</p>
-              <div className="flex flex-col gap-2">
-                {cancelReasons.map((r) => (
-                  <label key={r} className="flex items-center gap-2 rounded-button bg-surface-container-low px-3 py-2.5">
-                    <input type="radio" name="cancel-reason" className="accent-secondary" />
-                    <span className="font-body-md text-body-md text-on-surface">{r}</span>
-                  </label>
-                ))}
+      ) : orderQuery.isError || !order ? (
+        <div className="p-md"><EmptyState icon="error" title="تعذر تحميل التتبع" body="تأكد من رقم الطلب وحاول مرة أخرى" /></div>
+      ) : (
+        <div className="flex flex-col gap-lg p-md">
+          {order.status === "picked_up" && driverLat != null && driverLng != null ? (
+            <section className="space-y-2">
+              <TrackingMap
+                driver={{ lat: driverLat, lng: driverLng }}
+                destination={{ lat: order.deliveryLat, lng: order.deliveryLng }}
+              />
+              <div className="flex items-center justify-between gap-3 px-1 text-label-md text-on-surface-variant">
+                <span className="flex items-center gap-1.5"><span className="size-2 animate-pulse rounded-full bg-success" />الموقع يتحدث كل ١٠ ثوانٍ</span>
+                {locationUpdatedAt ? <span>{formatOrderDate(locationUpdatedAt)}</span> : null}
               </div>
-              <div className="mt-md flex gap-2">
-                <Button variant="ghost" className="flex-1" onClick={() => setShowCancel(false)}>
-                  رجوع
-                </Button>
-                <Button variant="danger" className="flex-1">
-                  تأكيد الإلغاء
-                </Button>
-              </div>
+            </section>
+          ) : (
+            <Card className="flex min-h-44 flex-col items-center justify-center gap-2 bg-surface-container-low p-lg text-center">
+              <Icon name={order.driverName ? "two_wheeler" : "schedule"} className="text-[42px] text-secondary" />
+              <p className="font-headline-md text-headline-md">
+                {order.driverName ? "الخريطة هتظهر بعد استلام الكابتن للطلب" : "جاري تجهيز طلبك"}
+              </p>
+              <p className="font-body-md text-body-md text-on-surface-variant">هنحدّث الحالة تلقائياً كل ١٥ ثانية</p>
             </Card>
-          </div>
-        ) : null}
-      </div>
+          )}
+
+          {order.driverName ? (
+            <Card className="flex items-center gap-3 p-md">
+              <span className="flex size-12 items-center justify-center rounded-full bg-secondary-container text-secondary">
+                <Icon name="person" className="text-[24px]" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-label-lg text-label-lg">{order.driverName}</p>
+                <p className="font-label-md text-label-md text-on-surface-variant">الكابتن المسؤول عن التوصيل</p>
+              </div>
+              {order.driverPhone ? (
+                <a href={`tel:${order.driverPhone}`} className="flex size-10 items-center justify-center rounded-full bg-secondary-container text-secondary" aria-label="اتصل بالكابتن">
+                  <Icon name="call" className="text-[19px]" />
+                </a>
+              ) : null}
+            </Card>
+          ) : null}
+
+          <section>
+            <div className="mb-sm flex items-center justify-between">
+              <h2 className="font-headline-md text-headline-md">حالة الطلب</h2>
+              {order.status === "cancelled" ? <Badge tone={orderStatusTones.cancelled}>تم الإلغاء</Badge> : null}
+            </div>
+            <Card className="p-md">
+              {timelineSteps.map((step, index) => {
+                const complete = currentStep >= index;
+                const current = currentStep === index;
+                const event = [...order.timeline].reverse().find((entry) => step.statuses.includes(entry.status));
+                return (
+                  <div key={step.label} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <span className={`flex size-8 items-center justify-center rounded-full border-2 ${
+                        current ? "border-primary bg-primary text-on-primary" :
+                        complete ? "border-success bg-success/15 text-success" :
+                        "border-outline-variant bg-surface-container-low text-outline"
+                      }`}>
+                        <Icon name={complete ? "check" : "circle"} className="text-[16px]" />
+                      </span>
+                      {index < timelineSteps.length - 1 ? <span className={`h-10 w-0.5 ${complete && currentStep > index ? "bg-success/40" : "bg-outline-variant"}`} /> : null}
+                    </div>
+                    <div className="pt-1">
+                      <p className={`font-label-lg text-label-lg ${current ? "text-primary" : complete ? "text-on-surface" : "text-outline"}`}>{step.label}</p>
+                      {event ? <p className="font-label-md text-label-md text-on-surface-variant">{formatOrderDate(event.at)}</p> : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          </section>
+
+          <Card className="flex gap-3 p-md">
+            <Icon name="location_on" className="text-secondary" />
+            <div><p className="font-label-lg text-label-lg">عنوان التوصيل</p><p className="font-body-md text-body-md text-on-surface-variant">{order.deliveryAddressText}</p></div>
+          </Card>
+        </div>
+      )}
     </MobileShell>
   );
 }

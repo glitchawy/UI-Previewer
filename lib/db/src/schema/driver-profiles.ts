@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -17,6 +17,9 @@ export const driverProfilesTable = pgTable("driver_profiles", {
   criminalRecordUploadedAt: timestamp("criminal_record_uploaded_at", { withTimezone: true }),
   licenseUrl: text("license_url"),
   licenseUploadedAt: timestamp("license_uploaded_at", { withTimezone: true }),
+  currentLat: doublePrecision("current_lat"),
+  currentLng: doublePrecision("current_lng"),
+  locationUpdatedAt: timestamp("location_updated_at", { withTimezone: true }),
   status: text("status", { enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "SUSPENDED"] }).notNull().default("PENDING"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

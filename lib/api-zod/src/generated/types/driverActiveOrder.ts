@@ -6,25 +6,30 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OrderLine } from './orderLine';
-import type { OrderSummary } from './orderSummary';
-import type { OrderTimelineEntry } from './orderTimelineEntry';
+import type { OrderStatus } from './orderStatus';
+import type { PaymentMethod } from './paymentMethod';
 
-export type OrderDetail = OrderSummary & ({
+export interface DriverActiveOrder {
+  id: number;
+  code: string;
+  restaurantName: string;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  total: number;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  customerPhone: string | null;
   deliveryAddressText: string;
   deliveryLat: number;
   deliveryLng: number;
   /** @nullable */
-  driverName: string | null;
-  /** @nullable */
-  driverPhone: string | null;
+  notes: string | null;
   /** @nullable */
   driverLat: number | null;
   /** @nullable */
   driverLng: number | null;
   /** @nullable */
   driverLocationUpdatedAt: Date | null;
-  /** @nullable */
-  notes: string | null;
-  timeline: OrderTimelineEntry[];
   items: OrderLine[];
-});
+}

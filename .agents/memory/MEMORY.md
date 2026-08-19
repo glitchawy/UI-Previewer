@@ -3,3 +3,4 @@
 - [WhatsApp OTP system](whatsapp-otp-system.md) — delivery modes, required secrets, security properties, account separation logic.
 - [Drizzle migration journal ordering](drizzle-migration-journal-ordering.md) — new migration timestamps must exceed the database’s latest applied timestamp or Drizzle silently skips them.
 - [Paymob checkout settlement](paymob-checkout-settlement.md) — settle grouped restaurant orders only from reconciled, terminal, HMAC-verified Paymob callbacks.
+- [Driver location lifecycle](driver-location-lifecycle.md) — collect GPS only for assigned active work; expose precise coordinates to the owning customer only after pickup.

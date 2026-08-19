@@ -4,6 +4,12 @@ import { AppBar, Badge, Card, Icon, MobileShell, Stat } from "@/components/tb/sh
 import { EGP, driverWallet, drivers } from "@/lib/tb/data";
 import { driverTabs } from "@/lib/tb/nav";
 import { getSession, clearSession, getRoleDashboard } from "@/lib/auth-session";
+import {
+  getGetActiveDriverOrderQueryKey,
+  getGetAvailableDriverOrderQueryKey,
+  useGetActiveDriverOrder,
+  useGetAvailableDriverOrder,
+} from "@workspace/api-client-react";
 
 export const Route = createFileRoute("/driver/")({
   beforeLoad: () => {
@@ -26,6 +32,12 @@ function DriverIndex() {
   const navigate = useNavigate();
   const session = getSession();
   const [online, setOnline] = useState(true);
+  const activeOrder = useGetActiveDriverOrder({
+    query: { queryKey: getGetActiveDriverOrderQueryKey(), refetchInterval: 15_000 },
+  });
+  const availableOrder = useGetAvailableDriverOrder({
+    query: { queryKey: getGetAvailableDriverOrderQueryKey(), refetchInterval: 15_000 },
+  });
   // Approval gating happens in the /driver layout route (driver.tsx).
 
   function handleLogout() {
@@ -69,34 +81,36 @@ function DriverIndex() {
           </div>
         </Card>
 
-        {online && (
+        {online && availableOrder.data && !activeOrder.data ? (
           <Link to="/driver/offer" className="block">
             <Card className="tb-pulse-ring border-primary bg-primary-container/30 p-md">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 font-label-lg text-label-lg text-on-surface">
                   <Icon name="notifications_active" className="text-[20px] text-primary" />
-                  عرض توصيل جديد وصلك الآن
+                  عرض توصيل جديد من {availableOrder.data.restaurantName}
                 </span>
                 <Icon name="chevron_left" className="text-on-surface-variant" />
               </div>
             </Card>
           </Link>
-        )}
+        ) : null}
 
-        <Link to="/driver/navigate" className="block">
-          <Card className="p-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="two_wheeler" className="text-[20px] text-on-surface-variant" />
-                <div>
-                  <p className="font-label-lg text-label-lg text-on-surface">لديك توصيلة نشطة الآن</p>
-                  <p className="font-label-md text-label-md text-on-surface-variant">طلب #12345 — برجر هاوس</p>
+        {activeOrder.data ? (
+          <Link to="/driver/navigate" className="block">
+            <Card className="p-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Icon name="two_wheeler" className="text-[20px] text-on-surface-variant" />
+                  <div>
+                    <p className="font-label-lg text-label-lg text-on-surface">لديك توصيلة نشطة الآن</p>
+                    <p className="font-label-md text-label-md text-on-surface-variant">{activeOrder.data.code} — {activeOrder.data.restaurantName}</p>
+                  </div>
                 </div>
+                <Icon name="chevron_left" className="text-on-surface-variant" />
               </div>
-              <Icon name="chevron_left" className="text-on-surface-variant" />
-            </div>
-          </Card>
-        </Link>
+            </Card>
+          </Link>
+        ) : null}
 
         <div>
           <p className="mb-sm font-headline-md text-headline-md text-on-surface">إحصائيات اليوم</p>

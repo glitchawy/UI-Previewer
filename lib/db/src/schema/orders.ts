@@ -9,6 +9,7 @@ export const ordersTable = pgTable("orders", {
   restaurantName: text("restaurant_name").notNull(),
   branchId: integer("branch_id"),
   branchName: text("branch_name"),
+  driverProfileId: integer("driver_profile_id"),
   status: text("status", {
     enum: ["pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled"],
   }).notNull().default("pending"),
@@ -23,6 +24,8 @@ export const ordersTable = pgTable("orders", {
   subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull(),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
   notes: text("notes"),
+  pickedUpAt: timestamp("picked_up_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

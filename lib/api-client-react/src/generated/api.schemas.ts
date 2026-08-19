@@ -339,11 +339,140 @@ export interface OrderTimelineEntry {
 
 export type OrderDetail = OrderSummary & ({
   deliveryAddressText: string;
+  deliveryLat: number;
+  deliveryLng: number;
+  /** @nullable */
+  driverName: string | null;
+  /** @nullable */
+  driverPhone: string | null;
+  /** @nullable */
+  driverLat: number | null;
+  /** @nullable */
+  driverLng: number | null;
+  /** @nullable */
+  driverLocationUpdatedAt: string | null;
   /** @nullable */
   notes: string | null;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });
+
+export interface DriverLocation {
+  /** @nullable */
+  lat: number | null;
+  /** @nullable */
+  lng: number | null;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export interface DriverLocationUpdate {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+}
+
+export type DriverOrderStatusUpdateStatus = typeof DriverOrderStatusUpdateStatus[keyof typeof DriverOrderStatusUpdateStatus];
+
+
+export const DriverOrderStatusUpdateStatus = {
+  picked_up: 'picked_up',
+  delivered: 'delivered',
+} as const;
+
+export interface DriverOrderStatusUpdate {
+  status: DriverOrderStatusUpdateStatus;
+}
+
+export type PartnerOrderStatusUpdateStatus = typeof PartnerOrderStatusUpdateStatus[keyof typeof PartnerOrderStatusUpdateStatus];
+
+
+export const PartnerOrderStatusUpdateStatus = {
+  confirmed: 'confirmed',
+  preparing: 'preparing',
+  ready: 'ready',
+} as const;
+
+export interface PartnerOrderStatusUpdate {
+  status: PartnerOrderStatusUpdateStatus;
+}
+
+export interface PartnerOrderSummary {
+  id: number;
+  code: string;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  customerPhone: string | null;
+  /** @nullable */
+  branchName: string | null;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  total: number;
+  createdAt: string;
+}
+
+export type PartnerOrderDetail = PartnerOrderSummary & ({
+  deliveryAddressText: string;
+  subtotal: number;
+  deliveryFee: number;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  driverName: string | null;
+  timeline: OrderTimelineEntry[];
+  items: OrderLine[];
+});
+
+export interface DriverOrderStatusResult {
+  id: number;
+  status: OrderStatus;
+  updatedAt: string;
+}
+
+export interface DriverActiveOrder {
+  id: number;
+  code: string;
+  restaurantName: string;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  total: number;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  customerPhone: string | null;
+  deliveryAddressText: string;
+  deliveryLat: number;
+  deliveryLng: number;
+  /** @nullable */
+  notes: string | null;
+  /** @nullable */
+  driverLat: number | null;
+  /** @nullable */
+  driverLng: number | null;
+  /** @nullable */
+  driverLocationUpdatedAt: string | null;
+  items: OrderLine[];
+}
+
+export interface DriverOrderOffer {
+  id: number;
+  code: string;
+  restaurantName: string;
+  deliveryAddressText: string;
+  deliveryLat: number;
+  deliveryLng: number;
+  deliveryFee: number;
+  total: number;
+}
 
 export interface ErrorResponse {
   error: string;

@@ -1,5 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { AppBar, Button, Card, Icon, MapCanvas, MobileShell } from "@/components/tb/shell";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  getGetAvailableDriverOrderQueryKey,
+  useAcceptDriverOrder,
+  useGetAvailableDriverOrder,
+} from "@workspace/api-client-react";
+import { AppBar, Button, Card, EmptyState, Icon, MobileShell } from "@/components/tb/shell";
 import { EGP, driverWallet } from "@/lib/tb/data";
 
 export const Route = createFileRoute("/driver/offer")({
@@ -7,83 +12,66 @@ export const Route = createFileRoute("/driver/offer")({
     meta: [
       { title: "عرض توصيل جديد | طلبات بيتك" },
       { name: "description", content: "راجع تفاصيل عرض التوصيل الجديد وقرر القبول أو الرفض." },
-      { property: "og:title", content: "عرض توصيل جديد | طلبات بيتك" },
-      { property: "og:description", content: "راجع تفاصيل عرض التوصيل الجديد وقرر القبول أو الرفض." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: DriverOffer,
 });
 
-const fee = 20;
-const earnings = Math.round((fee * driverWallet["commissionRate"]) / 100);
-
 function DriverOffer() {
+  const navigate = useNavigate();
+  const offerQuery = useGetAvailableDriverOrder({
+    query: { queryKey: getGetAvailableDriverOrderQueryKey(), refetchInterval: 15_000 },
+  });
+  const accept = useAcceptDriverOrder();
+  const offer = offerQuery.data;
+  const earnings = offer ? Math.round((offer.deliveryFee * driverWallet["commissionRate"]) / 100) : 0;
+
+  function acceptOffer() {
+    if (!offer) return;
+    accept.mutate(
+      { id: offer.id },
+      { onSuccess: () => navigate({ to: "/driver/navigate" }), onError: () => offerQuery.refetch() },
+    );
+  }
+
   return (
     <MobileShell>
       <AppBar title="عرض توصيل جديد" back="/driver" />
-      <div className="tb-fade-up flex flex-col gap-md p-md">
-        <div className="flex flex-col items-center gap-2 py-sm">
-          <div className="relative flex size-24 items-center justify-center rounded-full border-4 border-primary-container">
-            <span className="font-headline-lg text-headline-lg text-on-surface">18</span>
-            <span className="absolute -bottom-1 rounded-full bg-surface-container-lowest px-2 font-label-md text-[10px] text-on-surface-variant">
-              ثانية
-            </span>
+      {offerQuery.isLoading ? (
+        <div className="flex h-72 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[38px] text-primary" /></div>
+      ) : !offer ? (
+        <div className="p-md"><EmptyState icon="notifications_none" title="مفيش عرض متاح حالياً" body="هنظهرلك أقرب طلب جاهز أول ما يكون متاح" /></div>
+      ) : (
+        <div className="tb-fade-up flex flex-col gap-md p-md">
+          <Card className="flex items-center gap-3 border-primary bg-primary-container/20 p-md">
+            <span className="flex size-12 items-center justify-center rounded-full bg-primary text-on-primary"><Icon name="two_wheeler" /></span>
+            <div><p className="font-headline-md text-headline-md">طلب جاهز للتوصيل</p><p className="font-label-md text-label-md text-on-surface-variant">{offer.code}</p></div>
+          </Card>
+
+          <Card className="flex flex-col gap-3 p-md">
+            <div className="flex items-start gap-2">
+              <Icon name="storefront" className="mt-0.5 text-[19px] text-primary" />
+              <div><p className="font-label-md text-label-md text-on-surface-variant">الاستلام من</p><p className="font-label-lg text-label-lg">{offer.restaurantName}</p></div>
+            </div>
+            <div className="flex items-start gap-2">
+              <Icon name="location_on" className="mt-0.5 text-[19px] text-error" />
+              <div><p className="font-label-md text-label-md text-on-surface-variant">التسليم إلى</p><p className="font-label-lg text-label-lg">{offer.deliveryAddressText}</p></div>
+            </div>
+          </Card>
+
+          <Card className="grid grid-cols-3 divide-x divide-x-reverse divide-outline-variant p-md text-center">
+            <div><p className="font-headline-md text-headline-md">{EGP(offer.total)}</p><p className="font-label-md text-label-md text-on-surface-variant">قيمة الطلب</p></div>
+            <div><p className="font-headline-md text-headline-md">{EGP(offer.deliveryFee)}</p><p className="font-label-md text-label-md text-on-surface-variant">رسوم التوصيل</p></div>
+            <div><p className="font-headline-md text-headline-md text-success">{EGP(earnings)}</p><p className="font-label-md text-label-md text-on-surface-variant">أرباحك</p></div>
+          </Card>
+
+          {accept.isError ? <p className="rounded-button bg-error-container px-3 py-2 text-label-md text-on-error-container">العرض لم يعد متاحاً أو لديك توصيلة نشطة.</p> : null}
+          <div className="grid grid-cols-2 gap-sm">
+            <Link to="/driver"><Button variant="danger" className="w-full" icon="close">رفض</Button></Link>
+            <Button className="w-full" icon="check" disabled={accept.isPending} onClick={acceptOffer}>قبول</Button>
           </div>
-          <p className="font-label-md text-label-md text-on-surface-variant">هيتم تحويل العرض لو ماردتش</p>
         </div>
-
-        <MapCanvas height="h-48">
-          <Icon name="storefront" className="absolute right-10 top-10 text-[26px] text-primary" filled />
-          <Icon name="location_on" className="absolute bottom-10 left-12 text-[30px] text-error" filled />
-        </MapCanvas>
-
-        <Card className="flex flex-col gap-3 p-md">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 font-label-lg text-label-lg text-on-surface">
-              <Icon name="storefront" className="text-[18px] text-on-surface-variant" />
-              برجر هاوس — فرع المعادي
-            </span>
-            <span className="font-label-md text-label-md text-on-surface-variant">1.2 كم</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 font-label-lg text-label-lg text-on-surface">
-              <Icon name="location_on" className="text-[18px] text-on-surface-variant" />
-              التسليم في المعادي
-            </span>
-            <span className="font-label-md text-label-md text-on-surface-variant">3.4 كم</span>
-          </div>
-        </Card>
-
-        <Card className="grid grid-cols-3 divide-x divide-x-reverse divide-outline-variant p-md text-center">
-          <div>
-            <p className="font-headline-md text-headline-md text-on-surface">{EGP(623)}</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">قيمة الطلب</p>
-          </div>
-          <div>
-            <p className="font-headline-md text-headline-md text-on-surface">{EGP(fee)}</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">رسوم التوصيل</p>
-          </div>
-          <div>
-            <p className="font-headline-md text-headline-md text-success">{EGP(earnings)}</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">أرباحك</p>
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-sm">
-          <Link to="/driver">
-            <Button variant="danger" className="w-full" icon="close">رفض</Button>
-          </Link>
-          <Link to="/driver/navigate">
-            <Button className="w-full" icon="check">قبول</Button>
-          </Link>
-        </div>
-
-        <p className="text-center font-label-md text-label-md text-on-surface-variant">
-          لو رفضت، العرض هيروح لأقرب مندوب تاني
-        </p>
-      </div>
+      )}
     </MobileShell>
   );
 }

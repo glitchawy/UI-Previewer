@@ -24,8 +24,14 @@ import type {
   AuthSession,
   CustomerAddress,
   CustomerAddressInput,
+  DriverActiveOrder,
   DriverApplication,
+  DriverLocation,
+  DriverLocationUpdate,
   DriverOnboard,
+  DriverOrderOffer,
+  DriverOrderStatusResult,
+  DriverOrderStatusUpdate,
   ErrorResponse,
   GeocodeResult,
   HealthStatus,
@@ -40,6 +46,9 @@ import type {
   OtpRequestResponse,
   OtpVerify,
   PartnerOnboard,
+  PartnerOrderDetail,
+  PartnerOrderStatusUpdate,
+  PartnerOrderSummary,
   PaymentSession,
   RestaurantApplication,
   SearchAddressParams,
@@ -962,6 +971,677 @@ export function useGetCustomerOrder<TData = Awaited<ReturnType<typeof getCustome
 
 
 
+
+export const getGetOrderDriverLocationUrl = (id: number,) => {
+
+
+
+
+  return `/api/orders/${id}/driver-location`
+}
+
+/**
+ * @summary Get the assigned driver's last-known location for a customer order
+ */
+export const getOrderDriverLocation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DriverLocation> => {
+
+  return customFetch<DriverLocation>(getGetOrderDriverLocationUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOrderDriverLocationQueryKey = (id: number,) => {
+    return [
+    `/api/orders/${id}/driver-location`
+    ] as const;
+    }
+
+
+export const getGetOrderDriverLocationQueryOptions = <TData = Awaited<ReturnType<typeof getOrderDriverLocation>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrderDriverLocation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOrderDriverLocationQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrderDriverLocation>>> = ({ signal }) => getOrderDriverLocation(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrderDriverLocation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOrderDriverLocationQueryResult = NonNullable<Awaited<ReturnType<typeof getOrderDriverLocation>>>
+export type GetOrderDriverLocationQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the assigned driver's last-known location for a customer order
+ */
+
+export function useGetOrderDriverLocation<TData = Awaited<ReturnType<typeof getOrderDriverLocation>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrderDriverLocation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOrderDriverLocationQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateDriverLocationUrl = () => {
+
+
+
+
+  return `/api/driver/location`
+}
+
+/**
+ * @summary Save the authenticated driver's current GPS location
+ */
+export const updateDriverLocation = async (driverLocationUpdate: DriverLocationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<DriverLocation> => {
+
+  return customFetch<DriverLocation>(getUpdateDriverLocationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driverLocationUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateDriverLocationMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDriverLocation>>, TError,{data: BodyType<DriverLocationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDriverLocation>>, TError,{data: BodyType<DriverLocationUpdate>}, TContext> => {
+
+const mutationKey = ['updateDriverLocation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDriverLocation>>, {data: BodyType<DriverLocationUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateDriverLocation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDriverLocationMutationResult = NonNullable<Awaited<ReturnType<typeof updateDriverLocation>>>
+    export type UpdateDriverLocationMutationBody = BodyType<DriverLocationUpdate>
+    export type UpdateDriverLocationMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Save the authenticated driver's current GPS location
+ */
+export const useUpdateDriverLocation = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDriverLocation>>, TError,{data: BodyType<DriverLocationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDriverLocation>>,
+        TError,
+        {data: BodyType<DriverLocationUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateDriverLocationMutationOptions(options));
+    }
+
+export const getGetActiveDriverOrderUrl = () => {
+
+
+
+
+  return `/api/driver/orders/active`
+}
+
+/**
+ * @summary Get the authenticated driver's current delivery
+ */
+export const getActiveDriverOrder = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriverActiveOrder | null> => {
+
+  return customFetch<DriverActiveOrder | null>(getGetActiveDriverOrderUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActiveDriverOrderQueryKey = () => {
+    return [
+    `/api/driver/orders/active`
+    ] as const;
+    }
+
+
+export const getGetActiveDriverOrderQueryOptions = <TData = Awaited<ReturnType<typeof getActiveDriverOrder>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActiveDriverOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActiveDriverOrderQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActiveDriverOrder>>> = ({ signal }) => getActiveDriverOrder({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActiveDriverOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActiveDriverOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getActiveDriverOrder>>>
+export type GetActiveDriverOrderQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the authenticated driver's current delivery
+ */
+
+export function useGetActiveDriverOrder<TData = Awaited<ReturnType<typeof getActiveDriverOrder>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActiveDriverOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActiveDriverOrderQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAvailableDriverOrderUrl = () => {
+
+
+
+
+  return `/api/driver/orders/available`
+}
+
+/**
+ * @summary Get the next unassigned ready delivery offer
+ */
+export const getAvailableDriverOrder = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriverOrderOffer | null> => {
+
+  return customFetch<DriverOrderOffer | null>(getGetAvailableDriverOrderUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAvailableDriverOrderQueryKey = () => {
+    return [
+    `/api/driver/orders/available`
+    ] as const;
+    }
+
+
+export const getGetAvailableDriverOrderQueryOptions = <TData = Awaited<ReturnType<typeof getAvailableDriverOrder>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAvailableDriverOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAvailableDriverOrderQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAvailableDriverOrder>>> = ({ signal }) => getAvailableDriverOrder({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAvailableDriverOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAvailableDriverOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getAvailableDriverOrder>>>
+export type GetAvailableDriverOrderQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the next unassigned ready delivery offer
+ */
+
+export function useGetAvailableDriverOrder<TData = Awaited<ReturnType<typeof getAvailableDriverOrder>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAvailableDriverOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAvailableDriverOrderQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptDriverOrderUrl = (id: number,) => {
+
+
+
+
+  return `/api/driver/orders/${id}/accept`
+}
+
+/**
+ * @summary Atomically accept an unassigned ready delivery
+ */
+export const acceptDriverOrder = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<DriverOrderStatusResult> => {
+
+  return customFetch<DriverOrderStatusResult>(getAcceptDriverOrderUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptDriverOrderMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptDriverOrder>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptDriverOrder>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['acceptDriverOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptDriverOrder>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  acceptDriverOrder(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptDriverOrderMutationResult = NonNullable<Awaited<ReturnType<typeof acceptDriverOrder>>>
+
+    export type AcceptDriverOrderMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Atomically accept an unassigned ready delivery
+ */
+export const useAcceptDriverOrder = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptDriverOrder>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptDriverOrder>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAcceptDriverOrderMutationOptions(options));
+    }
+
+export const getListPartnerOrdersUrl = () => {
+
+
+
+
+  return `/api/partner/orders`
+}
+
+/**
+ * @summary List orders belonging to the authenticated partner restaurant
+ */
+export const listPartnerOrders = async ( options?: Parameters<typeof customFetch>[1]): Promise<PartnerOrderSummary[]> => {
+
+  return customFetch<PartnerOrderSummary[]>(getListPartnerOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPartnerOrdersQueryKey = () => {
+    return [
+    `/api/partner/orders`
+    ] as const;
+    }
+
+
+export const getListPartnerOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listPartnerOrders>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPartnerOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPartnerOrdersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPartnerOrders>>> = ({ signal }) => listPartnerOrders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPartnerOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPartnerOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listPartnerOrders>>>
+export type ListPartnerOrdersQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List orders belonging to the authenticated partner restaurant
+ */
+
+export function useListPartnerOrders<TData = Awaited<ReturnType<typeof listPartnerOrders>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPartnerOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPartnerOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPartnerOrderUrl = (id: number,) => {
+
+
+
+
+  return `/api/partner/orders/${id}`
+}
+
+/**
+ * @summary Get an authenticated partner restaurant order
+ */
+export const getPartnerOrder = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<PartnerOrderDetail> => {
+
+  return customFetch<PartnerOrderDetail>(getGetPartnerOrderUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPartnerOrderQueryKey = (id: number,) => {
+    return [
+    `/api/partner/orders/${id}`
+    ] as const;
+    }
+
+
+export const getGetPartnerOrderQueryOptions = <TData = Awaited<ReturnType<typeof getPartnerOrder>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPartnerOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPartnerOrderQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPartnerOrder>>> = ({ signal }) => getPartnerOrder(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPartnerOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPartnerOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getPartnerOrder>>>
+export type GetPartnerOrderQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get an authenticated partner restaurant order
+ */
+
+export function useGetPartnerOrder<TData = Awaited<ReturnType<typeof getPartnerOrder>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPartnerOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPartnerOrderQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePartnerOrderStatusUrl = (id: number,) => {
+
+
+
+
+  return `/api/partner/orders/${id}/status`
+}
+
+/**
+ * @summary Advance a restaurant-owned order through confirmation and preparation
+ */
+export const updatePartnerOrderStatus = async (id: number,
+    partnerOrderStatusUpdate: PartnerOrderStatusUpdate, options?: Parameters<typeof customFetch>[1]): Promise<DriverOrderStatusResult> => {
+
+  return customFetch<DriverOrderStatusResult>(getUpdatePartnerOrderStatusUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(partnerOrderStatusUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdatePartnerOrderStatusMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePartnerOrderStatus>>, TError,{id: number;data: BodyType<PartnerOrderStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePartnerOrderStatus>>, TError,{id: number;data: BodyType<PartnerOrderStatusUpdate>}, TContext> => {
+
+const mutationKey = ['updatePartnerOrderStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePartnerOrderStatus>>, {id: number;data: BodyType<PartnerOrderStatusUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePartnerOrderStatus(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePartnerOrderStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updatePartnerOrderStatus>>>
+    export type UpdatePartnerOrderStatusMutationBody = BodyType<PartnerOrderStatusUpdate>
+    export type UpdatePartnerOrderStatusMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Advance a restaurant-owned order through confirmation and preparation
+ */
+export const useUpdatePartnerOrderStatus = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePartnerOrderStatus>>, TError,{id: number;data: BodyType<PartnerOrderStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePartnerOrderStatus>>,
+        TError,
+        {id: number;data: BodyType<PartnerOrderStatusUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdatePartnerOrderStatusMutationOptions(options));
+    }
+
+export const getUpdateDriverOrderStatusUrl = (id: number,) => {
+
+
+
+
+  return `/api/driver/orders/${id}/status`
+}
+
+/**
+ * @summary Advance an assigned order to picked up or delivered
+ */
+export const updateDriverOrderStatus = async (id: number,
+    driverOrderStatusUpdate: DriverOrderStatusUpdate, options?: Parameters<typeof customFetch>[1]): Promise<DriverOrderStatusResult> => {
+
+  return customFetch<DriverOrderStatusResult>(getUpdateDriverOrderStatusUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(driverOrderStatusUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateDriverOrderStatusMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDriverOrderStatus>>, TError,{id: number;data: BodyType<DriverOrderStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDriverOrderStatus>>, TError,{id: number;data: BodyType<DriverOrderStatusUpdate>}, TContext> => {
+
+const mutationKey = ['updateDriverOrderStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDriverOrderStatus>>, {id: number;data: BodyType<DriverOrderStatusUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateDriverOrderStatus(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDriverOrderStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateDriverOrderStatus>>>
+    export type UpdateDriverOrderStatusMutationBody = BodyType<DriverOrderStatusUpdate>
+    export type UpdateDriverOrderStatusMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Advance an assigned order to picked up or delivered
+ */
+export const useUpdateDriverOrderStatus = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDriverOrderStatus>>, TError,{id: number;data: BodyType<DriverOrderStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDriverOrderStatus>>,
+        TError,
+        {id: number;data: BodyType<DriverOrderStatusUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateDriverOrderStatusMutationOptions(options));
+    }
 
 export const getGetPaymentSessionUrl = (id: number,) => {
 

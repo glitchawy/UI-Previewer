@@ -1,77 +1,84 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
-import { DashboardShell, Table, Td, StatusBadge, Badge, Icon, Button } from "@/components/tb/shell";
+import {
+  getListPartnerOrdersQueryKey,
+  type OrderStatus,
+  useListPartnerOrders,
+} from "@workspace/api-client-react";
+import { Badge, Button, DashboardShell, EmptyState, Icon, StatusBadge, Table, Td } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
-import { EGP, orders, ORDER_STATES, stateLabels } from "@/lib/tb/data";
+import { EGP, formatOrderDate, orderStatusLabels } from "@/lib/tb/orders";
 
 export const Route = createFileRoute("/partner/orders")({
   head: () => ({
     meta: [
       { title: "الطلبات — طلبات بيتك" },
       { name: "description", content: "متابعة طلبات مطعمك الواردة من طلبات بيتك." },
-      { property: "og:title", content: "الطلبات — طلبات بيتك" },
-      { property: "og:description", content: "متابعة طلبات مطعمك الواردة من طلبات بيتك." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: PartnerOrders,
+  component: PartnerOrdersRoute,
 });
 
-const maskPhone = (p: string) => `${p.slice(0, 4)} •• ${p.slice(-4)}`;
+const filters: Array<"all" | OrderStatus> = [
+  "all", "pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled",
+];
 
-function PartnerOrders() {
-  const [filter, setFilter] = useState<string>("ALL");
-  const list = orders.filter((o) => filter === "ALL" || o.status === filter);
+function maskPhone(phone: string | null) {
+  return phone ? `${phone.slice(0, 4)} •• ${phone.slice(-4)}` : "—";
+}
+
+function PartnerOrdersRoute() {
+  const isList = useRouterState({ select: (state) => state.location.pathname.endsWith("/partner/orders") });
+  return isList ? <PartnerOrdersList /> : <Outlet />;
+}
+
+function PartnerOrdersList() {
+  const [filter, setFilter] = useState<"all" | OrderStatus>("all");
+  const query = useListPartnerOrders({
+    query: { queryKey: getListPartnerOrdersQueryKey(), refetchInterval: 15_000 },
+  });
+  const list = (query.data ?? []).filter((order) => filter === "all" || order.status === filter);
+
   return (
-    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم — برجر هاوس" nav={partnerNav} title="الطلبات">
+    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم" nav={partnerNav} title="الطلبات">
       <div className="tb-stagger flex flex-col gap-md">
-        <Badge tone="info" className="w-fit">
-          <Icon name="lock" className="text-[16px]" />
-          لا يمكن رفض الطلب بعد استلامه
-        </Badge>
-
+        <Badge tone="info" className="w-fit"><Icon name="sync" className="text-[16px]" />الطلبات تتحدث تلقائياً كل ١٥ ثانية</Badge>
         <div className="flex flex-wrap gap-2">
-          {["ALL", ...ORDER_STATES, "CANCELLED"].map((s) => (
+          {filters.map((status) => (
             <button
-              key={s}
-              onClick={() => setFilter(s)}
+              key={status}
+              onClick={() => setFilter(status)}
               className={`rounded-full px-3 py-1.5 font-label-md text-label-md transition ${
-                filter === s
-                  ? "bg-primary-container text-on-primary-container"
-                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-low"
+                filter === status ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-low"
               }`}
             >
-              {s === "ALL" ? "الكل" : stateLabels[s]}
+              {status === "all" ? "الكل" : orderStatusLabels[status]}
             </button>
           ))}
         </div>
 
-        <Table head={["الكود", "الوقت", "العميل", "الفرع", "الإجمالي", "الدفع", "الحالة", ""]}>
-          {list.map((o) => (
-            <tr key={o.id} className="transition hover:bg-surface-container-low">
-              <Td>{o.code}</Td>
-              <Td>{o.placedAt}</Td>
-              <Td>
-                {o.customer.split(" ")[0]}
-                <span className="block font-label-md text-[11px] text-outline">{maskPhone(o.customerPhone)}</span>
-              </Td>
-              <Td>{o.subOrders[0]?.branch}</Td>
-              <Td>{EGP(o.total)}</Td>
-              <Td>{o.payment}</Td>
-              <Td>
-                <StatusBadge status={o.status} label={stateLabels[o.status]} />
-              </Td>
-              <Td>
-                <Link to="/partner/orders/$id" params={{ id: o.id }}>
-                  <Button variant="outline" icon="visibility" className="!px-3 !py-1.5">
-                    التفاصيل
-                  </Button>
-                </Link>
-              </Td>
-            </tr>
-          ))}
-        </Table>
+        {query.isLoading ? (
+          <div className="flex h-52 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[34px] text-primary" /></div>
+        ) : query.isError ? (
+          <EmptyState icon="error" title="تعذر تحميل الطلبات" body="تأكد من تسجيل الدخول وحاول مرة أخرى" />
+        ) : list.length === 0 ? (
+          <EmptyState icon="receipt_long" title="مفيش طلبات في الحالة دي" body="الطلبات الجديدة هتظهر هنا تلقائياً" />
+        ) : (
+          <Table head={["الكود", "الوقت", "العميل", "الفرع", "الإجمالي", "الدفع", "الحالة", ""]}>
+            {list.map((order) => (
+              <tr key={order.id} className="transition hover:bg-surface-container-low">
+                <Td>{order.code}</Td>
+                <Td>{formatOrderDate(order.createdAt)}</Td>
+                <Td>{order.customerName || "عميل"}<span className="block font-label-md text-[11px] text-outline">{maskPhone(order.customerPhone)}</span></Td>
+                <Td>{order.branchName || "الفرع الرئيسي"}</Td>
+                <Td>{EGP(order.total)}</Td>
+                <Td>{order.paymentMethod === "cash" ? "كاش" : order.paymentStatus === "paid" ? "أونلاين — مدفوع" : "أونلاين"}</Td>
+                <Td><StatusBadge status={order.status} label={orderStatusLabels[order.status]} /></Td>
+                <Td><Link to="/partner/orders/$id" params={{ id: String(order.id) }}><Button variant="outline" icon="visibility" className="!px-3 !py-1.5">التفاصيل</Button></Link></Td>
+              </tr>
+            ))}
+          </Table>
+        )}
       </div>
     </DashboardShell>
   );

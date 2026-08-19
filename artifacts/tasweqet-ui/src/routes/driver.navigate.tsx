@@ -1,104 +1,195 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppBar, Badge, Button, Card, Icon, MapCanvas, MobileShell } from "@/components/tb/shell";
+import { useEffect, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  getGetActiveDriverOrderQueryKey,
+  useGetActiveDriverOrder,
+  useUpdateDriverLocation,
+  useUpdateDriverOrderStatus,
+} from "@workspace/api-client-react";
+import { AppBar, Badge, Button, Card, EmptyState, Icon, MobileShell } from "@/components/tb/shell";
+import { TrackingMap } from "@/components/tb/tracking-map";
 import { EGP } from "@/lib/tb/data";
 
 export const Route = createFileRoute("/driver/navigate")({
   head: () => ({
     meta: [
       { title: "توصيلة نشطة | طلبات بيتك" },
-      { name: "description", content: "تابع مراحل توصيل الطلب من الاستلام حتى التسليم للعميل." },
-      { property: "og:title", content: "توصيلة نشطة | طلبات بيتك" },
-      { property: "og:description", content: "تابع مراحل توصيل الطلب من الاستلام حتى التسليم للعميل." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "description", content: "حدّث موقعك ومراحل توصيل الطلب للعميل." },
     ],
   }),
   component: DriverNavigate,
 });
 
-const steps = [
-  { key: "PICKUP", label: "الاستلام من المطعم", done: true },
-  { key: "TO_CUSTOMER", label: "التوجه للعميل", done: true },
-  { key: "DELIVER", label: "التسليم", done: false },
-];
+type DriverPoint = { lat: number; lng: number };
 
 function DriverNavigate() {
-  const [delivering, setDelivering] = useState(true);
+  const navigate = useNavigate();
+  const activeOrder = useGetActiveDriverOrder({
+    query: { refetchInterval: 15_000, queryKey: getGetActiveDriverOrderQueryKey() },
+  });
+  const locationMutation = useUpdateDriverLocation();
+  const statusMutation = useUpdateDriverOrderStatus();
+  const locationMutationRef = useRef(locationMutation.mutate);
+  locationMutationRef.current = locationMutation.mutate;
+  const [position, setPosition] = useState<DriverPoint | null>(null);
+  const positionRef = useRef<DriverPoint | null>(null);
+  const [geoStatus, setGeoStatus] = useState("جاري تحديد موقعك…");
+  const order = activeOrder.data;
+  const activeOrderId = order?.id ?? null;
+
+  useEffect(() => {
+    if (order?.driverLat != null && order.driverLng != null && !position) {
+      const stored = { lat: order.driverLat, lng: order.driverLng };
+      setPosition(stored);
+      positionRef.current = stored;
+    }
+  }, [order?.driverLat, order?.driverLng, position]);
+
+  useEffect(() => {
+    if (!activeOrderId) {
+      positionRef.current = null;
+      setPosition(null);
+      setGeoStatus("الموقع متوقف — لا توجد توصيلة نشطة");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGeoStatus("المتصفح لا يدعم تحديد الموقع");
+      return;
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (result) => {
+        const next = { lat: result.coords.latitude, lng: result.coords.longitude };
+        const isFirstFix = positionRef.current === null;
+        setPosition(next);
+        positionRef.current = next;
+        setGeoStatus("الموقع مباشر");
+        if (isFirstFix) {
+          locationMutationRef.current(
+            { data: next },
+            { onError: () => setGeoStatus("تعذر إرسال الموقع — سنحاول مع التحديث القادم") },
+          );
+        }
+      },
+      (error) => {
+        const message = error.code === 1
+          ? "اسمح بالوصول للموقع عشان العميل يقدر يتابعك"
+          : "تعذر تحديد الموقع — تأكد من تشغيل GPS";
+        setGeoStatus(message);
+      },
+      { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [activeOrderId]);
+
+  useEffect(() => {
+    if (!activeOrderId) return;
+    const heartbeat = window.setInterval(() => {
+      const latest = positionRef.current;
+      if (!latest) return;
+      locationMutationRef.current(
+        { data: latest },
+        { onError: () => setGeoStatus("تعذر إرسال الموقع — سنحاول مع التحديث القادم") },
+      );
+    }, 10_000);
+    return () => window.clearInterval(heartbeat);
+  }, [activeOrderId]);
+
+  function updateStatus(status: "picked_up" | "delivered") {
+    if (!order) return;
+    statusMutation.mutate(
+      { id: order.id, data: { status } },
+      {
+        onSuccess: () => {
+          if (status === "delivered") {
+            navigate({ to: "/driver/delivered" });
+          } else {
+            activeOrder.refetch();
+          }
+        },
+      },
+    );
+  }
 
   return (
     <MobileShell>
-      <AppBar title="طلب #12345" subtitle="برجر هاوس — فرع المعادي" back="/driver" />
-      <div className="tb-fade-up flex flex-col gap-md p-md">
-        <MapCanvas height="h-56">
-          <span className="tb-pulse-ring absolute right-1/2 top-1/2 flex size-5 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full bg-secondary text-on-secondary">
-            <Icon name="two_wheeler" className="text-[14px]" />
-          </span>
-          <Icon name="location_on" className="absolute bottom-8 left-10 text-[28px] text-error" filled />
-        </MapCanvas>
+      <AppBar title={order?.code || "التوصيلة النشطة"} subtitle={order?.restaurantName} back="/driver" />
+      {activeOrder.isLoading ? (
+        <div className="flex h-72 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[38px] text-primary" /></div>
+      ) : activeOrder.isError ? (
+        <div className="p-md"><EmptyState icon="error" title="تعذر تحميل التوصيلة" body="تأكد من تسجيل الدخول وحاول مرة أخرى" /></div>
+      ) : !order ? (
+        <div className="p-md"><EmptyState icon="two_wheeler" title="مفيش توصيلة نشطة" body="هتظهر هنا أول ما يتم إسناد طلب جاهز ليك" /></div>
+      ) : (
+        <div className="flex flex-col gap-md p-md">
+          {position ? (
+            <TrackingMap
+              driver={position}
+              destination={{ lat: order.deliveryLat, lng: order.deliveryLng }}
+              heightClass="h-60"
+            />
+          ) : (
+            <Card className="flex h-52 flex-col items-center justify-center gap-2 bg-surface-container-low text-center">
+              <Icon name="location_searching" className="animate-pulse text-[42px] text-secondary" />
+              <p className="font-label-lg text-label-lg">جاري تحديد موقعك على الخريطة</p>
+            </Card>
+          )}
 
-        <Card className="flex flex-col gap-3 p-md">
-          {steps.map((s, i) => (
-            <div key={s.key} className="flex items-center gap-2">
-              <span
-                className={`flex size-7 items-center justify-center rounded-full ${
-                  s.done ? "bg-success/20 text-success" : "bg-primary-container text-on-primary-container"
-                }`}
-              >
-                <Icon name={s.done ? "check" : "radio_button_checked"} className="text-[16px]" />
-              </span>
-              <span className={`font-label-lg text-label-lg ${s.done ? "text-on-surface-variant line-through" : "text-on-surface"}`}>
-                {s.label}
-              </span>
-              {i < steps.length - 1 ? null : null}
+          <Badge tone={geoStatus === "الموقع مباشر" ? "success" : "warn"} className="w-fit">
+            <span className={`size-2 rounded-full ${geoStatus === "الموقع مباشر" ? "animate-pulse bg-success" : "bg-warning"}`} />
+            {geoStatus}
+          </Badge>
+
+          <Card className="flex flex-col gap-3 p-md">
+            {[
+              { label: "الطلب جاهز للاستلام", complete: true },
+              { label: "استلمت الطلب وفي الطريق", complete: order.status === "picked_up" },
+              { label: "تم التوصيل للعميل", complete: order.status === "delivered" },
+            ].map((step, index) => (
+              <div key={step.label} className="flex items-center gap-3">
+                <span className={`flex size-8 items-center justify-center rounded-full ${step.complete ? "bg-success/15 text-success" : index === (order.status === "ready" ? 1 : 2) ? "bg-primary text-on-primary" : "bg-surface-container-low text-outline"}`}>
+                  <Icon name={step.complete ? "check" : "radio_button_checked"} className="text-[16px]" />
+                </span>
+                <span className={`font-label-lg text-label-lg ${step.complete ? "text-on-surface" : "text-on-surface-variant"}`}>{step.label}</span>
+              </div>
+            ))}
+          </Card>
+
+          <Card className="p-md">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="font-label-lg text-label-lg">{order.customerName || "عميل طلبات بيتك"}</span>
+              {order.customerPhone ? <a href={`tel:${order.customerPhone}`} className="flex size-9 items-center justify-center rounded-full bg-secondary-container text-secondary" aria-label="اتصال بالعميل"><Icon name="call" /></a> : null}
             </div>
-          ))}
-        </Card>
+            <p className="flex items-start gap-2 font-body-md text-body-md text-on-surface-variant"><Icon name="place" className="mt-0.5 text-[18px]" />{order.deliveryAddressText}</p>
+            {order.notes ? <p className="mt-2 flex items-start gap-2 font-label-md text-label-md text-on-surface-variant"><Icon name="sticky_note_2" className="mt-0.5 text-[17px]" />{order.notes}</p> : null}
+          </Card>
 
-        <Card className="p-md">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="font-label-lg text-label-lg text-on-surface">أحمد محمود</span>
-            <span className="font-label-md text-label-md text-on-surface-variant" dir="ltr">
-              010* *** 4567
-            </span>
+          <Card className="p-md">
+            <p className="mb-2 font-label-lg text-label-lg">ملخص الطلب</p>
+            <ul className="flex flex-col gap-1 text-body-md text-on-surface-variant">
+              {order.items.map((item) => <li key={item.id}>{item.quantity.toLocaleString("ar-EG")}× {item.name}</li>)}
+            </ul>
+          </Card>
+
+          <div className="flex items-center justify-between gap-3">
+            <Badge tone={order.paymentMethod === "cash" ? "warn" : "success"}>
+              <Icon name="payments" className="text-[15px]" />
+              {order.paymentMethod === "cash" ? `حصّل ${EGP(order.total)}` : "مدفوع أونلاين"}
+            </Badge>
+            <span className="text-label-md text-on-surface-variant">الوقت المتوقع: ٢٠–٣٠ دقيقة</span>
           </div>
-          <p className="mb-2 flex items-start gap-1.5 font-body-md text-body-md text-on-surface-variant">
-            <Icon name="place" className="mt-0.5 text-[16px]" />
-            ٧ شارع ٩، المعادي، الدور ٣، شقة ٦
-          </p>
-          <p className="mb-3 flex items-start gap-1.5 font-label-md text-label-md text-on-surface-variant">
-            <Icon name="sticky_note_2" className="mt-0.5 text-[16px]" />
-            اتصل قبل ما تطلع فوق
-          </p>
-          <div className="grid grid-cols-2 gap-sm">
-            <Button variant="outline" icon="call" className="w-full">اتصال</Button>
-            <Button variant="outline" icon="chat" className="w-full">واتساب</Button>
-          </div>
-        </Card>
 
-        <Card className="p-md">
-          <p className="mb-2 font-label-lg text-label-lg text-on-surface">ملخص الطلب</p>
-          <ul className="flex flex-col gap-1 font-body-md text-body-md text-on-surface-variant">
-            <li>2× برجر كلاسيك دوبل</li>
-            <li>1× تشيكن كرانشي</li>
-          </ul>
-        </Card>
-
-        <Badge tone="warn" className="w-fit">
-          <Icon name="payments" className="text-[14px]" />
-          كاش: حصّل {EGP(623)}
-        </Badge>
-
-        {delivering ? (
-          <Button className="w-full" icon="task_alt" onClick={() => setDelivering(false)}>
-            تم الاستلام والتوجه للعميل
-          </Button>
-        ) : (
-          <Link to="/driver/delivered">
-            <Button className="w-full" icon="done_all">تم التوصيل</Button>
-          </Link>
-        )}
-      </div>
+          {statusMutation.isError ? <p className="rounded-button bg-error-container px-3 py-2 text-label-md text-on-error-container">تعذر تحديث حالة الطلب. حاول مرة أخرى.</p> : null}
+          {order.status === "ready" ? (
+            <Button className="w-full" icon="two_wheeler" disabled={statusMutation.isPending} onClick={() => updateStatus("picked_up")}>
+              استلمت الطلب
+            </Button>
+          ) : (
+            <Button className="w-full" icon="done_all" disabled={statusMutation.isPending} onClick={() => updateStatus("delivered")}>
+              تم التوصيل
+            </Button>
+          )}
+        </div>
+      )}
     </MobileShell>
   );
 }

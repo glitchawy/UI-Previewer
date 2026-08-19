@@ -53,18 +53,29 @@ function AppOrders() {
         filtered.length === 0 ? <EmptyState icon="receipt_long" title="مفيش طلبات" body="مفيش طلبات في القسم ده حالياً" /> : (
           <div className="tb-stagger flex flex-col gap-3">
             {filtered.map((order) => (
-              <Link key={order.id} to="/app/orders/$id" params={{ id: String(order.id) }} className="block" data-testid={`link-order-${order.id}`}>
-                <Card className="p-md transition hover:border-secondary">
+              <Card key={order.id} className="p-md transition hover:border-secondary">
+                <Link to="/app/orders/$id" params={{ id: String(order.id) }} className="block" data-testid={`link-order-${order.id}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div><p className="font-headline-md text-headline-md text-on-surface">{order.restaurantName}</p><p className="font-label-md text-label-md text-on-surface-variant">{order.code}</p></div>
                     <Badge tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Badge>
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-outline-variant pt-3">
+                  <div className="mt-3 flex items-center justify-between pt-3">
                     <span className="font-label-md text-label-md text-on-surface-variant">{formatOrderDate(order.createdAt)}</span>
                     <span className="flex items-center gap-2 font-headline-md text-headline-md text-on-surface">{EGP(order.total)}<Icon name="chevron_left" className="text-outline" /></span>
                   </div>
-                </Card>
-              </Link>
+                </Link>
+                {currentOrderStatuses.has(order.status) ? (
+                  <Link
+                    to="/app/track/$id"
+                    params={{ id: String(order.id) }}
+                    className="mt-3 flex items-center justify-center gap-2 border-t border-outline-variant pt-3 font-label-lg text-label-lg text-secondary"
+                    data-testid={`link-track-order-${order.id}`}
+                  >
+                    <Icon name="location_searching" className="text-[18px]" />
+                    تتبع الطلب
+                  </Link>
+                ) : null}
+              </Card>
             ))}
           </div>
         )}

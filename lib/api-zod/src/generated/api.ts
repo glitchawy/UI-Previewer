@@ -218,6 +218,13 @@ export const GetCustomerOrderResponse = zod.object({
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "deliveryAddressText": zod.string(),
+  "deliveryLat": zod.number(),
+  "deliveryLng": zod.number(),
+  "driverName": zod.string().nullable(),
+  "driverPhone": zod.string().nullable(),
+  "driverLat": zod.number().nullable(),
+  "driverLng": zod.number().nullable(),
+  "driverLocationUpdatedAt": zod.coerce.date().nullable(),
   "notes": zod.string().nullable(),
   "timeline": zod.array(zod.object({
   "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
@@ -238,6 +245,206 @@ export const GetCustomerOrderResponse = zod.object({
 }))
 }))
 }))
+
+
+/**
+ * @summary Get the assigned driver's last-known location for a customer order
+ */
+export const GetOrderDriverLocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetOrderDriverLocationResponse = zod.object({
+  "lat": zod.number().nullable(),
+  "lng": zod.number().nullable(),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Save the authenticated driver's current GPS location
+ */
+export const updateDriverLocationBodyLatMin = -90;
+export const updateDriverLocationBodyLatMax = 90;
+
+export const updateDriverLocationBodyLngMin = -180;
+export const updateDriverLocationBodyLngMax = 180;
+
+
+
+export const UpdateDriverLocationBody = zod.object({
+  "lat": zod.number().min(updateDriverLocationBodyLatMin).max(updateDriverLocationBodyLatMax),
+  "lng": zod.number().min(updateDriverLocationBodyLngMin).max(updateDriverLocationBodyLngMax)
+})
+
+export const UpdateDriverLocationResponse = zod.object({
+  "lat": zod.number().nullable(),
+  "lng": zod.number().nullable(),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Get the authenticated driver's current delivery
+ */
+export const GetActiveDriverOrderResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "restaurantName": zod.string(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "total": zod.number(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string().nullable(),
+  "deliveryAddressText": zod.string(),
+  "deliveryLat": zod.number(),
+  "deliveryLng": zod.number(),
+  "notes": zod.string().nullable(),
+  "driverLat": zod.number().nullable(),
+  "driverLng": zod.number().nullable(),
+  "driverLocationUpdatedAt": zod.coerce.date().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "name": zod.string(),
+  "variantName": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "lineTotal": zod.number(),
+  "addons": zod.array(zod.object({
+  "name": zod.string(),
+  "price": zod.number()
+}))
+}))
+}),zod.null()])
+
+
+/**
+ * @summary Get the next unassigned ready delivery offer
+ */
+export const GetAvailableDriverOrderResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "restaurantName": zod.string(),
+  "deliveryAddressText": zod.string(),
+  "deliveryLat": zod.number(),
+  "deliveryLng": zod.number(),
+  "deliveryFee": zod.number(),
+  "total": zod.number()
+}),zod.null()])
+
+
+/**
+ * @summary Atomically accept an unassigned ready delivery
+ */
+export const AcceptDriverOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AcceptDriverOrderResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List orders belonging to the authenticated partner restaurant
+ */
+export const ListPartnerOrdersResponseItem = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string().nullable(),
+  "branchName": zod.string().nullable(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refunded']),
+  "total": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListPartnerOrdersResponse = zod.array(ListPartnerOrdersResponseItem)
+
+
+/**
+ * @summary Get an authenticated partner restaurant order
+ */
+export const GetPartnerOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPartnerOrderResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string().nullable(),
+  "branchName": zod.string().nullable(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refunded']),
+  "total": zod.number(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "deliveryAddressText": zod.string(),
+  "subtotal": zod.number(),
+  "deliveryFee": zod.number(),
+  "notes": zod.string().nullable(),
+  "driverName": zod.string().nullable(),
+  "timeline": zod.array(zod.object({
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "at": zod.coerce.date(),
+  "label": zod.string()
+})),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "name": zod.string(),
+  "variantName": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "lineTotal": zod.number(),
+  "addons": zod.array(zod.object({
+  "name": zod.string(),
+  "price": zod.number()
+}))
+}))
+}))
+
+
+/**
+ * @summary Advance a restaurant-owned order through confirmation and preparation
+ */
+export const UpdatePartnerOrderStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdatePartnerOrderStatusBody = zod.object({
+  "status": zod.enum(['confirmed', 'preparing', 'ready'])
+})
+
+export const UpdatePartnerOrderStatusResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Advance an assigned order to picked up or delivered
+ */
+export const UpdateDriverOrderStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDriverOrderStatusBody = zod.object({
+  "status": zod.enum(['picked_up', 'delivered'])
+})
+
+export const UpdateDriverOrderStatusResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "updatedAt": zod.coerce.date()
+})
 
 
 /**
