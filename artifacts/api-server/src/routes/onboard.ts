@@ -217,6 +217,109 @@ router.get("/onboard/status", async (req, res): Promise<void> => {
   res.json({ role: user.role, status: null });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/onboard/partner — update file URLs on existing restaurant application
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch("/onboard/partner", async (req, res): Promise<void> => {
+  const user = await getUserFromToken(req);
+  if (!user) {
+    res.status(401).json({ error: "غير مصرح — سجّل دخولك مجدداً" });
+    return;
+  }
+  if (user.role !== "partner") {
+    res.status(403).json({ error: "هذا الحساب ليس حساب شريك" });
+    return;
+  }
+
+  // Only accept file URL fields
+  const body = req.body as Record<string, unknown>;
+  const updates: { logoUrl?: string | null; coverUrl?: string | null } = {};
+  if (typeof body.logoUrl === "string") updates.logoUrl = body.logoUrl.trim() || null;
+  if (typeof body.coverUrl === "string") updates.coverUrl = body.coverUrl.trim() || null;
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "لم يتم إرسال أي تحديثات" });
+    return;
+  }
+
+  // Find the latest application for this partner
+  const existing = await db
+    .select({ id: restaurantsTable.id, status: restaurantsTable.status })
+    .from(restaurantsTable)
+    .where(eq(restaurantsTable.ownerUserId, user.id))
+    .orderBy(desc(restaurantsTable.createdAt))
+    .limit(1);
+
+  if (existing.length === 0) {
+    res.status(404).json({ error: "لم يتم العثور على طلب مسجّل" });
+    return;
+  }
+
+  const rows = await db
+    .update(restaurantsTable)
+    .set(updates)
+    .where(eq(restaurantsTable.id, existing[0].id))
+    .returning();
+
+  req.log.info({ userId: user.id, restaurantId: existing[0].id }, "Restaurant documents updated");
+  res.json({ success: true, id: rows[0].id, status: rows[0].status });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/onboard/driver — update file URLs on existing driver application
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch("/onboard/driver", async (req, res): Promise<void> => {
+  const user = await getUserFromToken(req);
+  if (!user) {
+    res.status(401).json({ error: "غير مصرح — سجّل دخولك مجدداً" });
+    return;
+  }
+  if (user.role !== "driver") {
+    res.status(403).json({ error: "هذا الحساب ليس حساب مندوب" });
+    return;
+  }
+
+  // Only accept file URL fields
+  const body = req.body as Record<string, unknown>;
+  const updates: {
+    nationalIdFrontUrl?: string | null;
+    nationalIdBackUrl?: string | null;
+    criminalRecordUrl?: string | null;
+    licenseUrl?: string | null;
+  } = {};
+  if (typeof body.nationalIdFrontUrl === "string") updates.nationalIdFrontUrl = body.nationalIdFrontUrl.trim() || null;
+  if (typeof body.nationalIdBackUrl === "string") updates.nationalIdBackUrl = body.nationalIdBackUrl.trim() || null;
+  if (typeof body.criminalRecordUrl === "string") updates.criminalRecordUrl = body.criminalRecordUrl.trim() || null;
+  if (typeof body.licenseUrl === "string") updates.licenseUrl = body.licenseUrl.trim() || null;
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "لم يتم إرسال أي تحديثات" });
+    return;
+  }
+
+  // Find the latest application for this driver
+  const existing = await db
+    .select({ id: driverProfilesTable.id, status: driverProfilesTable.status })
+    .from(driverProfilesTable)
+    .where(eq(driverProfilesTable.userId, user.id))
+    .orderBy(desc(driverProfilesTable.createdAt))
+    .limit(1);
+
+  if (existing.length === 0) {
+    res.status(404).json({ error: "لم يتم العثور على طلب مسجّل" });
+    return;
+  }
+
+  const rows = await db
+    .update(driverProfilesTable)
+    .set(updates)
+    .where(eq(driverProfilesTable.id, existing[0].id))
+    .returning();
+
+  req.log.info({ userId: user.id, driverProfileId: existing[0].id }, "Driver documents updated");
+  res.json({ success: true, id: rows[0].id, status: rows[0].status });
+});
+
 const RESTAURANT_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "ACTIVE"] as const;
 const DRIVER_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "SUSPENDED"] as const;
 type RestaurantStatus = (typeof RESTAURANT_STATUSES)[number];
