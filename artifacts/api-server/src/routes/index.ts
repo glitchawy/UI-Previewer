@@ -7,6 +7,7 @@ import menuRouter from "./menu";
 import branchesRouter from "./branches";
 import restaurantRouter from "./restaurant";
 import staffRouter from "./staff";
+import customerRouter from "./customer";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(menuRouter);
 router.use(branchesRouter);
 router.use(restaurantRouter);
 router.use(staffRouter);
+router.use(customerRouter);
 
 export default router;

@@ -6,11 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './addressSearchResult';
 export * from './authSession';
 export * from './authUser';
+export * from './customerAddress';
+export * from './customerAddressInput';
 export * from './driverApplication';
 export * from './driverOnboard';
 export * from './errorResponse';
+export * from './geocodeResult';
 export * from './healthStatus';
 export * from './locationSaveResult';
 export * from './locationUpdate';
@@ -24,3 +28,4 @@ export * from './otpVerifyType';
 export * from './partnerOnboard';
 export * from './partnerOnboardDeliveryType';
 export * from './restaurantApplication';
+export * from './searchAddressParams';

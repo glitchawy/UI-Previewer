@@ -63,7 +63,9 @@ export const VerifyOtpResponse = zod.object({
   "role": zod.string(),
   "name": zod.string().nullish(),
   "lat": zod.number().nullish(),
-  "lng": zod.number().nullish()
+  "lng": zod.number().nullish(),
+  "addressText": zod.string().nullish(),
+  "addressDetails": zod.string().nullish()
 })
 })
 
@@ -79,6 +81,75 @@ export const UpdateLocationBody = zod.object({
 export const UpdateLocationResponse = zod.object({
   "success": zod.boolean()
 })
+
+
+/**
+ * @summary Get the customer's saved delivery address
+ */
+export const GetCustomerAddressResponse = zod.object({
+  "addressText": zod.string().nullable(),
+  "addressDetails": zod.string().nullish(),
+  "placeId": zod.string().nullish(),
+  "lat": zod.number().nullable(),
+  "lng": zod.number().nullable()
+})
+
+
+/**
+ * @summary Save or replace the customer's single delivery address
+ */
+
+
+
+export const SaveCustomerAddressBody = zod.object({
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "addressText": zod.string().min(1),
+  "addressDetails": zod.string().optional().describe('Building, floor, apartment, landmark — free text'),
+  "placeId": zod.string().optional()
+})
+
+export const SaveCustomerAddressResponse = zod.object({
+  "addressText": zod.string().nullable(),
+  "addressDetails": zod.string().nullish(),
+  "placeId": zod.string().nullish(),
+  "lat": zod.number().nullable(),
+  "lng": zod.number().nullable()
+})
+
+
+/**
+ * @summary Resolve coordinates to a human-readable Arabic address
+ */
+export const ReverseGeocodeBody = zod.object({
+  "lat": zod.number(),
+  "lng": zod.number()
+})
+
+export const ReverseGeocodeResponse = zod.object({
+  "addressText": zod.string(),
+  "provider": zod.string().optional().describe('Which geocoding provider resolved the address')
+})
+
+
+/**
+ * @summary Address autocomplete search (Egypt only)
+ */
+export const searchAddressQueryQMin = 3;
+
+
+
+export const SearchAddressQueryParams = zod.object({
+  "q": zod.coerce.string().min(searchAddressQueryQMin)
+})
+
+export const SearchAddressResponseItem = zod.object({
+  "label": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "placeId": zod.string().nullish()
+})
+export const SearchAddressResponse = zod.array(SearchAddressResponseItem)
 
 
 /**

@@ -306,6 +306,8 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     name: user.name ?? null,
     lat: user.lat ?? null,
     lng: user.lng ?? null,
+    addressText: user.addressText ?? null,
+    addressDetails: user.addressDetails ?? null,
   });
 });
 

@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
-import { useUpdateLocation } from "@workspace/api-client-react";
+import { useSaveCustomerAddress, useReverseGeocode, searchAddress } from "@workspace/api-client-react";
 import { getToken } from "@/lib/auth-session";
 
 // Fix Leaflet default icon paths broken by Vite bundling
@@ -29,7 +29,7 @@ type GeoState =
   | { status: "success"; lat: number; lng: number; label: string; accuracy: number }
   | { status: "error"; message: string };
 
-type SearchResult = { display_name: string; lat: string; lon: string };
+type SearchResult = { label: string; lat: number; lng: number; placeId: string | null };
 
 /* ── helper: fly map to coords when they change ─────────────── */
 function FlyTo({ lat, lng }: { lat: number; lng: number }) {
@@ -64,12 +64,13 @@ function AuthLocation() {
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const updateLocation = useUpdateLocation({
+  const saveAddress = useSaveCustomerAddress({
     mutation: {
       onSuccess: () => navigate({ to: "/auth/onboard-customer" }),
       onError: () => navigate({ to: "/auth/onboard-customer" }),
     },
   });
+  const geocode = useReverseGeocode();
 
   /* ── geolocation ──────────────────────────────────────────── */
   function requestGeo() {
@@ -83,12 +84,8 @@ function AuthLocation() {
         const { latitude: lat, longitude: lng, accuracy } = pos.coords;
         let label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
         try {
-          const r = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=ar`,
-          );
-          const data = (await r.json()) as { display_name?: string };
-          if (data.display_name)
-            label = data.display_name.split(",").slice(0, 3).join("،");
+          const r = await geocode.mutateAsync({ data: { lat, lng } });
+          if (r.addressText) label = r.addressText;
         } catch { /* keep coordinate fallback */ }
         setGeo({ status: "success", lat, lng, label, accuracy });
         setSearch("");
@@ -107,16 +104,18 @@ function AuthLocation() {
   }
 
   /* ── address search (Nominatim, debounced 500 ms) ─────────── */
+  const latestQuery = useRef("");
   const doSearch = useCallback(async (q: string) => {
+    latestQuery.current = q;
     if (q.trim().length < 3) { setResults([]); return; }
     setSearching(true);
     try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&accept-language=ar&countrycodes=eg`,
-      );
-      setResults((await r.json()) as SearchResult[]);
-    } catch { setResults([]); }
-    setSearching(false);
+      const r = await searchAddress({ q });
+      if (latestQuery.current === q) setResults(r as SearchResult[]);
+    } catch {
+      if (latestQuery.current === q) setResults([]);
+    }
+    if (latestQuery.current === q) setSearching(false);
   }, []);
 
   function handleSearchChange(val: string) {
@@ -126,9 +125,8 @@ function AuthLocation() {
   }
 
   function pickResult(r: SearchResult) {
-    const lat = parseFloat(r.lat);
-    const lng = parseFloat(r.lon);
-    setGeo({ status: "success", lat, lng, label: r.display_name, accuracy: 50 });
+    latestQuery.current = "";
+    setGeo({ status: "success", lat: r.lat, lng: r.lng, label: r.label, accuracy: 50 });
     setSearch("");
     setResults([]);
   }
@@ -137,7 +135,7 @@ function AuthLocation() {
   function handleConfirm() {
     const token = getToken();
     if (geo.status === "success" && token) {
-      updateLocation.mutate({ data: { lat: geo.lat, lng: geo.lng } });
+      saveAddress.mutate({ data: { lat: geo.lat, lng: geo.lng, addressText: geo.label } });
     } else {
       navigate({ to: "/auth/onboard-customer" });
     }
@@ -249,7 +247,7 @@ function AuthLocation() {
                 >
                   <Icon name="place" className="mt-0.5 shrink-0 text-[16px] text-outline" />
                   <span className="font-label-md text-label-md text-on-surface leading-snug line-clamp-2">
-                    {r.display_name}
+                    {r.label}
                   </span>
                 </button>
                 {i < results.length - 1 && <div className="h-px bg-border-subtle mx-md" />}
@@ -292,9 +290,9 @@ function AuthLocation() {
         className="w-full"
         icon="check_circle"
         onClick={handleConfirm}
-        disabled={updateLocation.isPending || (!hasLocation)}
+        disabled={saveAddress.isPending || (!hasLocation)}
       >
-        {updateLocation.isPending ? "جاري الحفظ..." : "تأكيد ومتابعة"}
+        {saveAddress.isPending ? "جاري الحفظ..." : "تأكيد ومتابعة"}
       </Button>
 
       {/* Skip link */}

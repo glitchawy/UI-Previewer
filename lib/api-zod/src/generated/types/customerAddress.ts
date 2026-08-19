@@ -6,18 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AuthUser {
-  id: number;
-  phone: string;
-  role: string;
+export interface CustomerAddress {
   /** @nullable */
-  name?: string | null;
-  /** @nullable */
-  lat?: number | null;
-  /** @nullable */
-  lng?: number | null;
-  /** @nullable */
-  addressText?: string | null;
+  addressText: string | null;
   /** @nullable */
   addressDetails?: string | null;
+  /** @nullable */
+  placeId?: string | null;
+  /** @nullable */
+  lat: number | null;
+  /** @nullable */
+  lng: number | null;
 }

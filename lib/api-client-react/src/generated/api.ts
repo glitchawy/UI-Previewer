@@ -20,10 +20,14 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddressSearchResult,
   AuthSession,
+  CustomerAddress,
+  CustomerAddressInput,
   DriverApplication,
   DriverOnboard,
   ErrorResponse,
+  GeocodeResult,
   HealthStatus,
   LocationSaveResult,
   LocationUpdate,
@@ -33,6 +37,7 @@ import type {
   OtpVerify,
   PartnerOnboard,
   RestaurantApplication,
+  SearchAddressParams,
   UploadFileResponse
 } from './api.schemas';
 
@@ -424,6 +429,309 @@ export const useUpdateLocation = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getUpdateLocationMutationOptions(options));
     }
+
+export const getGetCustomerAddressUrl = () => {
+
+
+
+
+  return `/api/customer/address`
+}
+
+/**
+ * @summary Get the customer's saved delivery address
+ */
+export const getCustomerAddress = async ( options?: Parameters<typeof customFetch>[1]): Promise<CustomerAddress> => {
+
+  return customFetch<CustomerAddress>(getGetCustomerAddressUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerAddressQueryKey = () => {
+    return [
+    `/api/customer/address`
+    ] as const;
+    }
+
+
+export const getGetCustomerAddressQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerAddress>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerAddress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerAddressQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerAddress>>> = ({ signal }) => getCustomerAddress({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerAddress>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerAddressQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerAddress>>>
+export type GetCustomerAddressQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the customer's saved delivery address
+ */
+
+export function useGetCustomerAddress<TData = Awaited<ReturnType<typeof getCustomerAddress>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerAddress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerAddressQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveCustomerAddressUrl = () => {
+
+
+
+
+  return `/api/customer/address`
+}
+
+/**
+ * @summary Save or replace the customer's single delivery address
+ */
+export const saveCustomerAddress = async (customerAddressInput: CustomerAddressInput, options?: Parameters<typeof customFetch>[1]): Promise<CustomerAddress> => {
+
+  return customFetch<CustomerAddress>(getSaveCustomerAddressUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customerAddressInput)
+  }
+);}
+
+
+
+
+
+export const getSaveCustomerAddressMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCustomerAddress>>, TError,{data: BodyType<CustomerAddressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveCustomerAddress>>, TError,{data: BodyType<CustomerAddressInput>}, TContext> => {
+
+const mutationKey = ['saveCustomerAddress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveCustomerAddress>>, {data: BodyType<CustomerAddressInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveCustomerAddress(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveCustomerAddressMutationResult = NonNullable<Awaited<ReturnType<typeof saveCustomerAddress>>>
+    export type SaveCustomerAddressMutationBody = BodyType<CustomerAddressInput>
+    export type SaveCustomerAddressMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Save or replace the customer's single delivery address
+ */
+export const useSaveCustomerAddress = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCustomerAddress>>, TError,{data: BodyType<CustomerAddressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveCustomerAddress>>,
+        TError,
+        {data: BodyType<CustomerAddressInput>},
+        TContext
+      > => {
+      return useMutation(getSaveCustomerAddressMutationOptions(options));
+    }
+
+export const getReverseGeocodeUrl = () => {
+
+
+
+
+  return `/api/customer/address/geocode`
+}
+
+/**
+ * @summary Resolve coordinates to a human-readable Arabic address
+ */
+export const reverseGeocode = async (locationUpdate: LocationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<GeocodeResult> => {
+
+  return customFetch<GeocodeResult>(getReverseGeocodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(locationUpdate)
+  }
+);}
+
+
+
+
+
+export const getReverseGeocodeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseGeocode>>, TError,{data: BodyType<LocationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseGeocode>>, TError,{data: BodyType<LocationUpdate>}, TContext> => {
+
+const mutationKey = ['reverseGeocode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseGeocode>>, {data: BodyType<LocationUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reverseGeocode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReverseGeocodeMutationResult = NonNullable<Awaited<ReturnType<typeof reverseGeocode>>>
+    export type ReverseGeocodeMutationBody = BodyType<LocationUpdate>
+    export type ReverseGeocodeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Resolve coordinates to a human-readable Arabic address
+ */
+export const useReverseGeocode = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseGeocode>>, TError,{data: BodyType<LocationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reverseGeocode>>,
+        TError,
+        {data: BodyType<LocationUpdate>},
+        TContext
+      > => {
+      return useMutation(getReverseGeocodeMutationOptions(options));
+    }
+
+export const getSearchAddressUrl = (params: SearchAddressParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customer/address/search?${stringifiedParams}` : `/api/customer/address/search`
+}
+
+/**
+ * @summary Address autocomplete search (Egypt only)
+ */
+export const searchAddress = async (params: SearchAddressParams, options?: Parameters<typeof customFetch>[1]): Promise<AddressSearchResult[]> => {
+
+  return customFetch<AddressSearchResult[]>(getSearchAddressUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchAddressQueryKey = (params?: SearchAddressParams,) => {
+    return [
+    `/api/customer/address/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchAddressQueryOptions = <TData = Awaited<ReturnType<typeof searchAddress>>, TError = ErrorType<ErrorResponse>>(params: SearchAddressParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchAddress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchAddressQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchAddress>>> = ({ signal }) => searchAddress(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchAddress>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchAddressQueryResult = NonNullable<Awaited<ReturnType<typeof searchAddress>>>
+export type SearchAddressQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Address autocomplete search (Egypt only)
+ */
+
+export function useSearchAddress<TData = Awaited<ReturnType<typeof searchAddress>>, TError = ErrorType<ErrorResponse>>(
+ params: SearchAddressParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchAddress>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchAddressQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getOnboardPartnerUrl = () => {
 

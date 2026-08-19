@@ -177,6 +177,10 @@ export interface AuthUser {
   lat?: number | null;
   /** @nullable */
   lng?: number | null;
+  /** @nullable */
+  addressText?: string | null;
+  /** @nullable */
+  addressDetails?: string | null;
 }
 
 export interface AuthSession {
@@ -193,7 +197,51 @@ export interface LocationSaveResult {
   success: boolean;
 }
 
+export interface CustomerAddress {
+  /** @nullable */
+  addressText: string | null;
+  /** @nullable */
+  addressDetails?: string | null;
+  /** @nullable */
+  placeId?: string | null;
+  /** @nullable */
+  lat: number | null;
+  /** @nullable */
+  lng: number | null;
+}
+
+export interface CustomerAddressInput {
+  lat: number;
+  lng: number;
+  /** @minLength 1 */
+  addressText: string;
+  /** Building, floor, apartment, landmark — free text */
+  addressDetails?: string;
+  placeId?: string;
+}
+
+export interface GeocodeResult {
+  addressText: string;
+  /** Which geocoding provider resolved the address */
+  provider?: string;
+}
+
+export interface AddressSearchResult {
+  label: string;
+  lat: number;
+  lng: number;
+  /** @nullable */
+  placeId?: string | null;
+}
+
 export interface ErrorResponse {
   error: string;
 }
+
+export type SearchAddressParams = {
+/**
+ * @minLength 3
+ */
+q: string;
+};
 

@@ -7,6 +7,8 @@ export interface AuthUser {
   name: string | null;
   lat: number | null;
   lng: number | null;
+  addressText?: string | null;
+  addressDetails?: string | null;
 }
 
 export interface AuthSession {
