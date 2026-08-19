@@ -1,70 +1,65 @@
 /**
- * OTP subsystem — generation, delivery, verification
- * ====================================================
+ * OTP subsystem — issue and verify via Authevo
+ * =============================================
  *
- * Security properties:
- *  - OTPs are never stored in plaintext (SHA-256 hashed)
- *  - 6-digit random code, 5-minute TTL
- *  - Max 5 verification attempts per code before lockout
- *  - Server-side resend cooldown: 60 s minimum between sends
- *  - Hourly rate limit: max 5 OTP sends per phone number per hour
- *  - All outcomes (issue, verify, reject) are logged with pino
- *  - In dev mode the fixed DEV_OTP is accepted; no network call is made
- *  - In log mode codes are real + random but written to the log only (staging)
- *  - In live mode codes are delivered via WhatsApp (production)
+ * All OTP code generation, delivery, expiry, and attempt counting is
+ * delegated to Authevo (https://authevo.dev). This module handles:
+ *
+ *  1. Our own pre-flight rate limiting (saves Authevo credits, prevents abuse)
+ *     - 120-second cooldown between sends per phone+role
+ *     - Max 3 sends per phone per 10-minute window (mirrors Authevo's own limit)
+ *  2. Translating Authevo results into our app's structured return types
+ *  3. Writing an audit record to otp_codes for webhook correlation
+ *
+ * Delivery mode is determined by which key is set in AUTHEVO_API_KEY:
+ *   sandbox test key → Authevo accepts "123456", no real message sent
+ *   live key         → Authevo sends real WhatsApp OTPs
  */
 
-import { createHash, randomInt } from "node:crypto";
-import { and, eq, isNull, desc, gte, count } from "drizzle-orm";
+import { and, eq, gte, count, desc } from "drizzle-orm";
 import { db, otpCodesTable } from "@workspace/db";
 import { logger } from "./logger";
-import { sendWhatsAppOtp, resolveDeliveryMode, DEV_OTP, WhatsAppDeliveryError } from "./whatsapp";
+import { sendOtp, verifyOtp, AuthevoApiError } from "./authevo";
+import type { VerifyOtpOutcome } from "./authevo";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Rate-limiting constants ──────────────────────────────────────────────────
 
-const OTP_TTL_MS        = 5 * 60 * 1000;   // 5 minutes
-const MAX_ATTEMPTS      = 5;                 // max wrong guesses before lockout
-const RESEND_COOLDOWN_S = 60;               // minimum seconds between sends
-const RATE_LIMIT_WINDOW = 60 * 60 * 1000;  // 1 hour sliding window
-const RATE_LIMIT_MAX    = 5;               // max sends per phone per window
+/** Minimum seconds between OTP sends for the same phone+role. */
+const COOLDOWN_S = 120; // 2 minutes
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+/** Max sends per phone across all roles in the sliding window. */
+const RATE_LIMIT_MAX = 3;
 
-function hashCode(code: string): string {
-  return createHash("sha256").update(code).digest("hex");
-}
+/** Width of the rate-limit sliding window — matches Authevo's own limit. */
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1_000; // 10 minutes
 
-function generateCode(): string {
-  return String(randomInt(100_000, 1_000_000)); // 6-digit, uniform distribution
+// ─── E.164 helper ─────────────────────────────────────────────────────────────
+
+/** Convert an Egyptian mobile number to E.164 format (+2 prefix). */
+function toE164(phone: string): string {
+  return `+2${phone}`; // e.g. 01234567890 → +201234567890
 }
 
 // ─── issueOtp ─────────────────────────────────────────────────────────────────
 
 export type IssueResult =
-  | { ok: true; mode: string }
+  | { ok: true; messageId: string; expiresIn: number }
   | { ok: false; reason: "cooldown"; retryAfterSeconds: number }
   | { ok: false; reason: "rate_limited" }
+  | { ok: false; reason: "channel_not_linked" }  // WhatsApp failed, Telegram not set up
+  | { ok: false; reason: "billing_error"; detail: string }
   | { ok: false; reason: "provider_error"; detail: string };
 
 /**
- * Generate, persist, and deliver an OTP for the given phone + role.
+ * Issue an OTP for the given phone + role.
  *
- * Returns a structured result — callers must handle all cases.
- * In dev mode this is a fast no-op; the fixed DEV_OTP is always valid.
+ * Enforces local rate limiting before calling Authevo.
+ * Returns a structured result — never throws for expected failures.
  */
 export async function issueOtp(phone: string, role: string): Promise<IssueResult> {
-  const mode = resolveDeliveryMode();
-
-  if (mode === "dev") {
-    logger.debug({ phone, role }, `OTP skipped — dev mode (use ${DEV_OTP})`);
-    return { ok: true, mode: "dev" };
-  }
-
-  // ── Cooldown check ────────────────────────────────────────────────────────
-  // Prevent hammering: the most recent OTP for this phone+role must be at
-  // least RESEND_COOLDOWN_S seconds old.
+  // ── Cooldown check ──────────────────────────────────────────────────────────
   const recent = await db
-    .select({ createdAt: otpCodesTable.createdAt, resendCount: otpCodesTable.resendCount })
+    .select({ createdAt: otpCodesTable.createdAt })
     .from(otpCodesTable)
     .where(and(eq(otpCodesTable.phone, phone), eq(otpCodesTable.role, role)))
     .orderBy(desc(otpCodesTable.createdAt))
@@ -72,61 +67,70 @@ export async function issueOtp(phone: string, role: string): Promise<IssueResult
 
   if (recent.length > 0) {
     const ageMs = Date.now() - recent[0].createdAt.getTime();
-    const cooldownMs = RESEND_COOLDOWN_S * 1_000;
+    const cooldownMs = COOLDOWN_S * 1_000;
     if (ageMs < cooldownMs) {
       const retryAfterSeconds = Math.ceil((cooldownMs - ageMs) / 1_000);
-      logger.warn({ phone, role, retryAfterSeconds }, "OTP resend blocked — cooldown");
+      logger.warn({ phone, role, retryAfterSeconds }, "OTP blocked — cooldown");
       return { ok: false, reason: "cooldown", retryAfterSeconds };
     }
   }
 
-  // ── Hourly rate limit ─────────────────────────────────────────────────────
-  // Cap at RATE_LIMIT_MAX requests per phone across all roles in a rolling window.
-  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW);
+  // ── Rate limit check ────────────────────────────────────────────────────────
+  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
   const countResult = await db
     .select({ n: count() })
     .from(otpCodesTable)
     .where(and(eq(otpCodesTable.phone, phone), gte(otpCodesTable.createdAt, windowStart)));
 
-  const requestsInWindow = Number(countResult[0]?.n ?? 0);
-  if (requestsInWindow >= RATE_LIMIT_MAX) {
-    logger.warn({ phone, role, requestsInWindow }, "OTP rate limit exceeded");
+  const sendsInWindow = Number(countResult[0]?.n ?? 0);
+  if (sendsInWindow >= RATE_LIMIT_MAX) {
+    logger.warn({ phone, role, sendsInWindow }, "OTP blocked — rate limit");
     return { ok: false, reason: "rate_limited" };
   }
 
-  // ── Generate and persist ──────────────────────────────────────────────────
-  const code = generateCode();
-  const codeHash = hashCode(code);
-  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-
-  // Delete any previous unconsumed codes for this phone+role before inserting
-  // (keeps otp_codes table clean and prevents stale code confusion)
-  await db
-    .delete(otpCodesTable)
-    .where(and(eq(otpCodesTable.phone, phone), eq(otpCodesTable.role, role), isNull(otpCodesTable.consumedAt)));
-
-  // ── Deliver ───────────────────────────────────────────────────────────────
-  let deliveredVia: string;
+  // ── Call Authevo ────────────────────────────────────────────────────────────
+  let authevoResult: Awaited<ReturnType<typeof sendOtp>>;
   try {
-    deliveredVia = await sendWhatsAppOtp(phone, code);
+    authevoResult = await sendOtp(toE164(phone));
   } catch (err) {
-    const detail = err instanceof WhatsAppDeliveryError ? err.message : String(err);
-    logger.error({ phone, role, err: detail }, "WhatsApp OTP delivery failed");
+    if (err instanceof AuthevoApiError) {
+      logger.error({ phone, role, code: err.code, status: err.statusCode }, "Authevo send error");
+
+      if (err.code === "CHANNEL_NOT_LINKED") {
+        return { ok: false, reason: "channel_not_linked" };
+      }
+      if (
+        err.code === "INSUFFICIENT_CREDITS" ||
+        err.code === "DEPOSIT_REQUIRED" ||
+        err.code === "FREE_TRIAL_EXHAUSTED" ||
+        err.code === "SPEND_CAP_EXCEEDED"
+      ) {
+        return { ok: false, reason: "billing_error", detail: err.message };
+      }
+      if (err.code === "RATE_LIMIT_EXCEEDED") {
+        // Authevo's own rate limit hit despite our guard — treat as rate_limited
+        return { ok: false, reason: "rate_limited" };
+      }
+    }
+    const detail = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: "provider_error", detail };
   }
 
-  // Persist only after successful delivery
+  // ── Persist audit record ────────────────────────────────────────────────────
   await db.insert(otpCodesTable).values({
     phone,
     role,
-    codeHash,
-    expiresAt,
-    deliveredVia,
-    resendCount: requestsInWindow, // how many prior sends in this window
+    deliveredVia: "authevo",
+    messageId: authevoResult.messageId,
+    deliveryStatus: "sent",
+    resendCount: sendsInWindow,
   });
 
-  logger.info({ phone, role, deliveredVia, windowRequests: requestsInWindow + 1 }, "OTP issued");
-  return { ok: true, mode: deliveredVia };
+  logger.info(
+    { phone, role, messageId: authevoResult.messageId, expiresIn: authevoResult.expiresIn },
+    "OTP issued via Authevo",
+  );
+  return { ok: true, messageId: authevoResult.messageId, expiresIn: authevoResult.expiresIn };
 }
 
 // ─── verifyOtpCode ────────────────────────────────────────────────────────────
@@ -136,72 +140,42 @@ export type VerifyResult =
   | { ok: false; reason: "invalid" | "expired" | "too_many_attempts" | "not_found" };
 
 /**
- * Verify a submitted OTP against the stored hash.
+ * Verify the 6-digit code entered by the user against Authevo.
  *
- * On success the code is consumed (consumedAt set) so it cannot be reused.
- * On wrong guess the attempt counter is incremented.
- * In dev mode the fixed DEV_OTP is always accepted (no DB read needed).
+ * Authevo manages all code state (expiry, attempt counting, consumption).
+ * We simply relay the result.
  */
-export async function verifyOtpCode(phone: string, role: string, otp: string): Promise<VerifyResult> {
-  const mode = resolveDeliveryMode();
-
-  if (mode === "dev") {
-    if (otp === DEV_OTP) {
-      logger.debug({ phone, role }, "OTP verified (dev mode)");
-      return { ok: true };
-    }
-    logger.debug({ phone, role }, "OTP invalid (dev mode)");
+export async function verifyOtpCode(
+  phone: string,
+  _role: string,  // kept for API compatibility; Authevo verifies by phone only
+  code: string,
+): Promise<VerifyResult> {
+  let outcome: VerifyOtpOutcome;
+  try {
+    outcome = await verifyOtp(toE164(phone), code);
+  } catch (err) {
+    // 5xx / network error from Authevo — surface as provider_error to caller
+    const detail = err instanceof Error ? err.message : String(err);
+    logger.error({ phone, err: detail }, "Authevo verify network/server error");
+    // We return invalid so the UI shows a generic retry message
     return { ok: false, reason: "invalid" };
   }
 
-  // Fetch the latest unconsumed code for this phone+role
-  const rows = await db
-    .select()
-    .from(otpCodesTable)
-    .where(and(eq(otpCodesTable.phone, phone), eq(otpCodesTable.role, role), isNull(otpCodesTable.consumedAt)))
-    .orderBy(desc(otpCodesTable.createdAt))
-    .limit(1);
-
-  const record = rows[0];
-
-  if (!record) {
-    logger.warn({ phone, role }, "OTP verification — no active code found");
-    return { ok: false, reason: "not_found" };
+  if (outcome.ok) {
+    logger.info({ phone }, "OTP verified via Authevo");
+    return { ok: true };
   }
 
-  // Lockout check before anything else
-  if (record.attempts >= MAX_ATTEMPTS) {
-    logger.warn({ phone, role, attempts: record.attempts }, "OTP verification — too many attempts");
-    return { ok: false, reason: "too_many_attempts" };
-  }
+  logger.warn({ phone, reason: outcome.reason }, "OTP verification failed");
 
-  // Expiry check
-  if (record.expiresAt.getTime() < Date.now()) {
-    logger.info({ phone, role, expiresAt: record.expiresAt.toISOString() }, "OTP verification — expired");
-    return { ok: false, reason: "expired" };
-  }
-
-  // Constant-time comparison via hash equality
-  if (hashCode(otp) !== record.codeHash) {
-    const newAttempts = record.attempts + 1;
-    await db
-      .update(otpCodesTable)
-      .set({ attempts: newAttempts })
-      .where(eq(otpCodesTable.id, record.id));
-
-    logger.warn(
-      { phone, role, attempts: newAttempts, maxAttempts: MAX_ATTEMPTS },
-      "OTP verification — wrong code",
-    );
-    // Auto-lock after final bad attempt
-    if (newAttempts >= MAX_ATTEMPTS) {
+  switch (outcome.reason) {
+    case "too_many_attempts":
       return { ok: false, reason: "too_many_attempts" };
-    }
-    return { ok: false, reason: "invalid" };
+    case "expired_or_used":
+      return { ok: false, reason: "expired" };
+    case "not_found":
+      return { ok: false, reason: "not_found" };
+    default:
+      return { ok: false, reason: "invalid" };
   }
-
-  // Success — consume the code
-  await db.update(otpCodesTable).set({ consumedAt: new Date() }).where(eq(otpCodesTable.id, record.id));
-  logger.info({ phone, role, deliveredVia: record.deliveredVia }, "OTP verified successfully");
-  return { ok: true };
 }

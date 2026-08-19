@@ -1,32 +1,43 @@
 ---
-name: WhatsApp OTP System
-description: OTP delivery, security properties, required env vars, and delivery modes for the Talabat Betak platform
+name: WhatsApp OTP System — Authevo
+description: OTP delivery via Authevo, required secrets, rate limiting, Telegram fallback, and webhook setup
 ---
 
-## Required secrets (Replit Secrets — never hardcode)
-- `WHATSAPP_API_URL` — provider base URL, e.g. `https://api.yourprovider.com/v1`
-- `WHATSAPP_API_TOKEN` — bearer token for the provider
-- `WHATSAPP_SENDER_ID` — (optional) sender phone / ID
-- `WHATSAPP_TEMPLATE` — (optional) pre-approved template name for Meta WABA
+## Provider: Authevo (https://authevo.dev)
+Two endpoints: `POST /v1/otp/send` and `POST /v1/otp/verify`
+Base URL: `https://api.authevo.dev`
+Auth: `Authorization: Bearer AUTHEVO_API_KEY`
 
-## Delivery modes (`OTP_DELIVERY` env var)
-- `dev` (default in development) — fixed code `123456` accepted; no network call
-- `log` (staging) — real random code written to server log only
-- `live` (required in production) — sends via WhatsApp API
+## Required Replit Secrets (never hardcode)
+- `AUTHEVO_API_KEY` — live key (sk_…) OR sandbox test key (sandbox accepts "123456", no charge)
+- `AUTHEVO_WEBHOOK_SECRET` — webhook signing secret from Authevo dashboard → Settings
 
-**Why:** spec requires WhatsApp (not SMS); provider credentials provided by owner later. The abstraction is in `artifacts/api-server/src/lib/whatsapp.ts`.
+## Key architecture decision: Authevo manages OTP lifecycle
+Authevo generates codes, delivers them, tracks expiry and attempt limits.
+We do NOT hash codes or verify them locally anymore (deprecated since migration 0007).
+`otp_codes` table is now an audit log for: our cooldown/rate-limit checks + webhook correlation via `message_id`.
 
-## Security properties
-- SHA-256 hashed in DB — never plaintext
-- 5-minute TTL (`OTP_TTL_MS`)
-- 5 max verification attempts before lockout (`MAX_ATTEMPTS`)
-- 60-second server-side resend cooldown (`RESEND_COOLDOWN_S`) — enforced in `issueOtp`, not just frontend
-- Hourly rate limit: 5 sends per phone per rolling 60-minute window (`RATE_LIMIT_MAX`)
-- Codes invalidated (deleted) on new issue for same phone+role
+## Rate limiting (two layers)
+1. **Ours**: 120s cooldown + max 3 sends per phone per 10-min window (mirrors Authevo's own limit)
+2. **Authevo's**: 3 sends/phone/10min, 5 failed verifies/phone/15-min block
+Authevo `RATE_LIMIT_EXCEEDED` is handled gracefully as `rate_limited` result.
 
-## Account separation
-`auth.ts` explicitly checks if a phone is registered under a different role and returns Arabic error naming both roles. A customer cannot become a partner — separate accounts required.
+## Telegram fallback
+- `generateTelegramLink(e164Phone)` → `POST /v1/otp/telegram-link` → one-tap t.me URL, 15-min TTL
+- Called non-blocking after every successful registration; result included in verify-otp response as `telegramLink`
+- Once the user taps the link, all future WhatsApp failures fall back to Telegram automatically
 
-## DB schema (otp_codes table)
-Fields: `id, phone, role, code_hash, attempts, resend_count, delivered_via, expires_at, consumed_at, created_at`
-Index: `otp_codes_phone_created_idx` on (phone, created_at DESC) for cooldown/rate-limit queries.
+## Webhook endpoint
+`POST /api/webhooks/authevo` — mounted BEFORE `express.json()` in `app.ts` using `express.raw({ type: "application/json" })`
+**Why raw before json:** HMAC-SHA256 signature must be computed on the raw Buffer; json() consumes the stream.
+Handles: `otp.status_update` → updates `otp_codes.delivery_status` by `message_id`; `account.low_balance` → server warn log.
+Signature header: `X-Authevo-Signature: sha256=<hex>` verified with AUTHEVO_WEBHOOK_SECRET.
+
+## File locations
+- `artifacts/api-server/src/lib/authevo.ts` — Authevo API client (sendOtp, verifyOtp, generateTelegramLink, verifyWebhookSignature)
+- `artifacts/api-server/src/lib/otp.ts` — issueOtp / verifyOtpCode (our rate-limit layer + Authevo calls)
+- `artifacts/api-server/src/routes/webhooks.ts` — webhook handler
+
+## DB schema (otp_codes after migration 0007)
+Active: `id, phone, role, message_id, delivery_status, resend_count, delivered_via, created_at`
+Deprecated (nullable, unused): `code_hash, attempts, consumed_at, expires_at`

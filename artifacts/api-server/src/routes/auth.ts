@@ -6,6 +6,7 @@ import { RequestOtpBody, VerifyOtpBody, UpdateLocationBody } from "@workspace/ap
 const router = Router();
 
 import { issueOtp, verifyOtpCode } from "../lib/otp";
+import { generateTelegramLink } from "../lib/authevo";
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -49,7 +50,19 @@ async function handleIssueFailure(
   }
   if (result.reason === "rate_limited") {
     logFn({}, "OTP blocked — rate limited");
-    res.status(429).json({ error: "تم تجاوز الحد المسموح — حاول بعد ساعة" });
+    res.status(429).json({ error: "تم تجاوز الحد المسموح — حاول بعد دقيقتين" });
+    return true;
+  }
+  if (result.reason === "channel_not_linked") {
+    logFn({}, "OTP blocked — WhatsApp failed and Telegram not linked");
+    res.status(422).json({
+      error: "تعذر إرسال الكود عبر واتساب ولم يتم ربط تيليجرام — أرسل الكود لأول مرة باستخدام واتساب أولاً",
+    });
+    return true;
+  }
+  if (result.reason === "billing_error") {
+    logFn({ detail: result.detail }, "OTP blocked — Authevo billing issue");
+    res.status(503).json({ error: "الخدمة غير متاحة مؤقتاً — يرجى المحاولة لاحقاً" });
     return true;
   }
   // provider_error
@@ -93,7 +106,7 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
   const issued = await issueOtp(phone, role);
   if (!issued.ok) { await handleIssueFailure(issued, res, (o, m) => req.log.warn(o, m)); return; }
 
-  req.log.info({ phone, role, mode: issued.mode }, "Login OTP issued");
+  req.log.info({ phone, role, messageId: issued.messageId }, "Login OTP issued");
   res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
 });
 
@@ -137,7 +150,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const issued = await issueOtp(phone, role);
   if (!issued.ok) { await handleIssueFailure(issued, res, (o, m) => req.log.warn(o, m)); return; }
 
-  req.log.info({ phone, role, mode: issued.mode }, "Register OTP issued");
+  req.log.info({ phone, role, messageId: issued.messageId }, "Register OTP issued");
   res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
 });
 
@@ -208,6 +221,20 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 
   req.log.info({ userId: user.id, role, type }, "Session created");
 
+  // For new registrations: generate a Telegram fallback link so the user can
+  // link their Telegram account — once linked, future OTPs fall back to Telegram
+  // automatically if WhatsApp delivery fails. Non-blocking: failure is ignored.
+  let telegramLink: { url: string; expiresIn: number } | null = null;
+  if (type === "register") {
+    const e164 = `+2${phone}`;
+    try {
+      telegramLink = await generateTelegramLink(e164);
+      req.log.info({ userId: user.id }, "Telegram fallback link generated");
+    } catch (err) {
+      req.log.warn({ err }, "Telegram link generation failed (non-fatal)");
+    }
+  }
+
   res.json({
     token,
     user: {
@@ -218,6 +245,7 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
       lat: user.lat ?? null,
       lng: user.lng ?? null,
     },
+    ...(telegramLink ? { telegramLink } : {}),
   });
 });
 
