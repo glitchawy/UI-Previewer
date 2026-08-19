@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@workspace/api-client-react";
+import type { OrderStatus, PaymentStatus } from "@workspace/api-client-react";
 
 export const orderStatusLabels: Record<OrderStatus, string> = {
   pending: "في انتظار التأكيد",
@@ -18,6 +18,20 @@ export const orderStatusTones: Record<OrderStatus, "warn" | "info" | "success" |
   picked_up: "success",
   delivered: "success",
   cancelled: "danger",
+};
+
+export const paymentStatusLabels: Record<PaymentStatus, string> = {
+  pending: "في انتظار الدفع",
+  paid: "مدفوع",
+  failed: "فشل الدفع",
+  refunded: "تم الاسترداد",
+};
+
+export const paymentStatusTones: Record<PaymentStatus, "warn" | "info" | "success" | "danger"> = {
+  pending: "warn",
+  paid: "success",
+  failed: "danger",
+  refunded: "info",
 };
 
 export const currentOrderStatuses = new Set<OrderStatus>([

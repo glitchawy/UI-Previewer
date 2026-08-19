@@ -2,3 +2,4 @@
 - [TanStack route tree regeneration](tanstack-route-tree-regen.md) — no vite plugin; run `pnpm exec tsr generate` in the UI artifact after adding route files.
 - [WhatsApp OTP system](whatsapp-otp-system.md) — delivery modes, required secrets, security properties, account separation logic.
 - [Drizzle migration journal ordering](drizzle-migration-journal-ordering.md) — new migration timestamps must exceed the database’s latest applied timestamp or Drizzle silently skips them.
+- [Paymob checkout settlement](paymob-checkout-settlement.md) — settle grouped restaurant orders only from reconciled, terminal, HMAC-verified Paymob callbacks.

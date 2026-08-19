@@ -1,12 +1,20 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useListCustomerOrders } from "@workspace/api-client-react";
+import {
+  getGetPaymentSessionQueryKey,
+  getListCustomerOrdersQueryKey,
+  useGetPaymentSession,
+  useListCustomerOrders,
+} from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP } from "@/lib/tb/orders";
+import { resetCartAfterOrder } from "@/lib/tb/cart";
 
 export const Route = createFileRoute("/app/order-placed")({
   validateSearch: (search: Record<string, unknown>) => ({
     ids: typeof search.ids === "string" ? search.ids : "",
+    paymentSession: typeof search.paymentSession === "string" ? search.paymentSession : "",
   }),
   head: () => ({
     meta: [
@@ -19,23 +27,53 @@ export const Route = createFileRoute("/app/order-placed")({
 
 function AppOrderPlaced() {
   const { ids } = Route.useSearch();
-  const requestedIds = new Set(ids.split(",").map(Number).filter(Number.isInteger));
-  const ordersQuery = useListCustomerOrders();
+  const { paymentSession: rawPaymentSession } = Route.useSearch();
+  const paymentSessionId = Number(rawPaymentSession);
+  const hasPaymentSession = Number.isInteger(paymentSessionId) && paymentSessionId > 0;
+  const paymentQuery = useGetPaymentSession(paymentSessionId, {
+    query: {
+      enabled: hasPaymentSession,
+      queryKey: getGetPaymentSessionQueryKey(paymentSessionId),
+      refetchInterval: hasPaymentSession ? 2000 : false,
+    },
+  });
+  const requestedIds = new Set([
+    ...ids.split(",").map(Number).filter(Number.isInteger),
+    ...(paymentQuery.data?.orderIds ?? []),
+  ]);
+  const ordersQuery = useListCustomerOrders({
+    query: {
+      queryKey: getListCustomerOrdersQueryKey(),
+      refetchInterval: hasPaymentSession ? 2000 : false,
+    },
+  });
   const orders = (ordersQuery.data ?? []).filter((order) => requestedIds.has(order.id));
+  const paymentStatus = paymentQuery.data?.status;
+  const paymentFailed = hasPaymentSession && paymentStatus === "failed";
+  const paymentPending = hasPaymentSession && (paymentStatus === "pending" || paymentQuery.isLoading);
+  const title = paymentFailed ? "لم يكتمل الدفع" : paymentPending ? "جاري تأكيد الدفع" : hasPaymentSession ? "تم الدفع بنجاح!" : "تم إرسال طلبك بنجاح!";
+  const subtitle = paymentFailed
+    ? "لم يتم خصم أي مبلغ مؤكد. يمكنك الرجوع للسلة والمحاولة مرة أخرى."
+    : paymentPending
+      ? "بنتأكد من Paymob دلوقتي. هتتحدث الحالة تلقائياً."
+      : "كل مطعم استلم طلب مستقل وهيبدأ تأكيده دلوقتي";
+  useEffect(() => {
+    if (paymentStatus === "paid") resetCartAfterOrder();
+  }, [paymentStatus]);
 
   return (
     <MobileShell tabs={customerTabs}>
       <AppBar title="تم الطلب" />
       <div className="tb-fade-up flex flex-col items-center gap-lg p-lg text-center">
         <div className="relative flex size-24 items-center justify-center">
-          <span className="tb-ping absolute inset-0 rounded-full bg-success/20" />
-          <span className="flex size-20 items-center justify-center rounded-full bg-success/15 text-success"><Icon name="check_circle" className="text-[48px]" filled /></span>
+          {!paymentFailed ? <span className="tb-ping absolute inset-0 rounded-full bg-success/20" /> : null}
+          <span className={`flex size-20 items-center justify-center rounded-full ${paymentFailed ? "bg-error-container text-error" : paymentPending ? "bg-primary-container text-primary" : "bg-success/15 text-success"}`}><Icon name={paymentFailed ? "error" : paymentPending ? "progress_activity" : "check_circle"} className={`text-[48px] ${paymentPending ? "animate-spin" : ""}`} filled={!paymentPending} /></span>
         </div>
         <div>
-          <h1 className="font-headline-lg text-headline-lg text-on-surface">تم إرسال طلبك بنجاح!</h1>
-          <p className="mt-1 font-body-md text-body-md text-on-surface-variant">كل مطعم استلم طلب مستقل وهيبدأ تأكيده دلوقتي</p>
+          <h1 className="font-headline-lg text-headline-lg text-on-surface">{title}</h1>
+          <p className="mt-1 font-body-md text-body-md text-on-surface-variant">{subtitle}</p>
         </div>
-        <Badge tone="info" className="px-4 py-2"><Icon name="schedule" className="text-[16px]" />الوقت المتوقع 30–40 دقيقة</Badge>
+        {!paymentFailed ? <Badge tone={paymentPending ? "warn" : "info"} className="px-4 py-2"><Icon name="schedule" className="text-[16px]" />{paymentPending ? "بانتظار تأكيد الدفع" : "الوقت المتوقع 30–40 دقيقة"}</Badge> : null}
 
         {ordersQuery.isLoading ? <Icon name="progress_activity" className="animate-spin text-[32px] text-primary" /> : (
           <div className="w-full space-y-3 text-right">
@@ -53,7 +91,7 @@ function AppOrderPlaced() {
         )}
         {!ordersQuery.isLoading && orders.length === 0 ? <p className="font-label-md text-label-md text-on-surface-variant">تقدر تلاقي الطلب في صفحة طلباتي.</p> : null}
         <div className="flex w-full flex-col gap-2">
-          <Link to="/app/orders"><Button className="w-full" icon="receipt_long">عرض طلباتي</Button></Link>
+          <Link to={paymentFailed ? "/app/cart" : "/app/orders"}><Button className="w-full" icon={paymentFailed ? "shopping_cart" : "receipt_long"}>{paymentFailed ? "الرجوع للسلة" : "عرض طلباتي"}</Button></Link>
           <Link to="/app"><Button variant="outline" className="w-full" icon="restaurant_menu">العودة للرئيسية</Button></Link>
         </div>
       </div>

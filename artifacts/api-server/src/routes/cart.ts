@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   cartItemsTable,
   db,
@@ -148,40 +148,52 @@ router.post("/cart/items", async (req, res: Response): Promise<void> => {
     (variant ? Number(variant.priceDelta) : 0) +
     selectedAddons.reduce((sum, addon) => sum + Number(addon.price), 0);
 
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
-    if (replaceOtherRestaurants) {
-      await tx.delete(cartItemsTable).where(and(
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
+      const [reservedItem] = await tx.select({ id: cartItemsTable.id }).from(cartItemsTable)
+        .where(and(eq(cartItemsTable.userId, user.id), isNotNull(cartItemsTable.paymentSessionId)))
+        .limit(1);
+      if (reservedItem) throw new Error("CART_PAYMENT_PENDING");
+      if (replaceOtherRestaurants) {
+        await tx.delete(cartItemsTable).where(and(
+          eq(cartItemsTable.userId, user.id),
+          sql`${cartItemsTable.restaurantId} <> ${productRow.restaurant.id}`,
+        ));
+      }
+      const candidates = await tx.select().from(cartItemsTable).where(and(
         eq(cartItemsTable.userId, user.id),
-        sql`${cartItemsTable.restaurantId} <> ${productRow.restaurant.id}`,
+        eq(cartItemsTable.productId, id),
+        selectedVariantId === null
+          ? sql`${cartItemsTable.variantId} IS NULL`
+          : eq(cartItemsTable.variantId, selectedVariantId),
       ));
+      const existing = candidates.find((item) =>
+        JSON.stringify([...item.addonIds].sort((a, b) => a - b)) === JSON.stringify(normalizedAddonIds));
+      if (existing) {
+        await tx.update(cartItemsTable)
+          .set({ quantity: Math.min(99, existing.quantity + Number(quantity)), updatedAt: new Date() })
+          .where(eq(cartItemsTable.id, existing.id));
+      } else {
+        await tx.insert(cartItemsTable).values({
+          userId: user.id,
+          restaurantId: productRow.restaurant.id,
+          productId: id,
+          variantId: selectedVariantId,
+          quantity: Number(quantity),
+          addonIds: normalizedAddonIds,
+          unitPrice: unitPrice.toFixed(2),
+          updatedAt: new Date(),
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "CART_PAYMENT_PENDING") {
+      res.status(409).json({ error: "لا يمكن تعديل السلة أثناء تأكيد الدفع أونلاين." });
+      return;
     }
-    const candidates = await tx.select().from(cartItemsTable).where(and(
-      eq(cartItemsTable.userId, user.id),
-      eq(cartItemsTable.productId, id),
-      selectedVariantId === null
-        ? sql`${cartItemsTable.variantId} IS NULL`
-        : eq(cartItemsTable.variantId, selectedVariantId),
-    ));
-    const existing = candidates.find((item) =>
-      JSON.stringify([...item.addonIds].sort((a, b) => a - b)) === JSON.stringify(normalizedAddonIds));
-    if (existing) {
-      await tx.update(cartItemsTable)
-        .set({ quantity: Math.min(99, existing.quantity + Number(quantity)), updatedAt: new Date() })
-        .where(eq(cartItemsTable.id, existing.id));
-    } else {
-      await tx.insert(cartItemsTable).values({
-        userId: user.id,
-        restaurantId: productRow.restaurant.id,
-        productId: id,
-        variantId: selectedVariantId,
-        quantity: Number(quantity),
-        addonIds: normalizedAddonIds,
-        unitPrice: unitPrice.toFixed(2),
-        updatedAt: new Date(),
-      });
-    }
-  });
+    throw error;
+  }
   res.status(201).json(await buildCart(user.id));
 });
 
@@ -194,21 +206,45 @@ router.patch("/cart/items/:id", async (req, res: Response): Promise<void> => {
     res.status(400).json({ error: "كمية غير صحيحة" }); return;
   }
   const condition = and(eq(cartItemsTable.id, id), eq(cartItemsTable.userId, user.id));
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
-    if (quantity === 0) await tx.delete(cartItemsTable).where(condition);
-    else await tx.update(cartItemsTable).set({ quantity, updatedAt: new Date() }).where(condition);
-  });
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
+      const [reservedItem] = await tx.select({ id: cartItemsTable.id }).from(cartItemsTable)
+        .where(and(eq(cartItemsTable.userId, user.id), isNotNull(cartItemsTable.paymentSessionId)))
+        .limit(1);
+      if (reservedItem) throw new Error("CART_PAYMENT_PENDING");
+      if (quantity === 0) await tx.delete(cartItemsTable).where(condition);
+      else await tx.update(cartItemsTable).set({ quantity, updatedAt: new Date() }).where(condition);
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "CART_PAYMENT_PENDING") {
+      res.status(409).json({ error: "لا يمكن تعديل السلة أثناء تأكيد الدفع أونلاين." });
+      return;
+    }
+    throw error;
+  }
   res.json(await buildCart(user.id));
 });
 
 router.delete("/cart", async (req, res: Response): Promise<void> => {
   const user = await getCustomer(req);
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
-    await tx.delete(cartItemsTable).where(eq(cartItemsTable.userId, user.id));
-  });
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
+      const [reservedItem] = await tx.select({ id: cartItemsTable.id }).from(cartItemsTable)
+        .where(and(eq(cartItemsTable.userId, user.id), isNotNull(cartItemsTable.paymentSessionId)))
+        .limit(1);
+      if (reservedItem) throw new Error("CART_PAYMENT_PENDING");
+      await tx.delete(cartItemsTable).where(eq(cartItemsTable.userId, user.id));
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "CART_PAYMENT_PENDING") {
+      res.status(409).json({ error: "لا يمكن تعديل السلة أثناء تأكيد الدفع أونلاين." });
+      return;
+    }
+    throw error;
+  }
   res.status(204).end();
 });
 

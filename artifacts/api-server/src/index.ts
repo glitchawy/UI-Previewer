@@ -2,6 +2,7 @@ import { runMigrations } from "@workspace/db/migrate";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminUser } from "./lib/seed-admin";
+import { startPaymentSessionExpiryWorker } from "./lib/payment-session-lifecycle";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +24,7 @@ async function main() {
   logger.info("Database migrations applied");
 
   await seedAdminUser();
+  startPaymentSessionExpiryWorker();
 
   app.listen(port, (err) => {
     if (err) {

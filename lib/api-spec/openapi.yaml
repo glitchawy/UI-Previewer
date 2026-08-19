@@ -300,6 +300,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Payment gateway could not initialize a checkout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Online payment is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     get:
       operationId: listCustomerOrders
       tags: [orders]
@@ -356,6 +368,45 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/{id}:
+    get:
+      operationId: getPaymentSession
+      tags: [orders]
+      summary: Get an authenticated customer's Paymob checkout status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Payment session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSession"
+        "400":
+          description: Invalid payment session id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payment session not found
           content:
             application/json:
               schema:
@@ -838,11 +889,13 @@ components:
 
     PaymentStatus:
       type: string
-      enum: [pending, paid, refunded]
+      enum: [pending, paid, failed, refunded]
 
     OrderPlacementInput:
       type: object
       properties:
+        paymentMethod:
+          $ref: "#/components/schemas/PaymentMethod"
         notes:
           type: string
           maxLength: 1000
@@ -871,6 +924,26 @@ components:
           minItems: 1
           items:
             $ref: "#/components/schemas/PlacedOrder"
+        paymentSessionId:
+          type: ["number", "null"]
+          description: Present when the checkout uses Paymob
+        paymentUrl:
+          type: ["string", "null"]
+          description: Hosted Paymob checkout URL for card payments
+
+    PaymentSession:
+      type: object
+      required: [id, status, orderIds]
+      properties:
+        id:
+          type: number
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        orderIds:
+          type: array
+          minItems: 1
+          items:
+            type: number
 
     OrderSummary:
       type: object

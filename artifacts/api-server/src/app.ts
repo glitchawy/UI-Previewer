@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
-import webhookRouter from "./routes/webhooks";
+import webhookRouter, { paymobWebhookRouter } from "./routes/webhooks";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -36,6 +36,11 @@ app.use(
   "/api/webhooks/authevo",
   express.raw({ type: "application/json" }),
   webhookRouter,
+);
+app.use(
+  "/api/webhooks/paymob",
+  express.raw({ type: "application/json" }),
+  paymobWebhookRouter,
 );
 
 // ── All other routes ──────────────────────────────────────────────────────────

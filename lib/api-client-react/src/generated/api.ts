@@ -40,6 +40,7 @@ import type {
   OtpRequestResponse,
   OtpVerify,
   PartnerOnboard,
+  PaymentSession,
   RestaurantApplication,
   SearchAddressParams,
   UploadFileResponse
@@ -950,6 +951,83 @@ export function useGetCustomerOrder<TData = Awaited<ReturnType<typeof getCustome
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCustomerOrderQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPaymentSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/payments/${id}`
+}
+
+/**
+ * @summary Get an authenticated customer's Paymob checkout status
+ */
+export const getPaymentSession = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<PaymentSession> => {
+
+  return customFetch<PaymentSession>(getGetPaymentSessionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentSessionQueryKey = (id: number,) => {
+    return [
+    `/api/payments/${id}`
+    ] as const;
+    }
+
+
+export const getGetPaymentSessionQueryOptions = <TData = Awaited<ReturnType<typeof getPaymentSession>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentSessionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaymentSession>>> = ({ signal }) => getPaymentSession(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaymentSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaymentSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getPaymentSession>>>
+export type GetPaymentSessionQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get an authenticated customer's Paymob checkout status
+ */
+
+export function useGetPaymentSession<TData = Awaited<ReturnType<typeof getPaymentSession>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaymentSessionQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -36,6 +36,7 @@ export * from './otpVerifyType';
 export * from './partnerOnboard';
 export * from './partnerOnboardDeliveryType';
 export * from './paymentMethod';
+export * from './paymentSession';
 export * from './paymentStatus';
 export * from './placedOrder';
 export * from './restaurantApplication';

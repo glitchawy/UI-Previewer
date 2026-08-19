@@ -261,10 +261,12 @@ export type PaymentStatus = typeof PaymentStatus[keyof typeof PaymentStatus];
 export const PaymentStatus = {
   pending: 'pending',
   paid: 'paid',
+  failed: 'failed',
   refunded: 'refunded',
 } as const;
 
 export interface OrderPlacementInput {
+  paymentMethod?: PaymentMethod;
   /** @maxLength 1000 */
   notes?: string;
 }
@@ -280,6 +282,23 @@ export interface PlacedOrder {
 export interface OrderPlacementResult {
   /** @minItems 1 */
   orders: PlacedOrder[];
+  /**
+     * Present when the checkout uses Paymob
+     * @nullable
+     */
+  paymentSessionId?: number | null;
+  /**
+     * Hosted Paymob checkout URL for card payments
+     * @nullable
+     */
+  paymentUrl?: string | null;
+}
+
+export interface PaymentSession {
+  id: number;
+  status: PaymentStatus;
+  /** @minItems 1 */
+  orderIds: number[];
 }
 
 export interface OrderSummary {

@@ -10,4 +10,14 @@ import type { PlacedOrder } from './placedOrder';
 export interface OrderPlacementResult {
   /** @minItems 1 */
   orders: PlacedOrder[];
+  /**
+     * Present when the checkout uses Paymob
+     * @nullable
+     */
+  paymentSessionId?: number | null;
+  /**
+     * Hosted Paymob checkout URL for card payments
+     * @nullable
+     */
+  paymentUrl?: string | null;
 }

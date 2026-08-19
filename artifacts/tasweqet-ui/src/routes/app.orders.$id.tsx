@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getGetCustomerOrderQueryKey, useGetCustomerOrder } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, EmptyState } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
-import { EGP, formatOrderDate, orderStatusLabels, orderStatusTones } from "@/lib/tb/orders";
+import { EGP, formatOrderDate, orderStatusLabels, orderStatusTones, paymentStatusLabels, paymentStatusTones } from "@/lib/tb/orders";
 
 export const Route = createFileRoute("/app/orders/$id")({
   head: () => ({
@@ -68,7 +68,7 @@ function AppOrderDetail() {
 
           <Card className="space-y-3 p-md">
             <div className="flex gap-3"><Icon name="location_on" className="text-secondary" /><div><p className="font-label-lg text-label-lg">عنوان التوصيل</p><p className="font-body-md text-body-md text-on-surface-variant">{orderQuery.data.deliveryAddressText}</p></div></div>
-            <div className="flex gap-3"><Icon name="payments" className="text-secondary" /><div><p className="font-label-lg text-label-lg">طريقة الدفع</p><p className="font-body-md text-body-md text-on-surface-variant">كاش عند الاستلام</p></div></div>
+            <div className="flex gap-3"><Icon name="payments" className="text-secondary" /><div><p className="font-label-lg text-label-lg">طريقة الدفع</p><p className="font-body-md text-body-md text-on-surface-variant">{orderQuery.data.paymentMethod === "card" ? "بطاقة / أونلاين" : "كاش عند الاستلام"}</p><Badge tone={paymentStatusTones[orderQuery.data.paymentStatus]} className="mt-1">{paymentStatusLabels[orderQuery.data.paymentStatus]}</Badge></div></div>
             {orderQuery.data.notes ? <div className="flex gap-3"><Icon name="notes" className="text-secondary" /><div><p className="font-label-lg text-label-lg">ملاحظات</p><p className="font-body-md text-body-md text-on-surface-variant">{orderQuery.data.notes}</p></div></div> : null}
           </Card>
         </div>

@@ -13,7 +13,9 @@ export const ordersTable = pgTable("orders", {
     enum: ["pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled"],
   }).notNull().default("pending"),
   paymentMethod: text("payment_method", { enum: ["cash", "card"] }).notNull().default("cash"),
-  paymentStatus: text("payment_status", { enum: ["pending", "paid", "refunded"] }).notNull().default("pending"),
+  paymentStatus: text("payment_status", { enum: ["pending", "paid", "failed", "refunded"] }).notNull().default("pending"),
+  paymentSessionId: integer("payment_session_id"),
+  paymobTransactionId: text("paymob_transaction_id"),
   deliveryAddressText: text("delivery_address_text").notNull(),
   deliveryLat: doublePrecision("delivery_lat").notNull(),
   deliveryLng: doublePrecision("delivery_lng").notNull(),
@@ -57,9 +59,32 @@ export const orderStatusEventsTable = pgTable("order_status_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const paymentSessionsTable = pgTable("payment_sessions", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull(),
+  provider: text("provider", { enum: ["paymob"] }).notNull().default("paymob"),
+  reference: text("reference").notNull().unique(),
+  status: text("status", { enum: ["pending", "paid", "failed", "refunded"] }).notNull().default("pending"),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("EGP"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  checkoutCreationStatus: text("checkout_creation_status").notNull().default("not_started"),
+  checkoutCreationStartedAt: timestamp("checkout_creation_started_at", { withTimezone: true }),
+  paymobIntegrationId: text("paymob_integration_id"),
+  paymobIntegrationIds: text("paymob_integration_ids").array(),
+  paymobOrderId: text("paymob_order_id").unique(),
+  paymobTransactionId: text("paymob_transaction_id").unique(),
+  paymentUrl: text("payment_url"),
+  failureReason: text("failure_reason"),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
 export type OrderAddon = typeof orderAddonsTable.$inferSelect;
 export type OrderStatusEvent = typeof orderStatusEventsTable.$inferSelect;
+export type PaymentSession = typeof paymentSessionsTable.$inferSelect;

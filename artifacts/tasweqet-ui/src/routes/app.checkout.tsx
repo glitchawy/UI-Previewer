@@ -15,7 +15,7 @@ export const Route = createFileRoute("/app/checkout")({
   head: () => ({
     meta: [
       { title: "طلبات بيتك | إتمام الطلب" },
-      { name: "description", content: "راجع عنوانك وأكد الدفع كاش عند الاستلام" },
+      { name: "description", content: "راجع عنوانك واختر طريقة الدفع المناسبة" },
     ],
   }),
   component: AppCheckout,
@@ -34,17 +34,22 @@ function AppCheckout() {
   const { cart, isLoading: cartLoading } = useCart();
   const address = useGetCustomerAddress();
   const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
   const [submitError, setSubmitError] = useState("");
   const deliveryTotal = cart.restaurants.length * DELIVERY_FEE;
   const grandTotal = cart.total + deliveryTotal;
   const placeOrder = usePlaceOrder({
     mutation: {
       onSuccess: async (result) => {
-        resetCartAfterOrder();
+        if (!result.paymentUrl) resetCartAfterOrder();
         await queryClient.invalidateQueries({ queryKey: getListCustomerOrdersQueryKey() });
+        if (result.paymentUrl) {
+          window.location.assign(result.paymentUrl);
+          return;
+        }
         navigate({
           to: "/app/order-placed",
-          search: { ids: result.orders.map((order) => order.id).join(",") },
+          search: { ids: result.orders.map((order) => order.id).join(","), paymentSession: "" },
         });
       },
       onError: (error) => setSubmitError(errorMessage(error)),
@@ -88,14 +93,23 @@ function AppCheckout() {
 
           <section>
             <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">طريقة الدفع</h2>
-            <label className="flex items-center gap-3 rounded-card border-2 border-secondary bg-secondary-container/60 p-4">
-              <input type="radio" name="payment" checked readOnly className="accent-secondary" />
+            <label className={`flex cursor-pointer items-center gap-3 rounded-card border-2 p-4 ${paymentMethod === "cash" ? "border-secondary bg-secondary-container/60" : "border-outline-variant bg-surface-container-lowest"}`}>
+              <input type="radio" name="payment" checked={paymentMethod === "cash"} onChange={() => setPaymentMethod("cash")} className="accent-secondary" />
               <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-lowest text-secondary"><Icon name="payments" /></span>
               <span className="flex-1">
                 <span className="block font-label-lg text-label-lg text-on-surface">كاش عند الاستلام</span>
                 <span className="block font-label-md text-label-md text-on-surface-variant">ادفع للمندوب لما طلبك يوصل</span>
               </span>
-              <Icon name="check_circle" className="text-success" filled />
+              {paymentMethod === "cash" ? <Icon name="check_circle" className="text-success" filled /> : null}
+            </label>
+            <label className={`mt-2 flex cursor-pointer items-center gap-3 rounded-card border-2 p-4 ${paymentMethod === "card" ? "border-secondary bg-secondary-container/60" : "border-outline-variant bg-surface-container-lowest"}`}>
+              <input type="radio" name="payment" checked={paymentMethod === "card"} onChange={() => setPaymentMethod("card")} className="accent-secondary" />
+              <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-lowest text-secondary"><Icon name="credit_card" /></span>
+              <span className="flex-1">
+                <span className="block font-label-lg text-label-lg text-on-surface">بطاقة أو محفظة إلكترونية</span>
+                <span className="block font-label-md text-label-md text-on-surface-variant">فيزا، ميزة ومحافظ وخيارات Paymob المتاحة</span>
+              </span>
+              {paymentMethod === "card" ? <Icon name="check_circle" className="text-success" filled /> : null}
             </label>
           </section>
 
@@ -151,9 +165,9 @@ function AppCheckout() {
       {cart.itemCount > 0 ? (
         <div className="fixed bottom-[68px] z-20 w-full max-w-[480px] border-t border-outline-variant bg-surface-container-lowest/95 p-md backdrop-blur">
           <Button className="w-full justify-between" icon="task_alt" disabled={!hasAddress || placeOrder.isPending}
-            onClick={() => { setSubmitError(""); placeOrder.mutate({ data: notes.trim() ? { notes: notes.trim() } : {} }); }}
+            onClick={() => { setSubmitError(""); placeOrder.mutate({ data: { paymentMethod, ...(notes.trim() ? { notes: notes.trim() } : {}) } }); }}
             data-testid="button-place-order">
-            <span>{placeOrder.isPending ? "جاري تأكيد الطلب..." : "تأكيد الطلب كاش"}</span>
+            <span>{placeOrder.isPending ? "جاري تأكيد الطلب..." : paymentMethod === "card" ? "المتابعة للدفع الآمن" : "تأكيد الطلب كاش"}</span>
             <span>{EGP(grandTotal)}</span>
           </Button>
         </div>

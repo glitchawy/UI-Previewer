@@ -160,6 +160,7 @@ export const placeOrderBodyNotesMax = 1000;
 
 
 export const PlaceOrderBody = zod.object({
+  "paymentMethod": zod.enum(['cash', 'card']).optional(),
   "notes": zod.string().max(placeOrderBodyNotesMax).optional()
 })
 
@@ -173,7 +174,9 @@ export const PlaceOrderResponse = zod.object({
   "restaurantName": zod.string(),
   "total": zod.number(),
   "estimateMinutes": zod.string()
-})).min(1)
+})).min(1),
+  "paymentSessionId": zod.number().nullish().describe('Present when the checkout uses Paymob'),
+  "paymentUrl": zod.string().nullish().describe('Hosted Paymob checkout URL for card payments')
 })
 
 
@@ -186,7 +189,7 @@ export const ListCustomerOrdersResponseItem = zod.object({
   "restaurantName": zod.string(),
   "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
   "paymentMethod": zod.enum(['cash', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid', 'refunded']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refunded']),
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
   "total": zod.number(),
@@ -208,7 +211,7 @@ export const GetCustomerOrderResponse = zod.object({
   "restaurantName": zod.string(),
   "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
   "paymentMethod": zod.enum(['cash', 'card']),
-  "paymentStatus": zod.enum(['pending', 'paid', 'refunded']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refunded']),
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
   "total": zod.number(),
@@ -235,6 +238,23 @@ export const GetCustomerOrderResponse = zod.object({
 }))
 }))
 }))
+
+
+/**
+ * @summary Get an authenticated customer's Paymob checkout status
+ */
+export const GetPaymentSessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const GetPaymentSessionResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'paid', 'failed', 'refunded']),
+  "orderIds": zod.array(zod.number()).min(1)
+})
 
 
 /**

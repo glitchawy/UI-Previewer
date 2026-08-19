@@ -5,8 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PaymentMethod } from './paymentMethod';
 
 export interface OrderPlacementInput {
+  paymentMethod?: PaymentMethod;
   /** @maxLength 1000 */
   notes?: string;
 }
