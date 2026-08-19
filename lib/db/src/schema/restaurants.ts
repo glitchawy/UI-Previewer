@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,8 @@ export const restaurantsTable = pgTable("restaurants", {
   hours: text("hours"),
   category: text("category"),
   deliveryType: text("delivery_type", { enum: ["restaurant", "platform"] }).notNull().default("restaurant"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
   logoUrl: text("logo_url"),
   logoUploadedAt: timestamp("logo_uploaded_at", { withTimezone: true }),
   coverUrl: text("cover_url"),

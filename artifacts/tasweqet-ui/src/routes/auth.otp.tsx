@@ -46,6 +46,7 @@ function AuthOtp() {
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [error, setError] = useState("");
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
+  const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -56,7 +57,7 @@ function AuthOtp() {
 
   const verifyOtp = useVerifyOtp({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         saveSession({
           token: data.token,
           user: {
@@ -74,10 +75,23 @@ function AuthOtp() {
           else if (role === "partner") navigate({ to: "/auth/register-restaurant" });
           else navigate({ to: "/auth/driver" });
         } else {
-          // Login → straight to dashboard (or location screen if customer has no saved coords)
+          // Login → check for branch assignment first; branch staff land on /branch
+          // regardless of their primary account role
           if (role === "customer") {
             navigate({ to: data.user.lat ? "/app" : "/auth/location" });
           } else {
+            try {
+              const branchRes = await fetch("/api/branch/me", {
+                headers: { Authorization: `Bearer ${data.token}` },
+              });
+              if (branchRes.ok) {
+                const branchData = await branchRes.json() as { assigned: boolean };
+                if (branchData.assigned) {
+                  navigate({ to: "/branch" });
+                  return;
+                }
+              }
+            } catch { /* network error — fall through to role-based redirect */ }
             navigate({ to: getRoleDashboard(role) });
           }
         }
@@ -155,13 +169,41 @@ function AuthOtp() {
 
       {/* Resend row */}
       <div className="flex items-center justify-between">
-        <span className="font-label-md text-label-md text-on-surface-variant">إعادة الإرسال بعد {mm}:{ss}</span>
+        <span className="font-label-md text-label-md text-on-surface-variant">
+          {seconds > 0 ? `إعادة الإرسال بعد ${mm}:${ss}` : "يمكنك إعادة الإرسال الآن"}
+        </span>
         <button
-          disabled={seconds > 0}
-          onClick={() => setSeconds(RESEND_SECONDS)}
+          disabled={seconds > 0 || resending}
+          onClick={async () => {
+            setResending(true);
+            setError("");
+            try {
+              const endpoint = type === "login" ? "/api/auth/request-otp" : "/api/auth/register";
+              const r = await fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone, role }),
+              });
+              const data = await r.json() as { error?: string; retryAfterSeconds?: number };
+              if (!r.ok) {
+                if (r.status === 429 && data.retryAfterSeconds) {
+                  setSeconds(data.retryAfterSeconds);
+                } else {
+                  setError(data.error ?? "فشل إعادة الإرسال");
+                }
+              } else {
+                setSeconds(RESEND_SECONDS);
+                setDigits(Array(6).fill(""));
+              }
+            } catch {
+              setError("خطأ في الاتصال — تأكد من اتصالك بالإنترنت");
+            } finally {
+              setResending(false);
+            }
+          }}
           className="rounded-button px-3 py-1.5 font-label-lg text-label-lg text-secondary disabled:text-outline"
         >
-          إعادة الإرسال
+          {resending ? "جاري الإرسال..." : "إعادة الإرسال"}
         </button>
       </div>
 

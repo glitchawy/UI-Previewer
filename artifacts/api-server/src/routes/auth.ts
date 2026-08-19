@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, not } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { RequestOtpBody, VerifyOtpBody, UpdateLocationBody } from "@workspace/api-zod";
 
@@ -8,17 +8,63 @@ const router = Router();
 import { issueOtp, verifyOtpCode } from "../lib/otp";
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<string, string> = {
+  customer: "عميل",
+  partner: "صاحب مطعم",
+  driver: "مندوب",
+  admin: "مشرف",
+};
+
+/**
+ * Returns an Arabic error message when a phone is already registered under
+ * a different role — enforcing account separation per spec section 5.
+ */
+async function checkAccountSeparation(phone: string, requestedRole: string): Promise<string | null> {
+  const conflict = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(and(eq(usersTable.phone, phone), not(eq(usersTable.role, requestedRole as "customer"))))
+    .limit(1);
+  if (conflict.length === 0) return null;
+  const existingLabel = ROLE_LABELS[conflict[0].role] ?? conflict[0].role;
+  const requestedLabel = ROLE_LABELS[requestedRole] ?? requestedRole;
+  return `الرقم ده مسجل بالفعل كـ${existingLabel} — أنشئ حساباً منفصلاً كـ${requestedLabel}`;
+}
+
+/** Translate IssueResult failure to an HTTP response (returns true = handled). */
+async function handleIssueFailure(
+  result: Exclude<Awaited<ReturnType<typeof issueOtp>>, { ok: true }>,
+  res: import("express").Response,
+  logFn: (obj: object, msg: string) => void,
+): Promise<true> {
+  if (result.reason === "cooldown") {
+    logFn({ retryAfterSeconds: result.retryAfterSeconds }, "OTP blocked — cooldown");
+    res.status(429).json({
+      error: `انتظر ${result.retryAfterSeconds} ثانية قبل إعادة الإرسال`,
+      retryAfterSeconds: result.retryAfterSeconds,
+    });
+    return true;
+  }
+  if (result.reason === "rate_limited") {
+    logFn({}, "OTP blocked — rate limited");
+    res.status(429).json({ error: "تم تجاوز الحد المسموح — حاول بعد ساعة" });
+    return true;
+  }
+  // provider_error
+  logFn({ detail: result.detail }, "OTP delivery failed");
+  res.status(503).json({ error: "تعذر إرسال كود التحقق عبر واتساب — حاول لاحقاً" });
+  return true;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/request-otp  ← LOGIN only
-// Validates Egyptian phone and checks the account ALREADY EXISTS in the DB.
-// Does NOT write anything — just acts as the gate before the OTP screen.
+// Validates phone, enforces account separation, issues WhatsApp OTP.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/request-otp", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { phone, role } = parsed.data;
 
   if (!EG_PHONE_RE.test(phone)) {
@@ -26,6 +72,7 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
     return;
   }
 
+  // Account must exist under this exact role
   const existing = await db
     .select({ id: usersTable.id })
     .from(usersTable)
@@ -33,32 +80,30 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
     .limit(1);
 
   if (existing.length === 0) {
-    res.status(404).json({ error: "الرقم ده مش مسجل — سجّل حساب جديد أولاً" });
+    // Check if phone is registered under a different role — give a specific message
+    const separationMsg = await checkAccountSeparation(phone, role);
+    if (separationMsg) {
+      res.status(409).json({ error: separationMsg });
+    } else {
+      res.status(404).json({ error: "الرقم ده مش مسجل — سجّل حساب جديد أولاً" });
+    }
     return;
   }
 
-  try {
-    await issueOtp(phone, role);
-  } catch (err) {
-    req.log.error({ err }, "OTP delivery failed");
-    res.status(503).json({ error: "تعذر إرسال كود التحقق حالياً — حاول لاحقاً" });
-    return;
-  }
-  req.log.info({ phone, role }, "Login OTP requested");
-  res.json({ success: true, message: "OTP sent" });
+  const issued = await issueOtp(phone, role);
+  if (!issued.ok) { await handleIssueFailure(issued, res, (o, m) => req.log.warn(o, m)); return; }
+
+  req.log.info({ phone, role, mode: issued.mode }, "Login OTP issued");
+  res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register  ← SIGNUP only
-// Validates Egyptian phone and checks the account does NOT YET EXIST.
-// Does NOT write anything — user is only created after OTP verification.
+// Enforces account separation: same phone cannot register as a different role.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { phone, role } = parsed.data;
 
   if (role === "admin") {
@@ -71,26 +116,29 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const existing = await db
+  // Same phone + same role = already registered
+  const sameRole = await db
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(and(eq(usersTable.phone, phone), eq(usersTable.role, role)))
     .limit(1);
-
-  if (existing.length > 0) {
+  if (sameRole.length > 0) {
     res.status(409).json({ error: "الرقم ده مسجل بالفعل — سجّل دخول بدل كده" });
     return;
   }
 
-  try {
-    await issueOtp(phone, role);
-  } catch (err) {
-    req.log.error({ err }, "OTP delivery failed");
-    res.status(503).json({ error: "تعذر إرسال كود التحقق حالياً — حاول لاحقاً" });
+  // Same phone + different role = account separation violation — give specific guidance
+  const separationMsg = await checkAccountSeparation(phone, role);
+  if (separationMsg) {
+    res.status(409).json({ error: separationMsg });
     return;
   }
-  req.log.info({ phone, role }, "Register OTP requested");
-  res.json({ success: true, message: "OTP sent" });
+
+  const issued = await issueOtp(phone, role);
+  if (!issued.ok) { await handleIssueFailure(issued, res, (o, m) => req.log.warn(o, m)); return; }
+
+  req.log.info({ phone, role, mode: issued.mode }, "Register OTP issued");
+  res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,10 +148,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   const parsed = VerifyOtpBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { phone, otp, role, type } = parsed.data;
 
   if (!EG_PHONE_RE.test(phone)) {
@@ -119,6 +164,10 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     }
     if (verdict.reason === "expired") {
       res.status(401).json({ error: "الكود انتهت صلاحيته — اطلب كود جديد" });
+      return;
+    }
+    if (verdict.reason === "not_found") {
+      res.status(401).json({ error: "اطلب كود جديد أولاً" });
       return;
     }
     res.status(401).json({ error: "الكود غير صحيح، حاول تاني" });

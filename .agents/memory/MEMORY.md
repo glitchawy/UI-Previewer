@@ -1,2 +1,3 @@
 - [TanStack flat-route list/detail rendering](tanstack-flat-route-outlet.md) — list routes are layout parents of $id routes; detail pages need an Outlet (or an index route) to render.
 - [TanStack route tree regeneration](tanstack-route-tree-regen.md) — no vite plugin; run `pnpm exec tsr generate` in the UI artifact after adding route files.
+- [WhatsApp OTP system](whatsapp-otp-system.md) — delivery modes, required secrets, security properties, account separation logic.
