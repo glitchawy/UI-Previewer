@@ -113,6 +113,7 @@ import { Route as AdminDriversIdRouteImport } from './routes/admin.drivers.$id'
 import { Route as AdminOrdersIdRouteImport } from './routes/admin.orders.$id'
 import { Route as AdminRestaurantsIdRouteImport } from './routes/admin.restaurants.$id'
 import { Route as AppCategoryIdRouteImport } from './routes/app.category.$id'
+import { Route as AppOrdersIdRouteImport } from './routes/app.orders.$id'
 import { Route as AppProductIdRouteImport } from './routes/app.product.$id'
 import { Route as AppRateIdRouteImport } from './routes/app.rate.$id'
 import { Route as AppRefundIdRouteImport } from './routes/app.refund.$id'
@@ -649,6 +650,11 @@ const AppCategoryIdRoute = AppCategoryIdRouteImport.update({
   path: '/app/category/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppOrdersIdRoute = AppOrdersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppOrdersRoute,
+} as any)
 const AppProductIdRoute = AppProductIdRouteImport.update({
   id: '/app/product/$id',
   path: '/app/product/$id',
@@ -717,7 +723,7 @@ export interface FileRoutesByFullPath {
   '/app/favorites': typeof AppFavoritesRoute
   '/app/notifications': typeof AppNotificationsRoute
   '/app/order-placed': typeof AppOrderPlacedRoute
-  '/app/orders': typeof AppOrdersRoute
+  '/app/orders': typeof AppOrdersRouteWithChildren
   '/app/profile': typeof AppProfileRoute
   '/app/search': typeof AppSearchRoute
   '/app/wallet': typeof AppWalletRoute
@@ -795,6 +801,7 @@ export interface FileRoutesByFullPath {
   '/admin/orders/$id': typeof AdminOrdersIdRoute
   '/admin/restaurants/$id': typeof AdminRestaurantsIdRoute
   '/app/category/$id': typeof AppCategoryIdRoute
+  '/app/orders/$id': typeof AppOrdersIdRoute
   '/app/product/$id': typeof AppProductIdRoute
   '/app/rate/$id': typeof AppRateIdRoute
   '/app/refund/$id': typeof AppRefundIdRoute
@@ -829,7 +836,7 @@ export interface FileRoutesByTo {
   '/app/favorites': typeof AppFavoritesRoute
   '/app/notifications': typeof AppNotificationsRoute
   '/app/order-placed': typeof AppOrderPlacedRoute
-  '/app/orders': typeof AppOrdersRoute
+  '/app/orders': typeof AppOrdersRouteWithChildren
   '/app/profile': typeof AppProfileRoute
   '/app/search': typeof AppSearchRoute
   '/app/wallet': typeof AppWalletRoute
@@ -907,6 +914,7 @@ export interface FileRoutesByTo {
   '/admin/orders/$id': typeof AdminOrdersIdRoute
   '/admin/restaurants/$id': typeof AdminRestaurantsIdRoute
   '/app/category/$id': typeof AppCategoryIdRoute
+  '/app/orders/$id': typeof AppOrdersIdRoute
   '/app/product/$id': typeof AppProductIdRoute
   '/app/rate/$id': typeof AppRateIdRoute
   '/app/refund/$id': typeof AppRefundIdRoute
@@ -944,7 +952,7 @@ export interface FileRoutesById {
   '/app/favorites': typeof AppFavoritesRoute
   '/app/notifications': typeof AppNotificationsRoute
   '/app/order-placed': typeof AppOrderPlacedRoute
-  '/app/orders': typeof AppOrdersRoute
+  '/app/orders': typeof AppOrdersRouteWithChildren
   '/app/profile': typeof AppProfileRoute
   '/app/search': typeof AppSearchRoute
   '/app/wallet': typeof AppWalletRoute
@@ -1022,6 +1030,7 @@ export interface FileRoutesById {
   '/admin/orders/$id': typeof AdminOrdersIdRoute
   '/admin/restaurants/$id': typeof AdminRestaurantsIdRoute
   '/app/category/$id': typeof AppCategoryIdRoute
+  '/app/orders/$id': typeof AppOrdersIdRoute
   '/app/product/$id': typeof AppProductIdRoute
   '/app/rate/$id': typeof AppRateIdRoute
   '/app/refund/$id': typeof AppRefundIdRoute
@@ -1138,6 +1147,7 @@ export interface FileRouteTypes {
     | '/admin/orders/$id'
     | '/admin/restaurants/$id'
     | '/app/category/$id'
+    | '/app/orders/$id'
     | '/app/product/$id'
     | '/app/rate/$id'
     | '/app/refund/$id'
@@ -1250,6 +1260,7 @@ export interface FileRouteTypes {
     | '/admin/orders/$id'
     | '/admin/restaurants/$id'
     | '/app/category/$id'
+    | '/app/orders/$id'
     | '/app/product/$id'
     | '/app/rate/$id'
     | '/app/refund/$id'
@@ -1364,6 +1375,7 @@ export interface FileRouteTypes {
     | '/admin/orders/$id'
     | '/admin/restaurants/$id'
     | '/app/category/$id'
+    | '/app/orders/$id'
     | '/app/product/$id'
     | '/app/rate/$id'
     | '/app/refund/$id'
@@ -1401,7 +1413,7 @@ export interface RootRouteChildren {
   AppFavoritesRoute: typeof AppFavoritesRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppOrderPlacedRoute: typeof AppOrderPlacedRoute
-  AppOrdersRoute: typeof AppOrdersRoute
+  AppOrdersRoute: typeof AppOrdersRouteWithChildren
   AppProfileRoute: typeof AppProfileRoute
   AppSearchRoute: typeof AppSearchRoute
   AppWalletRoute: typeof AppWalletRoute
@@ -2192,6 +2204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCategoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/orders/$id': {
+      id: '/app/orders/$id'
+      path: '/$id'
+      fullPath: '/app/orders/$id'
+      preLoaderRoute: typeof AppOrdersIdRouteImport
+      parentRoute: typeof AppOrdersRoute
+    }
     '/app/product/$id': {
       id: '/app/product/$id'
       path: '/app/product/$id'
@@ -2382,6 +2401,18 @@ const AdminRestaurantsRouteChildren: AdminRestaurantsRouteChildren = {
 const AdminRestaurantsRouteWithChildren =
   AdminRestaurantsRoute._addFileChildren(AdminRestaurantsRouteChildren)
 
+interface AppOrdersRouteChildren {
+  AppOrdersIdRoute: typeof AppOrdersIdRoute
+}
+
+const AppOrdersRouteChildren: AppOrdersRouteChildren = {
+  AppOrdersIdRoute: AppOrdersIdRoute,
+}
+
+const AppOrdersRouteWithChildren = AppOrdersRoute._addFileChildren(
+  AppOrdersRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DriverRoute: DriverRouteWithChildren,
@@ -2409,7 +2440,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppFavoritesRoute: AppFavoritesRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppOrderPlacedRoute: AppOrderPlacedRoute,
-  AppOrdersRoute: AppOrdersRoute,
+  AppOrdersRoute: AppOrdersRouteWithChildren,
   AppProfileRoute: AppProfileRoute,
   AppSearchRoute: AppSearchRoute,
   AppWalletRoute: AppWalletRoute,

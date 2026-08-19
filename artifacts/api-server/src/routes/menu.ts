@@ -342,7 +342,7 @@ router.get("/products/:id", async (req, res: Response): Promise<void> => {
 
   res.json({
     ...row.p,
-    variants,
+    variants: variants.filter((variant) => variant.isAvailable),
     addons: addons.filter((a) => a.isAvailable),
     restaurant: {
       id: row.r.id,
@@ -714,6 +714,7 @@ router.post("/partner/products/:id/variants", async (req, res: Response): Promis
       productId,
       name: (body.name as string).trim(),
       priceDelta: priceDelta.toFixed(2),
+      isAvailable: body.isAvailable !== false,
       isDefault: body.isDefault === true,
       sortOrder: typeof body.sortOrder === "number" ? Math.floor(body.sortOrder) : 0,
     })
@@ -741,6 +742,7 @@ router.patch("/partner/variants/:variantId", async (req, res: Response): Promise
   const updates: Partial<typeof productVariantsTable.$inferInsert> = {};
   if (typeof body.name === "string" && body.name.trim()) updates.name = body.name.trim();
   if (body.priceDelta !== undefined) updates.priceDelta = Number(body.priceDelta).toFixed(2);
+  if (typeof body.isAvailable === "boolean") updates.isAvailable = body.isAvailable;
   if (typeof body.isDefault === "boolean") updates.isDefault = body.isDefault;
   if (typeof body.sortOrder === "number") updates.sortOrder = Math.floor(body.sortOrder);
 

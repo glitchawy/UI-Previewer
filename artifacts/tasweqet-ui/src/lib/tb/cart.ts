@@ -71,6 +71,9 @@ export async function clearCart() {
   if (!response.ok) throw new Error("تعذر مسح السلة");
   publish(EMPTY);
 }
+export function resetCartAfterOrder() {
+  publish(EMPTY);
+}
 export function useCart() {
   const [cart, setCart] = useState(() => { syncSession(); return cache; });
   const [isLoading, setIsLoading] = useState(cacheToken !== null && cache === EMPTY);

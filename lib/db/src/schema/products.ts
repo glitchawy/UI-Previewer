@@ -26,6 +26,7 @@ export const productVariantsTable = pgTable("product_variants", {
   productId: integer("product_id").notNull(),
   name: text("name").notNull(),
   priceDelta: numeric("price_delta", { precision: 10, scale: 2 }).notNull().default("0"),
+  isAvailable: boolean("is_available").notNull().default(true),
   isDefault: boolean("is_default").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
 });

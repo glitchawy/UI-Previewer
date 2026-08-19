@@ -32,6 +32,10 @@ import type {
   LocationSaveResult,
   LocationUpdate,
   OnboardResult,
+  OrderDetail,
+  OrderPlacementInput,
+  OrderPlacementResult,
+  OrderSummary,
   OtpRequest,
   OtpRequestResponse,
   OtpVerify,
@@ -721,6 +725,231 @@ export function useSearchAddress<TData = Awaited<ReturnType<typeof searchAddress
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getSearchAddressQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPlaceOrderUrl = () => {
+
+
+
+
+  return `/api/orders`
+}
+
+/**
+ * @summary Convert the authenticated customer's cart into restaurant orders
+ */
+export const placeOrder = async (orderPlacementInput: OrderPlacementInput, options?: Parameters<typeof customFetch>[1]): Promise<OrderPlacementResult> => {
+
+  return customFetch<OrderPlacementResult>(getPlaceOrderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(orderPlacementInput)
+  }
+);}
+
+
+
+
+
+export const getPlaceOrderMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof placeOrder>>, TError,{data: BodyType<OrderPlacementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof placeOrder>>, TError,{data: BodyType<OrderPlacementInput>}, TContext> => {
+
+const mutationKey = ['placeOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof placeOrder>>, {data: BodyType<OrderPlacementInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  placeOrder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PlaceOrderMutationResult = NonNullable<Awaited<ReturnType<typeof placeOrder>>>
+    export type PlaceOrderMutationBody = BodyType<OrderPlacementInput>
+    export type PlaceOrderMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Convert the authenticated customer's cart into restaurant orders
+ */
+export const usePlaceOrder = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof placeOrder>>, TError,{data: BodyType<OrderPlacementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof placeOrder>>,
+        TError,
+        {data: BodyType<OrderPlacementInput>},
+        TContext
+      > => {
+      return useMutation(getPlaceOrderMutationOptions(options));
+    }
+
+export const getListCustomerOrdersUrl = () => {
+
+
+
+
+  return `/api/orders`
+}
+
+/**
+ * @summary List the authenticated customer's orders newest first
+ */
+export const listCustomerOrders = async ( options?: Parameters<typeof customFetch>[1]): Promise<OrderSummary[]> => {
+
+  return customFetch<OrderSummary[]>(getListCustomerOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomerOrdersQueryKey = () => {
+    return [
+    `/api/orders`
+    ] as const;
+    }
+
+
+export const getListCustomerOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listCustomerOrders>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomerOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomerOrdersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomerOrders>>> = ({ signal }) => listCustomerOrders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomerOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomerOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomerOrders>>>
+export type ListCustomerOrdersQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List the authenticated customer's orders newest first
+ */
+
+export function useListCustomerOrders<TData = Awaited<ReturnType<typeof listCustomerOrders>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomerOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomerOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomerOrderUrl = (id: number,) => {
+
+
+
+
+  return `/api/orders/${id}`
+}
+
+/**
+ * @summary Get an authenticated customer's order detail
+ */
+export const getCustomerOrder = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<OrderDetail> => {
+
+  return customFetch<OrderDetail>(getGetCustomerOrderUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerOrderQueryKey = (id: number,) => {
+    return [
+    `/api/orders/${id}`
+    ] as const;
+    }
+
+
+export const getGetCustomerOrderQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerOrder>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerOrderQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerOrder>>> = ({ signal }) => getCustomerOrder(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerOrder>>>
+export type GetCustomerOrderQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get an authenticated customer's order detail
+ */
+
+export function useGetCustomerOrder<TData = Awaited<ReturnType<typeof getCustomerOrder>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerOrderQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

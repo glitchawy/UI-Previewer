@@ -172,18 +172,17 @@ function AppCart() {
       {cart.itemCount > 0 && !isLoading && (
         <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 z-20 mx-auto w-full max-w-[480px] px-4 sm:bottom-[5rem] animate-[tb-fade-up_0.5s_ease-out]">
           <div className="overflow-hidden rounded-[20px] shadow-lift border border-outline-variant/50 bg-surface-container-lowest/95 backdrop-blur-md p-3">
-            <Button className="w-full h-14 justify-between shadow-md text-lg opacity-75" disabled>
+            <Link to="/app/checkout" className="block">
+              <Button className="w-full h-14 justify-between shadow-md text-lg">
                 <span className="flex items-center gap-2">
                   <Icon name="shopping_cart_checkout" className="text-[22px]" />
-                  <span className="flex flex-col items-start">
-                    <span className="font-label-lg text-[17px]">متابعة لإتمام الطلب</span>
-                    <span className="text-[10px] font-normal">سيتم تفعيلها مع خدمة الطلبات</span>
-                  </span>
+                  <span className="font-label-lg text-[17px]">متابعة لإتمام الطلب</span>
                 </span>
                 <span className="font-headline-md text-[18px] bg-white/20 px-3 py-1 rounded-md">
                   {EGP(cart.total)}
                 </span>
               </Button>
+            </Link>
           </div>
         </div>
       )}

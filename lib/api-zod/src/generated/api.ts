@@ -153,6 +153,91 @@ export const SearchAddressResponse = zod.array(SearchAddressResponseItem)
 
 
 /**
+ * @summary Convert the authenticated customer's cart into restaurant orders
+ */
+export const placeOrderBodyNotesMax = 1000;
+
+
+
+export const PlaceOrderBody = zod.object({
+  "notes": zod.string().max(placeOrderBodyNotesMax).optional()
+})
+
+
+
+
+export const PlaceOrderResponse = zod.object({
+  "orders": zod.array(zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "restaurantName": zod.string(),
+  "total": zod.number(),
+  "estimateMinutes": zod.string()
+})).min(1)
+})
+
+
+/**
+ * @summary List the authenticated customer's orders newest first
+ */
+export const ListCustomerOrdersResponseItem = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "restaurantName": zod.string(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'refunded']),
+  "subtotal": zod.number(),
+  "deliveryFee": zod.number(),
+  "total": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCustomerOrdersResponse = zod.array(ListCustomerOrdersResponseItem)
+
+
+/**
+ * @summary Get an authenticated customer's order detail
+ */
+export const GetCustomerOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerOrderResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "restaurantName": zod.string(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'refunded']),
+  "subtotal": zod.number(),
+  "deliveryFee": zod.number(),
+  "total": zod.number(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "deliveryAddressText": zod.string(),
+  "notes": zod.string().nullable(),
+  "timeline": zod.array(zod.object({
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "at": zod.coerce.date(),
+  "label": zod.string()
+})),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "name": zod.string(),
+  "variantName": zod.string().nullish(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "lineTotal": zod.number(),
+  "addons": zod.array(zod.object({
+  "name": zod.string(),
+  "price": zod.number()
+}))
+}))
+}))
+
+
+/**
  * @summary Submit restaurant onboarding application
  */
 

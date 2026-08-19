@@ -13,7 +13,7 @@ import {
 
 const router = Router();
 
-async function getCustomer(req: Request) {
+export async function getCustomer(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.sessionToken, auth.slice(7))).limit(1);
@@ -131,7 +131,9 @@ router.post("/cart/items", async (req, res: Response): Promise<void> => {
     res.status(400).json({ error: "اختيار الحجم مطلوب" }); return;
   }
   const variant = selectedVariantId === null ? null : productVariants.find((row) => row.id === selectedVariantId);
-  if (selectedVariantId !== null && !variant) { res.status(400).json({ error: "اختيار الحجم غير صحيح" }); return; }
+  if (selectedVariantId !== null && (!variant || !variant.isAvailable)) {
+    res.status(400).json({ error: "الحجم المختار غير متاح لهذا المنتج" }); return;
+  }
   const selectedAddons = normalizedAddonIds.length
     ? await db.select().from(productAddonsTable).where(and(
         eq(productAddonsTable.productId, id),

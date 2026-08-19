@@ -234,6 +234,98 @@ export interface AddressSearchResult {
   placeId?: string | null;
 }
 
+export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
+
+
+export const OrderStatus = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  preparing: 'preparing',
+  ready: 'ready',
+  picked_up: 'picked_up',
+  delivered: 'delivered',
+  cancelled: 'cancelled',
+} as const;
+
+export type PaymentMethod = typeof PaymentMethod[keyof typeof PaymentMethod];
+
+
+export const PaymentMethod = {
+  cash: 'cash',
+  card: 'card',
+} as const;
+
+export type PaymentStatus = typeof PaymentStatus[keyof typeof PaymentStatus];
+
+
+export const PaymentStatus = {
+  pending: 'pending',
+  paid: 'paid',
+  refunded: 'refunded',
+} as const;
+
+export interface OrderPlacementInput {
+  /** @maxLength 1000 */
+  notes?: string;
+}
+
+export interface PlacedOrder {
+  id: number;
+  code: string;
+  restaurantName: string;
+  total: number;
+  estimateMinutes: string;
+}
+
+export interface OrderPlacementResult {
+  /** @minItems 1 */
+  orders: PlacedOrder[];
+}
+
+export interface OrderSummary {
+  id: number;
+  code: string;
+  restaurantName: string;
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  createdAt: string;
+}
+
+export interface OrderAddon {
+  name: string;
+  price: number;
+}
+
+export interface OrderLine {
+  id: number;
+  productId: number;
+  name: string;
+  /** @nullable */
+  variantName?: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  addons: OrderAddon[];
+}
+
+export interface OrderTimelineEntry {
+  status: OrderStatus;
+  at: string;
+  label: string;
+}
+
+export type OrderDetail = OrderSummary & ({
+  deliveryAddressText: string;
+  /** @nullable */
+  notes: string | null;
+  timeline: OrderTimelineEntry[];
+  items: OrderLine[];
+});
+
 export interface ErrorResponse {
   error: string;
 }

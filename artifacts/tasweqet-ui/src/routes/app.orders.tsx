@@ -1,92 +1,70 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppBar, MobileShell, Icon, Card, StatusBadge, EmptyState } from "@/components/tb/shell";
-import { orders, stateLabels, EGP } from "@/lib/tb/data";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useListCustomerOrders } from "@workspace/api-client-react";
+import { AppBar, MobileShell, Icon, Card, Badge, EmptyState } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
+import { currentOrderStatuses, EGP, formatOrderDate, orderStatusLabels, orderStatusTones } from "@/lib/tb/orders";
 
 export const Route = createFileRoute("/app/orders")({
   head: () => ({
     meta: [
       { title: "طلبات بيتك | طلباتي" },
       { name: "description", content: "تابع طلباتك الحالية والسابقة والملغية" },
-      { property: "og:title", content: "طلبات بيتك | طلباتي" },
-      { property: "og:description", content: "تابع طلباتك الحالية والسابقة والملغية" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: AppOrders,
+  component: OrdersRoute,
 });
 
 const tabs = [
   { id: "current", label: "الحالية" },
   { id: "past", label: "السابقة" },
   { id: "cancelled", label: "الملغية" },
-];
+] as const;
+
+function OrdersRoute() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname === "/app/orders" ? <AppOrders /> : <Outlet />;
+}
 
 function AppOrders() {
-  const [tab, setTab] = useState("current");
-  const filtered = orders.filter((o) => {
-    if (tab === "cancelled") return o["status"] === "CANCELLED";
-    if (tab === "past") return o["status"] === "DELIVERED";
-    return o["status"] !== "CANCELLED" && o["status"] !== "DELIVERED";
+  const [tab, setTab] = useState<(typeof tabs)[number]["id"]>("current");
+  const ordersQuery = useListCustomerOrders();
+  const filtered = (ordersQuery.data ?? []).filter((order) => {
+    if (tab === "cancelled") return order.status === "cancelled";
+    if (tab === "past") return order.status === "delivered";
+    return currentOrderStatuses.has(order.status);
   });
 
   return (
     <MobileShell tabs={customerTabs}>
-      <AppBar title="طلباتي" back="/app" />
+      <AppBar title="طلباتي" back="/app" subtitle={`${(ordersQuery.data?.length ?? 0).toLocaleString("ar-EG")} طلب`} />
       <div className="flex flex-col gap-lg p-md">
-        <div className="flex gap-2">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`rounded-full px-3 py-1.5 font-label-md text-label-md transition ${
-                tab === t.id ? "bg-primary-container text-on-primary-container" : "bg-surface-container-low text-on-surface-variant"
-              }`}
-            >
-              {t.label}
+        <div className="grid grid-cols-3 gap-2 rounded-full bg-surface-container-low p-1">
+          {tabs.map((item) => (
+            <button key={item.id} type="button" onClick={() => setTab(item.id)} data-testid={`tab-orders-${item.id}`}
+              className={`rounded-full px-3 py-2 font-label-md text-label-md transition ${tab === item.id ? "bg-surface-container-lowest text-on-surface shadow-sm" : "text-on-surface-variant"}`}>
+              {item.label}
             </button>
           ))}
         </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState icon="receipt_long" title="مفيش طلبات" body="مفيش طلبات في القسم ده حالياً" />
-        ) : (
+        {ordersQuery.isLoading ? <div className="flex h-48 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[36px] text-primary" /></div> :
+        ordersQuery.isError ? <EmptyState icon="error" title="تعذر تحميل الطلبات" body="حاول مرة أخرى بعد قليل" /> :
+        filtered.length === 0 ? <EmptyState icon="receipt_long" title="مفيش طلبات" body="مفيش طلبات في القسم ده حالياً" /> : (
           <div className="tb-stagger flex flex-col gap-3">
-            {filtered.map((o) => (
-              <Card key={o["id"]} className="p-md">
-                <div className="flex items-center justify-between">
-                  <p className="font-headline-md text-headline-md text-on-surface">{o["code"]}</p>
-                  <StatusBadge status={o["status"]} label={stateLabels[o["status"]]} />
-                </div>
-                <p className="mt-1 font-label-md text-label-md text-on-surface-variant">{o["placedAt"]}</p>
-                <p className="mt-1 truncate font-body-md text-body-md text-on-surface-variant">
-                  {o["subOrders"].map((s) => s["restaurantName"]).join("، ")}
-                </p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="font-label-lg text-label-lg text-on-surface">{EGP(o["total"])}</span>
-                  <div className="flex items-center gap-3">
-                    {o["status"] !== "CANCELLED" && o["status"] !== "DELIVERED" ? (
-                      <Link to="/app/track/$id" params={{ id: o["id"] }} className="flex items-center gap-1 font-label-md text-label-md text-secondary">
-                        <Icon name="location_on" className="text-[16px]" />
-                        تتبع
-                      </Link>
-                    ) : null}
-                    {o["status"] === "DELIVERED" ? (
-                      <Link to="/app/rate/$id" params={{ id: o["id"] }} className="flex items-center gap-1 font-label-md text-label-md text-secondary">
-                        <Icon name="star_rate" className="text-[16px]" />
-                        تقييم
-                      </Link>
-                    ) : null}
-                    <Link to="/app/refund/$id" params={{ id: o["id"] }} className="flex items-center gap-1 font-label-md text-label-md text-secondary">
-                      <Icon name="currency_exchange" className="text-[16px]" />
-                      استرداد
-                    </Link>
+            {filtered.map((order) => (
+              <Link key={order.id} to="/app/orders/$id" params={{ id: String(order.id) }} className="block" data-testid={`link-order-${order.id}`}>
+                <Card className="p-md transition hover:border-secondary">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="font-headline-md text-headline-md text-on-surface">{order.restaurantName}</p><p className="font-label-md text-label-md text-on-surface-variant">{order.code}</p></div>
+                    <Badge tone={orderStatusTones[order.status]}>{orderStatusLabels[order.status]}</Badge>
                   </div>
-                </div>
-              </Card>
+                  <div className="mt-3 flex items-center justify-between border-t border-outline-variant pt-3">
+                    <span className="font-label-md text-label-md text-on-surface-variant">{formatOrderDate(order.createdAt)}</span>
+                    <span className="flex items-center gap-2 font-headline-md text-headline-md text-on-surface">{EGP(order.total)}<Icon name="chevron_left" className="text-outline" /></span>
+                  </div>
+                </Card>
+              </Link>
             ))}
           </div>
         )}
