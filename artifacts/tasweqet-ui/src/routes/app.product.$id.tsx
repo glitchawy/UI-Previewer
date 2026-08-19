@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppBar, MobileShell, Icon, Badge, Button } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
 import { FavButton } from "@/lib/tb/favorites";
+import { ProductOptionsSheet } from "@/components/tb/product-options-sheet";
 
 export const Route = createFileRoute("/app/product/$id")({
   head: () => ({
@@ -31,17 +32,12 @@ function AppProductId() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [variantId, setVariantId] = useState<number | null>(null);
-  const [addonIds, setAddonIds] = useState<number[]>([]);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
 
   useEffect(() => {
     fetch(`/api/products/${id}`)
       .then((r) => { if (!r.ok) throw new Error("المنتج غير موجود"); return r.json(); })
-      .then((p: ProductDetail) => {
-        setProduct(p);
-        const def = p.variants.find((v) => v.isDefault) ?? p.variants[0];
-        setVariantId(def?.id ?? null);
-      })
+      .then((p: ProductDetail) => setProduct(p))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
@@ -64,13 +60,6 @@ function AppProductId() {
       </div>
     </MobileShell>
   );
-
-  const selectedVariant = product.variants.find((v) => v.id === variantId) ?? null;
-  const addonObjs = product.addons.filter((a) => addonIds.includes(a.id));
-  const unitTotal =
-    Number(product.basePrice) +
-    (selectedVariant ? Number(selectedVariant.priceDelta) : 0) +
-    addonObjs.reduce((s, a) => s + Number(a.price), 0);
 
   return (
     <MobileShell tabs={customerTabs}>
@@ -113,19 +102,15 @@ function AppProductId() {
         {product.variants.length > 0 && (
           <section>
             <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">الحجم</h2>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
               {product.variants.map((v) => (
-                <label key={v.id}
-                  className="flex cursor-pointer items-center justify-between rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 has-[:checked]:border-secondary has-[:checked]:bg-secondary-container">
-                  <span className="flex items-center gap-2">
-                    <input type="radio" name="variant" checked={variantId === v.id}
-                      onChange={() => setVariantId(v.id)} className="accent-secondary" />
-                    <span className="font-body-md text-body-md text-on-surface">{v.name}</span>
-                  </span>
+                <div key={v.id}
+                  className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <span className="font-body-md text-body-md text-on-surface">{v.name}</span>
                   <span className="font-label-md text-label-md text-on-surface-variant">
                     {Number(v.priceDelta) > 0 ? `+${EGP(v.priceDelta)}` : "مجاناً"}
                   </span>
-                </label>
+                </div>
               ))}
             </div>
           </section>
@@ -134,20 +119,15 @@ function AppProductId() {
         {product.addons.length > 0 && (
           <section>
             <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">إضافات</h2>
-            <div className="flex flex-col gap-2">
-              {product.addons.map((a) => (
-                <label key={a.id}
-                  className="flex cursor-pointer items-center justify-between rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 has-[:checked]:border-secondary has-[:checked]:bg-secondary-container">
-                  <span className="flex items-center gap-2">
-                    <input type="checkbox" checked={addonIds.includes(a.id)}
-                      onChange={(e) => setAddonIds((prev) => e.target.checked ? [...prev, a.id] : prev.filter((x) => x !== a.id))}
-                      className="accent-secondary" />
-                    <span className="font-body-md text-body-md text-on-surface">{a.name}</span>
-                  </span>
+            <div className="flex flex-wrap gap-2">
+              {product.addons.filter((a) => a.isAvailable).map((a) => (
+                <div key={a.id}
+                  className="flex items-center gap-2 rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-2">
+                  <span className="font-body-md text-body-md text-on-surface">{a.name}</span>
                   {Number(a.price) > 0 && (
                     <span className="font-label-md text-label-md text-on-surface-variant">+{EGP(a.price)}</span>
                   )}
-                </label>
+                </div>
               ))}
             </div>
           </section>
@@ -156,13 +136,11 @@ function AppProductId() {
       </div>
 
       <div className="sticky bottom-0 z-20 border-t border-outline-variant bg-surface-container-lowest/95 p-md backdrop-blur">
-        <Button className="w-full" icon="restaurant" onClick={() => navigate({
-          to: "/app/restaurant/$id",
-          params: { id: String(product.restaurantId) },
-        })}>
-          عرض قائمة {product.restaurant.name}
+        <Button className="w-full justify-between" icon="add_shopping_cart" onClick={() => setCartSheetOpen(true)}>
+          <span>اختار وأضف للسلة</span><span>من {EGP(product.basePrice)}</span>
         </Button>
       </div>
+      <ProductOptionsSheet product={cartSheetOpen ? product : null} onClose={() => setCartSheetOpen(false)} />
     </MobileShell>
   );
 }

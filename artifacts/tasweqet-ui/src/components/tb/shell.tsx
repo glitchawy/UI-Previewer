@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { useCart } from "@/lib/tb/cart";
 
 /* ============================== primitives ============================== */
 
@@ -322,6 +323,7 @@ export function MobileShell({
   fab?: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { cart } = useCart();
   return (
     <div dir="rtl" lang="ar" className="flex min-h-screen justify-center bg-surface-variant/40">
       <div className="tb-fade-up relative flex min-h-screen w-full max-w-full flex-col bg-surface sm:max-w-[480px] sm:shadow-[0_0_60px_rgba(94,60,26,0.12)]">
@@ -344,11 +346,16 @@ export function MobileShell({
                       }`}
                     >
                       <span
-                        className={`flex h-7 w-12 items-center justify-center rounded-full transition ${
+                        className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${
                           active ? "bg-primary-container" : ""
                         }`}
                       >
                         <Icon name={t.icon} className="text-[22px]" filled={active} />
+                        {t.to === "/app/cart" && cart.itemCount > 0 ? (
+                          <span className="absolute -left-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] leading-4 text-white">
+                            {cart.itemCount > 99 ? "99+" : cart.itemCount.toLocaleString("ar-EG")}
+                          </span>
+                        ) : null}
                       </span>
                       <span className="max-w-full truncate px-0.5 font-label-md text-[11px]">{t.label}</span>
                     </Link>

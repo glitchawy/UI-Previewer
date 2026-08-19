@@ -8,6 +8,7 @@ import branchesRouter from "./branches";
 import restaurantRouter from "./restaurant";
 import staffRouter from "./staff";
 import customerRouter from "./customer";
+import cartRouter from "./cart";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(branchesRouter);
 router.use(restaurantRouter);
 router.use(staffRouter);
 router.use(customerRouter);
+router.use(cartRouter);
 
 export default router;

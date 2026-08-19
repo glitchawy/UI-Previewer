@@ -3,6 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { MobileShell, Icon, Badge, Button } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
 import { FavButton } from "@/lib/tb/favorites";
+import { ProductOptionsSheet } from "@/components/tb/product-options-sheet";
+import { useCart } from "@/lib/tb/cart";
 
 export const Route = createFileRoute("/app/restaurant/$id")({
   head: () => ({
@@ -15,21 +17,10 @@ const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minim
 
 type Variant = { id: number; name: string; priceDelta: string; isDefault: boolean };
 type Addon = { id: number; name: string; price: string; isAvailable: boolean };
-type Product = { id: number; categoryId: number | null; name: string; description: string | null; imageUrl: string | null; basePrice: string; isAvailable: boolean; variants: Variant[]; addons: Addon[] };
+type Product = { id: number; restaurantId: number; categoryId: number | null; name: string; description: string | null; imageUrl: string | null; basePrice: string; isAvailable: boolean; variants: Variant[]; addons: Addon[] };
 type Category = { id: number; name: string; isActive: boolean };
 type Restaurant = { id: number; name: string; description: string | null; address: string; category: string | null; deliveryType: string; logoUrl: string | null; coverUrl: string | null; hours: string | null };
 type MenuData = { restaurant: Restaurant; categories: Category[]; products: Product[] };
-
-// ── Cart state (session-scoped, shared via module-level singleton) ─────────────
-// Full cart state lives in app.cart.tsx; here we only track a local session copy
-type CartLine = { productId: number; name: string; variantId: number | null; variantName: string | null; addonIds: number[]; addonNames: string[]; basePrice: number; variantDelta: number; addonTotal: number; qty: number };
-
-function getCart(): CartLine[] {
-  try { return JSON.parse(sessionStorage.getItem("tb_cart") ?? "[]") as CartLine[]; }
-  catch { return []; }
-}
-function saveCart(c: CartLine[]) { sessionStorage.setItem("tb_cart", JSON.stringify(c)); }
-function cartCount() { return getCart().reduce((acc, l) => acc + l.qty, 0); }
 
 function AppRestaurantId() {
   const { id } = Route.useParams();
@@ -38,12 +29,10 @@ function AppRestaurantId() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeCat, setActiveCat] = useState<number | null>(null);
-  const [count, setCount] = useState(cartCount());
+  const { cart } = useCart();
 
   // Product sheet state
   const [sheetProduct, setSheetProduct] = useState<Product | null>(null);
-  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
-  const [selectedAddons, setSelectedAddons] = useState<number[]>([]);
 
   useEffect(() => {
     fetch(`/api/restaurants/${id}/menu`)
@@ -55,37 +44,6 @@ function AppRestaurantId() {
 
   function openSheet(p: Product) {
     setSheetProduct(p);
-    const def = p.variants.find((v) => v.isDefault) ?? p.variants[0] ?? null;
-    setSelectedVariant(def);
-    setSelectedAddons([]);
-  }
-
-  function addToCart() {
-    if (!sheetProduct) return;
-    const p = sheetProduct;
-    const addonObjs = p.addons.filter((a) => selectedAddons.includes(a.id));
-    const addonTotal = addonObjs.reduce((s, a) => s + Number(a.price), 0);
-    const line: CartLine = {
-      productId: p.id,
-      name: p.name,
-      variantId: selectedVariant?.id ?? null,
-      variantName: selectedVariant?.name ?? null,
-      addonIds: addonObjs.map((a) => a.id),
-      addonNames: addonObjs.map((a) => a.name),
-      basePrice: Number(p.basePrice),
-      variantDelta: selectedVariant ? Number(selectedVariant.priceDelta) : 0,
-      addonTotal,
-      qty: 1,
-    };
-    const cart = getCart();
-    const existing = cart.findIndex(
-      (l) => l.productId === p.id && l.variantId === line.variantId && JSON.stringify(l.addonIds.sort()) === JSON.stringify(line.addonIds.sort())
-    );
-    if (existing >= 0) cart[existing].qty += 1;
-    else cart.push(line);
-    saveCart(cart);
-    setCount(cartCount());
-    setSheetProduct(null);
   }
 
   const activeCats = menu?.categories.filter((c) => c.isActive) ?? [];
@@ -203,90 +161,17 @@ function AppRestaurantId() {
       </div>
 
       {/* Cart FAB */}
-      {count > 0 && (
+      {cart.itemCount > 0 && (
         <div className="fixed bottom-20 left-0 right-0 flex justify-center px-md">
           <Link to="/app/cart"
             className="flex items-center gap-2 rounded-button bg-primary px-6 py-3 text-on-primary shadow-lg transition hover:opacity-90">
             <Icon name="shopping_cart" />
-            <span className="font-label-lg text-label-lg">السلة ({count})</span>
+            <span className="font-label-lg text-label-lg">السلة ({cart.itemCount.toLocaleString("ar-EG")})</span>
           </Link>
         </div>
       )}
 
-      {/* Product bottom sheet */}
-      {sheetProduct && (
-        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setSheetProduct(null)}>
-          <div className="absolute inset-0 bg-scrim/40" />
-          <div className="relative w-full rounded-t-[24px] bg-surface p-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            {/* Product details */}
-            <div className="mb-md flex items-start gap-3">
-              {sheetProduct.imageUrl ? (
-                <img src={`/api/storage${sheetProduct.imageUrl}`} alt={sheetProduct.name} className="size-20 rounded-button object-cover" />
-              ) : (
-                <div className="flex size-20 items-center justify-center rounded-button bg-surface-container">
-                  <Icon name="fastfood" className="text-[32px] text-outline" />
-                </div>
-              )}
-              <div className="flex-1">
-                <h2 className="font-headline-md text-headline-md text-on-surface">{sheetProduct.name}</h2>
-                {sheetProduct.description && <p className="mt-1 font-body-md text-body-md text-on-surface-variant">{sheetProduct.description}</p>}
-                <p className="mt-2 font-headline-md text-headline-md text-primary">{EGP(sheetProduct.basePrice)}</p>
-              </div>
-            </div>
-
-            {/* Variants */}
-            {sheetProduct.variants.length > 0 && (
-              <div className="mb-md">
-                <p className="mb-2 font-label-lg text-label-lg text-on-surface">الحجم</p>
-                <div className="flex flex-wrap gap-2">
-                  {sheetProduct.variants.map((v) => (
-                    <button key={v.id} type="button" onClick={() => setSelectedVariant(v)}
-                      className={`rounded-button border px-3 py-1.5 font-label-md text-label-md transition ${selectedVariant?.id === v.id ? "border-primary bg-primary-container text-on-primary-container" : "border-outline-variant text-on-surface"}`}>
-                      {v.name}{Number(v.priceDelta) !== 0 ? ` (+${EGP(v.priceDelta)})` : ""}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Add-ons */}
-            {sheetProduct.addons.filter((a) => a.isAvailable).length > 0 && (
-              <div className="mb-md">
-                <p className="mb-2 font-label-lg text-label-lg text-on-surface">إضافات</p>
-                <div className="flex flex-col gap-2">
-                  {sheetProduct.addons.filter((a) => a.isAvailable).map((a) => (
-                    <label key={a.id} className="flex cursor-pointer items-center justify-between gap-2 rounded-button border border-outline-variant p-3">
-                      <div className="flex items-center gap-2">
-                        <input type="checkbox" checked={selectedAddons.includes(a.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedAddons((prev) => [...prev, a.id]);
-                            else setSelectedAddons((prev) => prev.filter((id) => id !== a.id));
-                          }}
-                          className="size-4 accent-primary" />
-                        <span className="font-label-md text-label-md text-on-surface">{a.name}</span>
-                      </div>
-                      {Number(a.price) > 0 && <span className="font-label-md text-label-md text-secondary">+{EGP(a.price)}</span>}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Total + Add button */}
-            {(() => {
-              const base = Number(sheetProduct.basePrice);
-              const vDelta = selectedVariant ? Number(selectedVariant.priceDelta) : 0;
-              const addonTotal = sheetProduct.addons.filter((a) => selectedAddons.includes(a.id)).reduce((s, a) => s + Number(a.price), 0);
-              const total = base + vDelta + addonTotal;
-              return (
-                <Button className="w-full" icon="add_shopping_cart" onClick={addToCart}>
-                  أضف للسلة — {EGP(total)}
-                </Button>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+      <ProductOptionsSheet product={sheetProduct} onClose={() => setSheetProduct(null)} />
     </MobileShell>
   );
 }
