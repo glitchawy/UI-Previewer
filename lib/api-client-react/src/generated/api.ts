@@ -21,9 +21,13 @@ import type {
 
 import type {
   AddressSearchResult,
+  AdminPaymentRefundClaim,
+  AdminRefundDecisionInput,
+  AdminRefundRequest,
   AuthSession,
   CustomerAddress,
   CustomerAddressInput,
+  CustomerWallet,
   DriverActiveOrder,
   DriverApplication,
   DriverLocation,
@@ -34,10 +38,12 @@ import type {
   DriverOrderStatusUpdate,
   ErrorResponse,
   GeocodeResult,
+  GetCustomerWalletParams,
   HealthStatus,
   LocationSaveResult,
   LocationUpdate,
   OnboardResult,
+  OrderActionResult,
   OrderDetail,
   OrderPlacementInput,
   OrderPlacementResult,
@@ -49,7 +55,10 @@ import type {
   PartnerOrderDetail,
   PartnerOrderStatusUpdate,
   PartnerOrderSummary,
+  PaymentRefundResolutionInput,
   PaymentSession,
+  RefundRequest,
+  RefundRequestInput,
   RestaurantApplication,
   SearchAddressParams,
   UploadFileResponse
@@ -747,6 +756,90 @@ export function useSearchAddress<TData = Awaited<ReturnType<typeof searchAddress
 
 
 
+export const getGetCustomerWalletUrl = (params?: GetCustomerWalletParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customer/wallet?${stringifiedParams}` : `/api/customer/wallet`
+}
+
+/**
+ * @summary Get the authenticated customer's wallet balance and paginated ledger
+ */
+export const getCustomerWallet = async (params?: GetCustomerWalletParams, options?: Parameters<typeof customFetch>[1]): Promise<CustomerWallet> => {
+
+  return customFetch<CustomerWallet>(getGetCustomerWalletUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerWalletQueryKey = (params?: GetCustomerWalletParams,) => {
+    return [
+    `/api/customer/wallet`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCustomerWalletQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerWallet>>, TError = ErrorType<ErrorResponse>>(params?: GetCustomerWalletParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerWallet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerWalletQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerWallet>>> = ({ signal }) => getCustomerWallet(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerWallet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerWalletQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerWallet>>>
+export type GetCustomerWalletQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the authenticated customer's wallet balance and paginated ledger
+ */
+
+export function useGetCustomerWallet<TData = Awaited<ReturnType<typeof getCustomerWallet>>, TError = ErrorType<ErrorResponse>>(
+ params?: GetCustomerWalletParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerWallet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerWalletQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getPlaceOrderUrl = () => {
 
 
@@ -971,6 +1064,149 @@ export function useGetCustomerOrder<TData = Awaited<ReturnType<typeof getCustome
 
 
 
+
+export const getCancelCustomerOrderUrl = (id: number,) => {
+
+
+
+
+  return `/api/orders/${id}/cancel`
+}
+
+/**
+ * @summary Cancel a customer-owned order before preparation starts
+ */
+export const cancelCustomerOrder = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<OrderActionResult> => {
+
+  return customFetch<OrderActionResult>(getCancelCustomerOrderUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelCustomerOrderMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelCustomerOrder>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelCustomerOrder>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cancelCustomerOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelCustomerOrder>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancelCustomerOrder(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelCustomerOrderMutationResult = NonNullable<Awaited<ReturnType<typeof cancelCustomerOrder>>>
+
+    export type CancelCustomerOrderMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Cancel a customer-owned order before preparation starts
+ */
+export const useCancelCustomerOrder = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelCustomerOrder>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelCustomerOrder>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCancelCustomerOrderMutationOptions(options));
+    }
+
+export const getCreateCustomerRefundRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/orders/${id}/refund`
+}
+
+/**
+ * @summary Submit a full-order wallet refund request for admin review
+ */
+export const createCustomerRefundRequest = async (id: number,
+    refundRequestInput: RefundRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<RefundRequest> => {
+
+  return customFetch<RefundRequest>(getCreateCustomerRefundRequestUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(refundRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCustomerRefundRequestMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomerRefundRequest>>, TError,{id: number;data: BodyType<RefundRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomerRefundRequest>>, TError,{id: number;data: BodyType<RefundRequestInput>}, TContext> => {
+
+const mutationKey = ['createCustomerRefundRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomerRefundRequest>>, {id: number;data: BodyType<RefundRequestInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createCustomerRefundRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomerRefundRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomerRefundRequest>>>
+    export type CreateCustomerRefundRequestMutationBody = BodyType<RefundRequestInput>
+    export type CreateCustomerRefundRequestMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Submit a full-order wallet refund request for admin review
+ */
+export const useCreateCustomerRefundRequest = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomerRefundRequest>>, TError,{id: number;data: BodyType<RefundRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomerRefundRequest>>,
+        TError,
+        {id: number;data: BodyType<RefundRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomerRefundRequestMutationOptions(options));
+    }
 
 export const getGetOrderDriverLocationUrl = (id: number,) => {
 
@@ -2089,4 +2325,374 @@ export function useListDriverApplications<TData = Awaited<ReturnType<typeof list
 
 
 
+
+export const getListAdminRefundsUrl = () => {
+
+
+
+
+  return `/api/admin/refunds`
+}
+
+/**
+ * @summary List customer wallet refund requests
+ */
+export const listAdminRefunds = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminRefundRequest[]> => {
+
+  return customFetch<AdminRefundRequest[]>(getListAdminRefundsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminRefundsQueryKey = () => {
+    return [
+    `/api/admin/refunds`
+    ] as const;
+    }
+
+
+export const getListAdminRefundsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminRefunds>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminRefundsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminRefunds>>> = ({ signal }) => listAdminRefunds({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminRefunds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminRefundsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminRefunds>>>
+export type ListAdminRefundsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List customer wallet refund requests
+ */
+
+export function useListAdminRefunds<TData = Awaited<ReturnType<typeof listAdminRefunds>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminRefundsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveAdminRefundUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/refunds/${id}/approve`
+}
+
+/**
+ * @summary Approve a pending request and credit the customer's wallet
+ */
+export const approveAdminRefund = async (id: number,
+    adminRefundDecisionInput?: AdminRefundDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminRefundRequest> => {
+
+  return customFetch<AdminRefundRequest>(getApproveAdminRefundUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminRefundDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getApproveAdminRefundMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data?: BodyType<AdminRefundDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data?: BodyType<AdminRefundDecisionInput>}, TContext> => {
+
+const mutationKey = ['approveAdminRefund'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAdminRefund>>, {id: number;data?: BodyType<AdminRefundDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveAdminRefund(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveAdminRefundMutationResult = NonNullable<Awaited<ReturnType<typeof approveAdminRefund>>>
+    export type ApproveAdminRefundMutationBody = BodyType<AdminRefundDecisionInput> | undefined
+    export type ApproveAdminRefundMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Approve a pending request and credit the customer's wallet
+ */
+export const useApproveAdminRefund = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data?: BodyType<AdminRefundDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveAdminRefund>>,
+        TError,
+        {id: number;data?: BodyType<AdminRefundDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getApproveAdminRefundMutationOptions(options));
+    }
+
+export const getRejectAdminRefundUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/refunds/${id}/reject`
+}
+
+/**
+ * @summary Reject a pending wallet refund request
+ */
+export const rejectAdminRefund = async (id: number,
+    adminRefundDecisionInput: AdminRefundDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminRefundRequest> => {
+
+  return customFetch<AdminRefundRequest>(getRejectAdminRefundUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminRefundDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getRejectAdminRefundMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectAdminRefund>>, TError,{id: number;data: BodyType<AdminRefundDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectAdminRefund>>, TError,{id: number;data: BodyType<AdminRefundDecisionInput>}, TContext> => {
+
+const mutationKey = ['rejectAdminRefund'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectAdminRefund>>, {id: number;data: BodyType<AdminRefundDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectAdminRefund(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectAdminRefundMutationResult = NonNullable<Awaited<ReturnType<typeof rejectAdminRefund>>>
+    export type RejectAdminRefundMutationBody = BodyType<AdminRefundDecisionInput>
+    export type RejectAdminRefundMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reject a pending wallet refund request
+ */
+export const useRejectAdminRefund = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectAdminRefund>>, TError,{id: number;data: BodyType<AdminRefundDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectAdminRefund>>,
+        TError,
+        {id: number;data: BodyType<AdminRefundDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getRejectAdminRefundMutationOptions(options));
+    }
+
+export const getListAdminPaymentRefundsUrl = () => {
+
+
+
+
+  return `/api/admin/payment-refunds`
+}
+
+/**
+ * @summary List ambiguous Paymob cancellation refunds requiring manual reconciliation
+ */
+export const listAdminPaymentRefunds = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminPaymentRefundClaim[]> => {
+
+  return customFetch<AdminPaymentRefundClaim[]>(getListAdminPaymentRefundsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminPaymentRefundsQueryKey = () => {
+    return [
+    `/api/admin/payment-refunds`
+    ] as const;
+    }
+
+
+export const getListAdminPaymentRefundsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPaymentRefunds>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminPaymentRefundsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminPaymentRefunds>>> = ({ signal }) => listAdminPaymentRefunds({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentRefunds>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminPaymentRefundsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminPaymentRefunds>>>
+export type ListAdminPaymentRefundsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List ambiguous Paymob cancellation refunds requiring manual reconciliation
+ */
+
+export function useListAdminPaymentRefunds<TData = Awaited<ReturnType<typeof listAdminPaymentRefunds>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentRefunds>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminPaymentRefundsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getResolveAdminPaymentRefundUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/payment-refunds/${id}/resolve`
+}
+
+/**
+ * @summary Record a manually verified Paymob outcome without issuing another refund
+ */
+export const resolveAdminPaymentRefund = async (id: number,
+    paymentRefundResolutionInput: PaymentRefundResolutionInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminPaymentRefundClaim> => {
+
+  return customFetch<AdminPaymentRefundClaim>(getResolveAdminPaymentRefundUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(paymentRefundResolutionInput)
+  }
+);}
+
+
+
+
+
+export const getResolveAdminPaymentRefundMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveAdminPaymentRefund>>, TError,{id: number;data: BodyType<PaymentRefundResolutionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveAdminPaymentRefund>>, TError,{id: number;data: BodyType<PaymentRefundResolutionInput>}, TContext> => {
+
+const mutationKey = ['resolveAdminPaymentRefund'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveAdminPaymentRefund>>, {id: number;data: BodyType<PaymentRefundResolutionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  resolveAdminPaymentRefund(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveAdminPaymentRefundMutationResult = NonNullable<Awaited<ReturnType<typeof resolveAdminPaymentRefund>>>
+    export type ResolveAdminPaymentRefundMutationBody = BodyType<PaymentRefundResolutionInput>
+    export type ResolveAdminPaymentRefundMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Record a manually verified Paymob outcome without issuing another refund
+ */
+export const useResolveAdminPaymentRefund = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveAdminPaymentRefund>>, TError,{id: number;data: BodyType<PaymentRefundResolutionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveAdminPaymentRefund>>,
+        TError,
+        {id: number;data: BodyType<PaymentRefundResolutionInput>},
+        TContext
+      > => {
+      return useMutation(getResolveAdminPaymentRefundMutationOptions(options));
+    }
 

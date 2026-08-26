@@ -1,6 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { getGetCustomerOrderQueryKey, useGetCustomerOrder } from "@workspace/api-client-react";
-import { AppBar, MobileShell, Icon, Card, Badge, EmptyState } from "@/components/tb/shell";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getGetCustomerOrderQueryKey,
+  getGetCustomerWalletQueryKey,
+  getListCustomerOrdersQueryKey,
+  useCancelCustomerOrder,
+  useGetCustomerOrder,
+} from "@workspace/api-client-react";
+import { AppBar, MobileShell, Icon, Card, Badge, Button, EmptyState } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP, formatOrderDate, orderStatusLabels, orderStatusTones, paymentStatusLabels, paymentStatusTones } from "@/lib/tb/orders";
 
@@ -18,9 +25,26 @@ function AppOrderDetail() {
   const { id: rawId } = Route.useParams();
   const parsedId = Number(rawId);
   const id = Number.isInteger(parsedId) ? parsedId : 0;
+  const queryClient = useQueryClient();
   const orderQuery = useGetCustomerOrder(id, {
     query: { enabled: id > 0, queryKey: getGetCustomerOrderQueryKey(id) },
   });
+  const cancelOrder = useCancelCustomerOrder({
+    mutation: {
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getGetCustomerOrderQueryKey(id) }),
+          queryClient.invalidateQueries({ queryKey: getListCustomerOrdersQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetCustomerWalletQueryKey() }),
+        ]);
+      },
+    },
+  });
+
+  function handleCancel() {
+    if (!window.confirm("متأكد إنك عايز تلغي الطلب؟ لو الدفع أونلاين هنبدأ استرداد المبلغ تلقائياً.")) return;
+    cancelOrder.mutate({ id });
+  }
 
   return (
     <MobileShell tabs={customerTabs}>
@@ -63,6 +87,8 @@ function AppOrderDetail() {
           <Card className="space-y-2 p-md">
             <div className="flex justify-between text-on-surface-variant"><span>الإجمالي الفرعي</span><span>{EGP(orderQuery.data.subtotal)}</span></div>
             <div className="flex justify-between text-on-surface-variant"><span>رسوم التوصيل</span><span>{EGP(orderQuery.data.deliveryFee)}</span></div>
+            {orderQuery.data.walletAmountUsed > 0 ? <div className="flex justify-between text-success"><span>مدفوع من المحفظة</span><span>− {EGP(orderQuery.data.walletAmountUsed)}</span></div> : null}
+            <div className="flex justify-between text-on-surface-variant"><span>المبلغ خارج المحفظة</span><span>{EGP(orderQuery.data.externalAmountDue)}</span></div>
             <div className="flex justify-between border-t border-outline-variant pt-2 font-headline-md text-headline-md"><span>الإجمالي</span><span>{EGP(orderQuery.data.total)}</span></div>
           </Card>
 
@@ -71,6 +97,33 @@ function AppOrderDetail() {
             <div className="flex gap-3"><Icon name="payments" className="text-secondary" /><div><p className="font-label-lg text-label-lg">طريقة الدفع</p><p className="font-body-md text-body-md text-on-surface-variant">{orderQuery.data.paymentMethod === "card" ? "بطاقة / أونلاين" : "كاش عند الاستلام"}</p><Badge tone={paymentStatusTones[orderQuery.data.paymentStatus]} className="mt-1">{paymentStatusLabels[orderQuery.data.paymentStatus]}</Badge></div></div>
             {orderQuery.data.notes ? <div className="flex gap-3"><Icon name="notes" className="text-secondary" /><div><p className="font-label-lg text-label-lg">ملاحظات</p><p className="font-body-md text-body-md text-on-surface-variant">{orderQuery.data.notes}</p></div></div> : null}
           </Card>
+
+          {orderQuery.data.canCancel ? (
+            <Card className="space-y-3 border-error/30 p-md">
+              <div><p className="font-label-lg text-label-lg">محتاج تلغي الطلب؟</p><p className="font-label-md text-label-md text-on-surface-variant">الإلغاء متاح قبل ما المطعم يبدأ التحضير.</p></div>
+              <Button variant="danger" className="w-full" icon="cancel" disabled={cancelOrder.isPending} onClick={handleCancel}>
+                {cancelOrder.isPending ? "جاري الإلغاء…" : "إلغاء الطلب"}
+              </Button>
+              {cancelOrder.isError ? <p className="text-label-md text-error">{(cancelOrder.error as { data?: { error?: string } })?.data?.error || "تعذر إلغاء الطلب"}</p> : null}
+            </Card>
+          ) : ["preparing", "ready", "picked_up"].includes(orderQuery.data.status) ? (
+            <Card className="flex items-center gap-2 bg-surface-container p-3 text-on-surface-variant">
+              <Icon name="lock" /><span className="font-label-md text-label-md">لا يمكن إلغاء الطلب بعد بدء التحضير.</span>
+            </Card>
+          ) : null}
+
+          {orderQuery.data.canRequestRefund ? (
+            <Link to="/app/refund/$id" params={{ id: String(orderQuery.data.id) }}>
+              <Button variant="outline" className="w-full" icon="currency_exchange">طلب استرداد للمحفظة</Button>
+            </Link>
+          ) : orderQuery.data.refundRequestStatus ? (
+            <Card className="flex items-center justify-between p-md">
+              <span className="font-label-lg text-label-lg">طلب الاسترداد</span>
+              <Badge tone={orderQuery.data.refundRequestStatus === "approved" ? "success" : orderQuery.data.refundRequestStatus === "rejected" || orderQuery.data.refundRequestStatus === "failed" ? "danger" : "warn"}>
+                {orderQuery.data.refundRequestStatus === "approved" ? "تمت الموافقة" : orderQuery.data.refundRequestStatus === "rejected" ? "مرفوض" : orderQuery.data.refundRequestStatus === "failed" ? "يحتاج مراجعة" : "بانتظار المراجعة"}
+              </Badge>
+            </Card>
+          ) : null}
         </div>
       )}
     </MobileShell>

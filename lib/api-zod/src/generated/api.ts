@@ -153,15 +153,52 @@ export const SearchAddressResponse = zod.array(SearchAddressResponseItem)
 
 
 /**
+ * @summary Get the authenticated customer's wallet balance and paginated ledger
+ */
+export const getCustomerWalletQueryPageDefault = 1;
+
+export const getCustomerWalletQueryPageSizeDefault = 20;
+export const getCustomerWalletQueryPageSizeMax = 50;
+
+
+
+export const GetCustomerWalletQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(getCustomerWalletQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(getCustomerWalletQueryPageSizeMax).default(getCustomerWalletQueryPageSizeDefault)
+})
+
+export const GetCustomerWalletResponse = zod.object({
+  "balance": zod.number(),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "transactions": zod.array(zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['credit', 'debit']),
+  "amount": zod.number(),
+  "description": zod.string(),
+  "referenceType": zod.enum(['refund', 'order_payment', 'admin_adjustment']),
+  "referenceId": zod.number(),
+  "balanceAfter": zod.number(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Convert the authenticated customer's cart into restaurant orders
  */
 export const placeOrderBodyNotesMax = 1000;
+
+export const placeOrderBodyUseWalletAmountMin = 0;
+export const placeOrderBodyUseWalletAmountMultipleOf = 0.01;
 
 
 
 export const PlaceOrderBody = zod.object({
   "paymentMethod": zod.enum(['cash', 'card']).optional(),
-  "notes": zod.string().max(placeOrderBodyNotesMax).optional()
+  "notes": zod.string().max(placeOrderBodyNotesMax).optional(),
+  "useWalletAmount": zod.number().min(placeOrderBodyUseWalletAmountMin).multipleOf(placeOrderBodyUseWalletAmountMultipleOf).optional()
 })
 
 
@@ -173,6 +210,8 @@ export const PlaceOrderResponse = zod.object({
   "code": zod.string(),
   "restaurantName": zod.string(),
   "total": zod.number(),
+  "walletAmountUsed": zod.number(),
+  "externalAmountDue": zod.number(),
   "estimateMinutes": zod.string()
 })).min(1),
   "paymentSessionId": zod.number().nullish().describe('Present when the checkout uses Paymob'),
@@ -226,6 +265,11 @@ export const GetCustomerOrderResponse = zod.object({
   "driverLng": zod.number().nullable(),
   "driverLocationUpdatedAt": zod.coerce.date().nullable(),
   "notes": zod.string().nullable(),
+  "walletAmountUsed": zod.number(),
+  "externalAmountDue": zod.number(),
+  "canCancel": zod.boolean(),
+  "canRequestRefund": zod.boolean(),
+  "refundRequestStatus": zod.union([zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),zod.null()]),
   "timeline": zod.array(zod.object({
   "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
   "at": zod.coerce.date(),
@@ -245,6 +289,47 @@ export const GetCustomerOrderResponse = zod.object({
 }))
 }))
 }))
+
+
+/**
+ * @summary Cancel a customer-owned order before preparation starts
+ */
+export const CancelCustomerOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CancelCustomerOrderResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
+  "paymentStatus": zod.enum(['pending', 'paid', 'failed', 'refunded']),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Submit a full-order wallet refund request for admin review
+ */
+export const CreateCustomerRefundRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createCustomerRefundRequestBodyReasonMin = 3;
+export const createCustomerRefundRequestBodyReasonMax = 1000;
+
+
+
+export const CreateCustomerRefundRequestBody = zod.object({
+  "reason": zod.string().min(createCustomerRefundRequestBodyReasonMin).max(createCustomerRefundRequestBodyReasonMax)
+})
+
+export const CreateCustomerRefundRequestResponse = zod.object({
+  "id": zod.number(),
+  "orderId": zod.number(),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
+  "createdAt": zod.coerce.date()
+})
 
 
 /**
@@ -573,5 +658,129 @@ export const ListDriverApplicationsResponseItem = zod.object({
   "createdAt": zod.string().optional()
 })
 export const ListDriverApplicationsResponse = zod.array(ListDriverApplicationsResponseItem)
+
+
+/**
+ * @summary List customer wallet refund requests
+ */
+export const ListAdminRefundsResponseItem = zod.object({
+  "id": zod.number(),
+  "orderId": zod.number(),
+  "orderCode": zod.string(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string(),
+  "restaurantName": zod.string(),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
+  "resolutionNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAdminRefundsResponse = zod.array(ListAdminRefundsResponseItem)
+
+
+/**
+ * @summary Approve a pending request and credit the customer's wallet
+ */
+export const ApproveAdminRefundParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const approveAdminRefundBodyNoteMax = 1000;
+
+
+
+export const ApproveAdminRefundBody = zod.object({
+  "note": zod.string().max(approveAdminRefundBodyNoteMax).optional()
+})
+
+export const ApproveAdminRefundResponse = zod.object({
+  "id": zod.number(),
+  "orderId": zod.number(),
+  "orderCode": zod.string(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string(),
+  "restaurantName": zod.string(),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
+  "resolutionNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a pending wallet refund request
+ */
+export const RejectAdminRefundParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const rejectAdminRefundBodyNoteMax = 1000;
+
+
+
+export const RejectAdminRefundBody = zod.object({
+  "note": zod.string().max(rejectAdminRefundBodyNoteMax).optional()
+})
+
+export const RejectAdminRefundResponse = zod.object({
+  "id": zod.number(),
+  "orderId": zod.number(),
+  "orderCode": zod.string(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string(),
+  "restaurantName": zod.string(),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
+  "resolutionNote": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List ambiguous Paymob cancellation refunds requiring manual reconciliation
+ */
+export const ListAdminPaymentRefundsResponseItem = zod.object({
+  "id": zod.number(),
+  "orderId": zod.number(),
+  "orderCode": zod.string(),
+  "customerPhone": zod.string(),
+  "amount": zod.number(),
+  "transactionId": zod.string(),
+  "status": zod.enum(['processing', 'succeeded', 'ambiguous', 'failed']),
+  "createdAt": zod.coerce.date()
+})
+export const ListAdminPaymentRefundsResponse = zod.array(ListAdminPaymentRefundsResponseItem)
+
+
+/**
+ * @summary Record a manually verified Paymob outcome without issuing another refund
+ */
+export const ResolveAdminPaymentRefundParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const resolveAdminPaymentRefundBodyNoteMin = 3;
+export const resolveAdminPaymentRefundBodyNoteMax = 1000;
+
+
+
+export const ResolveAdminPaymentRefundBody = zod.object({
+  "outcome": zod.enum(['refunded', 'not_refunded']),
+  "note": zod.string().min(resolveAdminPaymentRefundBodyNoteMin).max(resolveAdminPaymentRefundBodyNoteMax)
+})
+
+export const ResolveAdminPaymentRefundResponse = zod.object({
+  "id": zod.number(),
+  "orderId": zod.number(),
+  "orderCode": zod.string(),
+  "customerPhone": zod.string(),
+  "amount": zod.number(),
+  "transactionId": zod.string(),
+  "status": zod.enum(['processing', 'succeeded', 'ambiguous', 'failed']),
+  "createdAt": zod.coerce.date()
+})
 
 

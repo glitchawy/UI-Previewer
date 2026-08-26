@@ -12,6 +12,8 @@ import cartRouter from "./cart";
 import ordersRouter from "./orders";
 import paymentsRouter from "./payments";
 import driverOrdersRouter from "./driver-orders";
+import customerWalletRouter from "./customer-wallet";
+import adminRefundsRouter from "./admin-refunds";
 
 const router: IRouter = Router();
 
@@ -28,5 +30,7 @@ router.use(cartRouter);
 router.use(ordersRouter);
 router.use(paymentsRouter);
 router.use(driverOrdersRouter);
+router.use(customerWalletRouter);
+router.use(adminRefundsRouter);
 
 export default router;

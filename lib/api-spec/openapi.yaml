@@ -264,6 +264,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /customer/wallet:
+    get:
+      operationId: getCustomerWallet
+      tags: [orders]
+      summary: Get the authenticated customer's wallet balance and paginated ledger
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Wallet balance and ledger
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerWallet"
+        "400":
+          description: Invalid pagination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orders:
     post:
       operationId: placeOrder
@@ -370,6 +411,108 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{id}/cancel:
+    post:
+      operationId: cancelCustomerOrder
+      tags: [orders]
+      summary: Cancel a customer-owned order before preparation starts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderActionResult"
+        "202":
+          description: Provider refund outcome requires reconciliation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderActionResult"
+        "400":
+          description: Invalid order or cancellation is no longer allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Payment provider rejected the refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{id}/refund:
+    post:
+      operationId: createCustomerRefundRequest
+      tags: [orders]
+      summary: Submit a full-order wallet refund request for admin review
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRequestInput"
+      responses:
+        "201":
+          description: Refund request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundRequest"
+        "400":
+          description: Order is not eligible or reason is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A refund request already exists
           content:
             application/json:
               schema:
@@ -935,6 +1078,216 @@ paths:
                 items:
                   $ref: "#/components/schemas/DriverApplication"
 
+  /admin/refunds:
+    get:
+      operationId: listAdminRefunds
+      tags: [admin]
+      summary: List customer wallet refund requests
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Refund requests newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminRefundRequest"
+        "401":
+          description: Admin authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/refunds/{id}/approve:
+    post:
+      operationId: approveAdminRefund
+      tags: [admin]
+      summary: Approve a pending request and credit the customer's wallet
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRefundDecisionInput"
+      responses:
+        "200":
+          description: Refund approved idempotently
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRefundRequest"
+        "400":
+          description: Invalid request or state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Refund request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/refunds/{id}/reject:
+    post:
+      operationId: rejectAdminRefund
+      tags: [admin]
+      summary: Reject a pending wallet refund request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRefundDecisionInput"
+      responses:
+        "200":
+          description: Refund rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRefundRequest"
+        "400":
+          description: Invalid request or state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Refund request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/payment-refunds:
+    get:
+      operationId: listAdminPaymentRefunds
+      tags: [admin]
+      summary: List ambiguous Paymob cancellation refunds requiring manual reconciliation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ambiguous provider refund claims
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminPaymentRefundClaim"
+        "401":
+          description: Admin authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/payment-refunds/{id}/resolve:
+    post:
+      operationId: resolveAdminPaymentRefund
+      tags: [admin]
+      summary: Record a manually verified Paymob outcome without issuing another refund
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRefundResolutionInput"
+      responses:
+        "200":
+          description: Claim resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPaymentRefundClaim"
+        "400":
+          description: Invalid outcome or claim state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Admin authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Claim not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1258,10 +1611,14 @@ components:
         notes:
           type: string
           maxLength: 1000
+        useWalletAmount:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
 
     PlacedOrder:
       type: object
-      required: [id, code, restaurantName, total, estimateMinutes]
+      required: [id, code, restaurantName, total, walletAmountUsed, externalAmountDue, estimateMinutes]
       properties:
         id:
           type: number
@@ -1270,6 +1627,10 @@ components:
         restaurantName:
           type: string
         total:
+          type: number
+        walletAmountUsed:
+          type: number
+        externalAmountDue:
           type: number
         estimateMinutes:
           type: string
@@ -1378,7 +1739,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/OrderSummary"
         - type: object
-          required: [deliveryAddressText, deliveryLat, deliveryLng, notes, timeline, items, driverName, driverPhone, driverLat, driverLng, driverLocationUpdatedAt]
+          required: [deliveryAddressText, deliveryLat, deliveryLng, notes, timeline, items, driverName, driverPhone, driverLat, driverLng, driverLocationUpdatedAt, walletAmountUsed, externalAmountDue, canCancel, canRequestRefund, refundRequestStatus]
           properties:
             deliveryAddressText:
               type: string
@@ -1399,6 +1760,18 @@ components:
               format: date-time
             notes:
               type: ["string", "null"]
+            walletAmountUsed:
+              type: number
+            externalAmountDue:
+              type: number
+            canCancel:
+              type: boolean
+            canRequestRefund:
+              type: boolean
+            refundRequestStatus:
+              oneOf:
+                - $ref: "#/components/schemas/RefundRequestStatus"
+                - type: "null"
             timeline:
               type: array
               items:
@@ -1407,6 +1780,161 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/OrderLine"
+
+    OrderActionResult:
+      type: object
+      required: [id, status, paymentStatus, message]
+      properties:
+        id:
+          type: number
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        paymentStatus:
+          $ref: "#/components/schemas/PaymentStatus"
+        message:
+          type: string
+
+    RefundRequestStatus:
+      type: string
+      enum: [pending, processing, approved, rejected, failed]
+
+    RefundRequestInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 1000
+
+    RefundRequest:
+      type: object
+      required: [id, orderId, amount, reason, status, createdAt]
+      properties:
+        id:
+          type: number
+        orderId:
+          type: number
+        amount:
+          type: number
+        reason:
+          type: string
+        status:
+          $ref: "#/components/schemas/RefundRequestStatus"
+        createdAt:
+          type: string
+          format: date-time
+
+    WalletTransaction:
+      type: object
+      required: [id, type, amount, description, referenceType, referenceId, balanceAfter, createdAt]
+      properties:
+        id:
+          type: number
+        type:
+          type: string
+          enum: [credit, debit]
+        amount:
+          type: number
+        description:
+          type: string
+        referenceType:
+          type: string
+          enum: [refund, order_payment, admin_adjustment]
+        referenceId:
+          type: number
+        balanceAfter:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    CustomerWallet:
+      type: object
+      required: [balance, page, pageSize, total, transactions]
+      properties:
+        balance:
+          type: number
+        page:
+          type: number
+        pageSize:
+          type: number
+        total:
+          type: number
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WalletTransaction"
+
+    AdminRefundDecisionInput:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 1000
+
+    AdminRefundRequest:
+      type: object
+      required: [id, orderId, orderCode, customerName, customerPhone, restaurantName, amount, reason, status, resolutionNote, createdAt]
+      properties:
+        id:
+          type: number
+        orderId:
+          type: number
+        orderCode:
+          type: string
+        customerName:
+          type: ["string", "null"]
+        customerPhone:
+          type: string
+        restaurantName:
+          type: string
+        amount:
+          type: number
+        reason:
+          type: string
+        status:
+          $ref: "#/components/schemas/RefundRequestStatus"
+        resolutionNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    PaymentRefundResolutionInput:
+      type: object
+      required: [outcome, note]
+      properties:
+        outcome:
+          type: string
+          enum: [refunded, not_refunded]
+        note:
+          type: string
+          minLength: 3
+          maxLength: 1000
+
+    AdminPaymentRefundClaim:
+      type: object
+      required: [id, orderId, orderCode, customerPhone, amount, transactionId, status, createdAt]
+      properties:
+        id:
+          type: number
+        orderId:
+          type: number
+        orderCode:
+          type: string
+        customerPhone:
+          type: string
+        amount:
+          type: number
+        transactionId:
+          type: string
+        status:
+          type: string
+          enum: [processing, succeeded, ambiguous, failed]
+        createdAt:
+          type: string
+          format: date-time
 
     DriverLocation:
       type: object

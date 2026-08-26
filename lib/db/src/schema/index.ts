@@ -27,3 +27,4 @@ export * from "./branches";
 export * from "./customer-favorites";
 export * from "./cart-items";
 export * from "./orders";
+export * from "./wallets";

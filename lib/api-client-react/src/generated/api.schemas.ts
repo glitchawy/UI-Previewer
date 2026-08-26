@@ -269,6 +269,8 @@ export interface OrderPlacementInput {
   paymentMethod?: PaymentMethod;
   /** @maxLength 1000 */
   notes?: string;
+  /** @minimum 0 */
+  useWalletAmount?: number;
 }
 
 export interface PlacedOrder {
@@ -276,6 +278,8 @@ export interface PlacedOrder {
   code: string;
   restaurantName: string;
   total: number;
+  walletAmountUsed: number;
+  externalAmountDue: number;
   estimateMinutes: string;
 }
 
@@ -337,6 +341,17 @@ export interface OrderTimelineEntry {
   label: string;
 }
 
+export type RefundRequestStatus = typeof RefundRequestStatus[keyof typeof RefundRequestStatus];
+
+
+export const RefundRequestStatus = {
+  pending: 'pending',
+  processing: 'processing',
+  approved: 'approved',
+  rejected: 'rejected',
+  failed: 'failed',
+} as const;
+
 export type OrderDetail = OrderSummary & ({
   deliveryAddressText: string;
   deliveryLat: number;
@@ -353,9 +368,133 @@ export type OrderDetail = OrderSummary & ({
   driverLocationUpdatedAt: string | null;
   /** @nullable */
   notes: string | null;
+  walletAmountUsed: number;
+  externalAmountDue: number;
+  canCancel: boolean;
+  canRequestRefund: boolean;
+  refundRequestStatus: RefundRequestStatus | null;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });
+
+export interface OrderActionResult {
+  id: number;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  message: string;
+}
+
+export interface RefundRequestInput {
+  /**
+     * @minLength 3
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface RefundRequest {
+  id: number;
+  orderId: number;
+  amount: number;
+  reason: string;
+  status: RefundRequestStatus;
+  createdAt: string;
+}
+
+export type WalletTransactionType = typeof WalletTransactionType[keyof typeof WalletTransactionType];
+
+
+export const WalletTransactionType = {
+  credit: 'credit',
+  debit: 'debit',
+} as const;
+
+export type WalletTransactionReferenceType = typeof WalletTransactionReferenceType[keyof typeof WalletTransactionReferenceType];
+
+
+export const WalletTransactionReferenceType = {
+  refund: 'refund',
+  order_payment: 'order_payment',
+  admin_adjustment: 'admin_adjustment',
+} as const;
+
+export interface WalletTransaction {
+  id: number;
+  type: WalletTransactionType;
+  amount: number;
+  description: string;
+  referenceType: WalletTransactionReferenceType;
+  referenceId: number;
+  balanceAfter: number;
+  createdAt: string;
+}
+
+export interface CustomerWallet {
+  balance: number;
+  page: number;
+  pageSize: number;
+  total: number;
+  transactions: WalletTransaction[];
+}
+
+export interface AdminRefundDecisionInput {
+  /** @maxLength 1000 */
+  note?: string;
+}
+
+export interface AdminRefundRequest {
+  id: number;
+  orderId: number;
+  orderCode: string;
+  /** @nullable */
+  customerName: string | null;
+  customerPhone: string;
+  restaurantName: string;
+  amount: number;
+  reason: string;
+  status: RefundRequestStatus;
+  /** @nullable */
+  resolutionNote: string | null;
+  createdAt: string;
+}
+
+export type PaymentRefundResolutionInputOutcome = typeof PaymentRefundResolutionInputOutcome[keyof typeof PaymentRefundResolutionInputOutcome];
+
+
+export const PaymentRefundResolutionInputOutcome = {
+  refunded: 'refunded',
+  not_refunded: 'not_refunded',
+} as const;
+
+export interface PaymentRefundResolutionInput {
+  outcome: PaymentRefundResolutionInputOutcome;
+  /**
+     * @minLength 3
+     * @maxLength 1000
+     */
+  note: string;
+}
+
+export type AdminPaymentRefundClaimStatus = typeof AdminPaymentRefundClaimStatus[keyof typeof AdminPaymentRefundClaimStatus];
+
+
+export const AdminPaymentRefundClaimStatus = {
+  processing: 'processing',
+  succeeded: 'succeeded',
+  ambiguous: 'ambiguous',
+  failed: 'failed',
+} as const;
+
+export interface AdminPaymentRefundClaim {
+  id: number;
+  orderId: number;
+  orderCode: string;
+  customerPhone: string;
+  amount: number;
+  transactionId: string;
+  status: AdminPaymentRefundClaimStatus;
+  createdAt: string;
+}
 
 export interface DriverLocation {
   /** @nullable */
@@ -483,5 +622,17 @@ export type SearchAddressParams = {
  * @minLength 3
  */
 q: string;
+};
+
+export type GetCustomerWalletParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
 };
 

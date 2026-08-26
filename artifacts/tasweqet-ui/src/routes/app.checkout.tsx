@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getListCustomerOrdersQueryKey,
   useGetCustomerAddress,
+  useGetCustomerWallet,
   usePlaceOrder,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button, MapCanvas, EmptyState } from "@/components/tb/shell";
@@ -33,8 +34,10 @@ function AppCheckout() {
   const queryClient = useQueryClient();
   const { cart, isLoading: cartLoading } = useCart();
   const address = useGetCustomerAddress();
+  const wallet = useGetCustomerWallet({ page: 1, pageSize: 1 });
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [useWallet, setUseWallet] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const deliveryTotal = cart.restaurants.length * DELIVERY_FEE;
   const grandTotal = cart.total + deliveryTotal;
@@ -42,7 +45,10 @@ function AppCheckout() {
     mutation: {
       onSuccess: async (result) => {
         if (!result.paymentUrl) resetCartAfterOrder();
-        await queryClient.invalidateQueries({ queryKey: getListCustomerOrdersQueryKey() });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getListCustomerOrdersQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: ["/api/customer/wallet"] }),
+        ]);
         if (result.paymentUrl) {
           window.location.assign(result.paymentUrl);
           return;
@@ -56,8 +62,11 @@ function AppCheckout() {
     },
   });
   const hasAddress = Boolean(address.data?.addressText && address.data.lat != null && address.data.lng != null);
+  const walletBalance = wallet.data?.balance ?? 0;
+  const walletAmount = useWallet ? Math.min(walletBalance, grandTotal) : 0;
+  const amountDue = Math.max(0, grandTotal - walletAmount);
 
-  if (cartLoading || address.isLoading) {
+  if (cartLoading || address.isLoading || wallet.isLoading) {
     return <MobileShell tabs={customerTabs}><div className="flex h-screen items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[40px] text-primary" /></div></MobileShell>;
   }
 
@@ -92,7 +101,28 @@ function AppCheckout() {
           </section>
 
           <section>
-            <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">طريقة الدفع</h2>
+            <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">استخدام المحفظة</h2>
+            <label className={`flex cursor-pointer items-center gap-3 rounded-card border-2 p-4 ${useWallet ? "border-primary bg-primary-container/40" : "border-outline-variant bg-surface-container-lowest"}`}>
+              <input type="checkbox" checked={useWallet} disabled={walletBalance <= 0} onChange={(event) => setUseWallet(event.target.checked)} className="accent-primary" />
+              <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-lowest text-primary"><Icon name="account_balance_wallet" /></span>
+              <span className="flex-1">
+                <span className="block font-label-lg text-label-lg">استخدم رصيد المحفظة</span>
+                <span className="block font-label-md text-label-md text-on-surface-variant">الرصيد المتاح: {EGP(walletBalance)}</span>
+              </span>
+              {useWallet ? <span className="font-label-lg text-label-lg text-success">− {EGP(walletAmount)}</span> : null}
+            </label>
+            {walletBalance <= 0 ? <p className="mt-1 font-label-md text-label-md text-on-surface-variant">رصيدك الحالي صفر — أي استرداد معتمد هيظهر هنا.</p> : null}
+          </section>
+
+          <section>
+            <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">طريقة دفع المبلغ المتبقي</h2>
+            {amountDue === 0 ? (
+              <Card className="flex items-center gap-3 border-success/30 bg-success/10 p-4">
+                <Icon name="check_circle" className="text-success" filled />
+                <div><p className="font-label-lg text-label-lg">مدفوع بالكامل من المحفظة</p><p className="font-label-md text-label-md text-on-surface-variant">مش هتحتاج كاش أو بطاقة للطلب ده</p></div>
+              </Card>
+            ) : (
+              <>
             <label className={`flex cursor-pointer items-center gap-3 rounded-card border-2 p-4 ${paymentMethod === "cash" ? "border-secondary bg-secondary-container/60" : "border-outline-variant bg-surface-container-lowest"}`}>
               <input type="radio" name="payment" checked={paymentMethod === "cash"} onChange={() => setPaymentMethod("cash")} className="accent-secondary" />
               <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-lowest text-secondary"><Icon name="payments" /></span>
@@ -111,6 +141,8 @@ function AppCheckout() {
               </span>
               {paymentMethod === "card" ? <Icon name="check_circle" className="text-success" filled /> : null}
             </label>
+              </>
+            )}
           </section>
 
           <section>
@@ -155,7 +187,8 @@ function AppCheckout() {
           <Card className="space-y-2 p-md">
             <div className="flex justify-between text-on-surface-variant"><span>إجمالي الأكل</span><span>{EGP(cart.total)}</span></div>
             <div className="flex justify-between text-on-surface-variant"><span>التوصيل ({cart.restaurants.length.toLocaleString("ar-EG")} مطعم)</span><span>{EGP(deliveryTotal)}</span></div>
-            <div className="flex justify-between border-t border-outline-variant pt-2 font-headline-md text-headline-md"><span>الإجمالي المطلوب</span><span>{EGP(grandTotal)}</span></div>
+            {walletAmount > 0 ? <div className="flex justify-between text-success"><span>من المحفظة</span><span>− {EGP(walletAmount)}</span></div> : null}
+            <div className="flex justify-between border-t border-outline-variant pt-2 font-headline-md text-headline-md"><span>المطلوب بعد المحفظة</span><span>{EGP(amountDue)}</span></div>
           </Card>
           <p className="font-label-md text-label-md text-on-surface-variant">يتم مراجعة الأسعار والتوفر مرة أخيرة عند التأكيد.</p>
           {submitError ? <p className="rounded-button bg-error-container p-3 text-center font-label-md text-label-md text-error" role="alert">{submitError}</p> : null}
@@ -165,10 +198,10 @@ function AppCheckout() {
       {cart.itemCount > 0 ? (
         <div className="fixed bottom-[68px] z-20 w-full max-w-[480px] border-t border-outline-variant bg-surface-container-lowest/95 p-md backdrop-blur">
           <Button className="w-full justify-between" icon="task_alt" disabled={!hasAddress || placeOrder.isPending}
-            onClick={() => { setSubmitError(""); placeOrder.mutate({ data: { paymentMethod, ...(notes.trim() ? { notes: notes.trim() } : {}) } }); }}
+            onClick={() => { setSubmitError(""); placeOrder.mutate({ data: { paymentMethod, useWalletAmount: walletAmount, ...(notes.trim() ? { notes: notes.trim() } : {}) } }); }}
             data-testid="button-place-order">
-            <span>{placeOrder.isPending ? "جاري تأكيد الطلب..." : paymentMethod === "card" ? "المتابعة للدفع الآمن" : "تأكيد الطلب كاش"}</span>
-            <span>{EGP(grandTotal)}</span>
+            <span>{placeOrder.isPending ? "جاري تأكيد الطلب..." : amountDue === 0 ? "تأكيد الطلب بالمحفظة" : paymentMethod === "card" ? "المتابعة للدفع الآمن" : "تأكيد الطلب كاش"}</span>
+            <span>{EGP(amountDue)}</span>
           </Button>
         </div>
       ) : null}

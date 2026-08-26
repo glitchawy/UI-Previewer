@@ -11,4 +11,6 @@ export interface OrderPlacementInput {
   paymentMethod?: PaymentMethod;
   /** @maxLength 1000 */
   notes?: string;
+  /** @minimum 0 */
+  useWalletAmount?: number;
 }

@@ -11,5 +11,7 @@ export interface PlacedOrder {
   code: string;
   restaurantName: string;
   total: number;
+  walletAmountUsed: number;
+  externalAmountDue: number;
   estimateMinutes: string;
 }

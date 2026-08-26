@@ -8,6 +8,7 @@
 import type { OrderLine } from './orderLine';
 import type { OrderSummary } from './orderSummary';
 import type { OrderTimelineEntry } from './orderTimelineEntry';
+import type { RefundRequestStatus } from './refundRequestStatus';
 
 export type OrderDetail = OrderSummary & ({
   deliveryAddressText: string;
@@ -25,6 +26,11 @@ export type OrderDetail = OrderSummary & ({
   driverLocationUpdatedAt: Date | null;
   /** @nullable */
   notes: string | null;
+  walletAmountUsed: number;
+  externalAmountDue: number;
+  canCancel: boolean;
+  canRequestRefund: boolean;
+  refundRequestStatus: RefundRequestStatus | null;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });

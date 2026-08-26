@@ -14,6 +14,7 @@ import {
   productAddonsTable,
   productsTable,
   productVariantsTable,
+  refundRequestsTable,
   restaurantsTable,
   usersTable,
 } from "@workspace/db";
@@ -36,6 +37,7 @@ import {
   PaymobRequestError,
 } from "../lib/paymob";
 import { cancelPendingPaymentSession, expireLockedPaymentSession } from "../lib/payment-session-lifecycle";
+import { debitWallet, fromCents, toCents } from "../lib/wallet-ledger";
 
 const router = Router();
 export const DELIVERY_FEE_PER_RESTAURANT = 25;
@@ -123,6 +125,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
   const parsedBody = PlaceOrderBody.safeParse(req.body);
   if (!parsedBody.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
   const paymentMethod = parsedBody.data.paymentMethod ?? "cash";
+  const requestedWalletCents = toCents(parsedBody.data.useWalletAmount ?? 0);
   const rawNotes = parsedBody.data.notes?.trim() ?? "";
   if (!customer.addressText || customer.lat === null || customer.lng === null) {
     res.status(400).json({ error: "أضف عنوان التوصيل أولاً" }); return;
@@ -130,27 +133,24 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
   const deliveryAddressText = customer.addressText;
   const deliveryLat = customer.lat;
   const deliveryLng = customer.lng;
-  let cardIntegrationIds: string[] | null = null;
-  if (paymentMethod === "card") {
-    try {
-      cardIntegrationIds = getPaymobIntegrationIds();
-      getPaymobCallbackUrls(0);
-    } catch (error) {
-      if (error instanceof PaymobConfigurationError) {
-        res.status(503).json({ error: "الدفع أونلاين غير مُجهز حالياً. اختر الدفع كاش أو حاول لاحقاً." });
-        return;
-      }
-      throw error;
-    }
-  }
   let created: {
-    orders: { id: number; restaurantName: string; total: number }[];
+    orders: {
+      id: number;
+      restaurantId: number;
+      restaurantName: string;
+      total: number;
+      walletAmountUsed: number;
+      externalAmountDue: number;
+    }[];
     paymentSessionId: number | null;
     paymentUrl: string | null;
   };
   try {
     created = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${customer.id})`);
+    const [lockedCustomer] = await tx.select({ walletBalance: usersTable.walletBalance })
+      .from(usersTable).where(eq(usersTable.id, customer.id)).limit(1);
+    if (!lockedCustomer) throw new Error("CUSTOMER_NOT_FOUND");
     const now = new Date();
     const expiredSessions = await tx.select().from(paymentSessionsTable).where(and(
       eq(paymentSessionsTable.customerId, customer.id),
@@ -168,10 +168,20 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     if (activePayment) {
       if (paymentMethod !== "card") throw new Error("PAYMENT_PENDING");
       const activeOrders = await tx.select({
-        id: ordersTable.id, restaurantName: ordersTable.restaurantName, total: ordersTable.total,
+        id: ordersTable.id,
+        restaurantId: ordersTable.restaurantId,
+        restaurantName: ordersTable.restaurantName,
+        total: ordersTable.total,
+        walletAmountUsed: ordersTable.walletAmountUsed,
+        externalAmountDue: ordersTable.externalAmountDue,
       }).from(ordersTable).where(eq(ordersTable.paymentSessionId, activePayment.id));
       return {
-        orders: activeOrders.map((order) => ({ ...order, total: Number(order.total) })),
+        orders: activeOrders.map((order) => ({
+          ...order,
+          total: Number(order.total),
+          walletAmountUsed: Number(order.walletAmountUsed),
+          externalAmountDue: Number(order.externalAmountDue),
+        })),
         paymentSessionId: activePayment.id,
         paymentUrl: activePayment.paymentUrl,
       };
@@ -216,8 +226,24 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       return { cartItem: item, restaurant, product, variant, addons: addonsForLine, addonPrice, unitPrice, lineTotal: unitPrice * item.quantity };
     });
 
+    const totalCartCents = restaurantIds.reduce((sum, restaurantId) => {
+      const lines = validLines.filter((line) => line.cartItem.restaurantId === restaurantId);
+      return sum + toCents(lines.reduce((lineSum, line) => lineSum + line.lineTotal, 0) + DELIVERY_FEE_PER_RESTAURANT);
+    }, 0);
+    let remainingWalletCents = Math.min(
+      requestedWalletCents,
+      toCents(lockedCustomer.walletBalance),
+      totalCartCents,
+    );
     const address = `${deliveryAddressText}${customer.addressDetails ? `، ${customer.addressDetails}` : ""}`;
-    const results: { id: number; restaurantName: string; total: number }[] = [];
+    const results: {
+      id: number;
+      restaurantId: number;
+      restaurantName: string;
+      total: number;
+      walletAmountUsed: number;
+      externalAmountDue: number;
+    }[] = [];
     for (const restaurantId of restaurantIds) {
       const restaurant = restaurantMap.get(restaurantId)!;
       const branch = branchMap.get(restaurantId);
@@ -225,6 +251,10 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       const lines = validLines.filter((line) => line.cartItem.restaurantId === restaurantId);
       const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
       const total = subtotal + DELIVERY_FEE_PER_RESTAURANT;
+      const totalCents = toCents(total);
+      const walletAmountCents = Math.min(remainingWalletCents, totalCents);
+      const externalAmountCents = totalCents - walletAmountCents;
+      remainingWalletCents -= walletAmountCents;
       const [order] = await tx.insert(ordersTable).values({
         customerId: customer.id,
         restaurantId,
@@ -233,13 +263,15 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         branchName: branch.name,
         status: "pending",
         paymentMethod,
-        paymentStatus: "pending",
+        paymentStatus: externalAmountCents === 0 ? "paid" : "pending",
         deliveryAddressText: address,
         deliveryLat,
         deliveryLng,
         deliveryFee: DELIVERY_FEE_PER_RESTAURANT.toFixed(2),
         subtotal: subtotal.toFixed(2),
         total: total.toFixed(2),
+        walletAmountUsed: fromCents(walletAmountCents),
+        externalAmountDue: fromCents(externalAmountCents),
         notes: rawNotes || null,
       }).returning({ id: ordersTable.id });
       await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: "pending" });
@@ -262,29 +294,60 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
           })));
         }
       }
-      results.push({ id: order.id, restaurantName: restaurant.name, total });
+      if (walletAmountCents > 0) {
+        await debitWallet(tx, {
+          userId: customer.id,
+          amountCents: walletAmountCents,
+          description: `دفع طلب ${orderCode(order.id)} من المحفظة`,
+          referenceType: "order_payment",
+          referenceId: order.id,
+        });
+      }
+      results.push({
+        id: order.id,
+        restaurantId,
+        restaurantName: restaurant.name,
+        total,
+        walletAmountUsed: walletAmountCents / 100,
+        externalAmountDue: externalAmountCents / 100,
+      });
     }
 
     let paymentSessionId: number | null = null;
     let paymentUrl: string | null = null;
-    if (paymentMethod === "card") {
+    const externalOrders = results.filter((order) => order.externalAmountDue > 0);
+    if (paymentMethod === "card" && externalOrders.length) {
+      const cardIntegrationIds = getPaymobIntegrationIds();
+      getPaymobCallbackUrls(0);
       const reference = `TBP-${crypto.randomUUID()}`;
-      const amount = results.reduce((sum, order) => sum + order.total, 0);
+      const amount = externalOrders.reduce((sum, order) => sum + order.externalAmountDue, 0);
       const [session] = await tx.insert(paymentSessionsTable).values({
         customerId: customer.id,
         reference,
         amount: amount.toFixed(2),
         expiresAt: new Date(now.getTime() + PAYMENT_SESSION_TTL_MS),
-        paymobIntegrationId: cardIntegrationIds![0],
-        paymobIntegrationIds: cardIntegrationIds!,
+        paymobIntegrationId: cardIntegrationIds[0],
+        paymobIntegrationIds: cardIntegrationIds,
       }).returning({ id: paymentSessionsTable.id });
       await tx.update(ordersTable).set({ paymentSessionId: session.id })
-        .where(inArray(ordersTable.id, results.map((order) => order.id)));
+        .where(inArray(ordersTable.id, externalOrders.map((order) => order.id)));
       await tx.update(cartItemsTable).set({ paymentSessionId: session.id })
-        .where(inArray(cartItemsTable.id, cartItems.map((item) => item.id)));
+        .where(and(
+          eq(cartItemsTable.userId, customer.id),
+          inArray(cartItemsTable.restaurantId, externalOrders.map((order) => order.restaurantId)),
+        ));
+      const fullyWalletPaidRestaurantIds = results
+        .filter((order) => order.externalAmountDue === 0)
+        .map((order) => order.restaurantId);
+      if (fullyWalletPaidRestaurantIds.length) {
+        await tx.delete(cartItemsTable).where(and(
+          eq(cartItemsTable.userId, customer.id),
+          inArray(cartItemsTable.restaurantId, fullyWalletPaidRestaurantIds),
+        ));
+      }
       paymentSessionId = session.id;
     }
-    if (paymentMethod === "cash") {
+    if (paymentMethod === "cash" || (paymentMethod === "card" && !externalOrders.length)) {
       await tx.delete(cartItemsTable).where(eq(cartItemsTable.userId, customer.id));
     }
     return { orders: results, paymentSessionId, paymentUrl };
@@ -348,7 +411,15 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     }
   }
   res.status(201).json(PlaceOrderResponse.parse({
-    orders: created.orders.map((order) => ({ ...order, code: orderCode(order.id), estimateMinutes: "30-40" })),
+    orders: created.orders.map((order) => ({
+      id: order.id,
+      restaurantName: order.restaurantName,
+      total: order.total,
+      walletAmountUsed: order.walletAmountUsed,
+      externalAmountDue: order.externalAmountDue,
+      code: orderCode(order.id),
+      estimateMinutes: "30-40",
+    })),
     paymentSessionId: created.paymentSessionId,
     paymentUrl: created.paymentUrl,
   }));
@@ -384,6 +455,13 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
   const events = await db.select().from(orderStatusEventsTable)
     .where(eq(orderStatusEventsTable.orderId, id))
     .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
+  const [refundRequest] = await db.select({ status: refundRequestsTable.status })
+    .from(refundRequestsTable)
+    .where(and(
+      eq(refundRequestsTable.orderId, id),
+      eq(refundRequestsTable.source, "customer_request"),
+    ))
+    .limit(1);
   const statusLabels: Record<typeof order.status, string> = {
     pending: "تم استلام طلبك", confirmed: "المطعم أكد الطلب", preparing: "جاري تحضير الطلب",
     ready: "الطلب جاهز", picked_up: "الطلب خرج للتوصيل", delivered: "تم توصيل الطلب", cancelled: "تم إلغاء الطلب",
@@ -405,6 +483,11 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
     id: order.id, code: orderCode(order.id), restaurantName: order.restaurantName,
     status: order.status, paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus,
     deliveryAddressText: order.deliveryAddressText, deliveryLat: order.deliveryLat, deliveryLng: order.deliveryLng,
+    walletAmountUsed: Number(order.walletAmountUsed),
+    externalAmountDue: Number(order.externalAmountDue),
+    canCancel: order.status === "pending" || order.status === "confirmed",
+    canRequestRefund: order.status === "delivered" && !refundRequest,
+    refundRequestStatus: refundRequest?.status ?? null,
     driverName: driver?.name ?? null, driverPhone: driver?.phone ?? null,
     driverLat: order.status === "picked_up" ? driver?.lat ?? null : null,
     driverLng: order.status === "picked_up" ? driver?.lng ?? null : null,

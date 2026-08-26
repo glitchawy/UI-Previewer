@@ -5,14 +5,54 @@ import {
   orderStatusEventsTable,
   ordersTable,
   paymentSessionsTable,
+  refundRequestsTable,
   type PaymentSession,
 } from "@workspace/db";
 import { logger } from "./logger";
 import { findPaymobOrderByReference } from "./paymob";
+import { creditWallet, toCents } from "./wallet-ledger";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export const PAYMENT_SESSION_EXPIRY_REASON = "Checkout session expired before a payment callback arrived";
+
+export async function restoreWalletForCancelledOrders(
+  tx: Transaction,
+  session: PaymentSession,
+  cancelledOrders: Array<{ id: number; walletAmountUsed: string }>,
+) {
+  const withWallet = cancelledOrders.filter((order) => toCents(order.walletAmountUsed) > 0);
+  if (!withWallet.length) return;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${session.customerId})`);
+  for (const order of withWallet) {
+    const [refund] = await tx.insert(refundRequestsTable).values({
+      orderId: order.id,
+      customerId: session.customerId,
+      source: "cancellation",
+      method: "wallet",
+      status: "approved",
+      amount: order.walletAmountUsed,
+      reason: "إعادة رصيد المحفظة بعد إلغاء جلسة الدفع",
+      resolutionNote: "تمت الإعادة تلقائياً لأن الدفع الخارجي لم يكتمل",
+      reviewedAt: new Date(),
+    }).onConflictDoNothing().returning({ id: refundRequestsTable.id });
+    const refundId = refund?.id ?? (await tx.select({ id: refundRequestsTable.id })
+      .from(refundRequestsTable)
+      .where(and(
+        eq(refundRequestsTable.source, "cancellation"),
+        eq(refundRequestsTable.orderId, order.id),
+      ))
+      .limit(1))[0]?.id;
+    if (!refundId) throw new Error("CANCELLATION_REFUND_NOT_FOUND");
+    await creditWallet(tx, {
+      userId: session.customerId,
+      amountCents: toCents(order.walletAmountUsed),
+      description: `إعادة رصيد طلب TB-${String(order.id).padStart(6, "0")}`,
+      referenceType: "refund",
+      referenceId: refundId,
+    });
+  }
+}
 
 export async function expireLockedPaymentSession(
   tx: Transaction,
@@ -36,7 +76,8 @@ export async function expireLockedPaymentSession(
     eq(ordersTable.paymentSessionId, session.id),
     eq(ordersTable.paymentStatus, "pending"),
     eq(ordersTable.status, "pending"),
-  )).returning({ id: ordersTable.id });
+  )).returning({ id: ordersTable.id, walletAmountUsed: ordersTable.walletAmountUsed });
+  await restoreWalletForCancelledOrders(tx, session, cancelledOrders);
   if (cancelledOrders.length) {
     await tx.insert(orderStatusEventsTable).values(cancelledOrders.map((order) => ({
       orderId: order.id,
@@ -68,7 +109,8 @@ export async function cancelPendingPaymentSession(
     eq(ordersTable.paymentSessionId, session.id),
     eq(ordersTable.paymentStatus, "pending"),
     eq(ordersTable.status, "pending"),
-  )).returning({ id: ordersTable.id });
+  )).returning({ id: ordersTable.id, walletAmountUsed: ordersTable.walletAmountUsed });
+  await restoreWalletForCancelledOrders(tx, session, cancelledOrders);
   if (cancelledOrders.length) {
     await tx.insert(orderStatusEventsTable).values(cancelledOrders.map((order) => ({
       orderId: order.id,

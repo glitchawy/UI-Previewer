@@ -25,7 +25,10 @@ import {
   paymentSessionsTable,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
-import { expireLockedPaymentSession } from "../lib/payment-session-lifecycle";
+import {
+  expireLockedPaymentSession,
+  restoreWalletForCancelledOrders,
+} from "../lib/payment-session-lifecycle";
 import { verifyWebhookSignature } from "../lib/authevo";
 import { verifyWebhookHmac } from "../lib/paymob";
 
@@ -262,7 +265,13 @@ paymobWebhookRouter.post("/", async (req, res): Promise<void> => {
       eq(ordersTable.paymentSessionId, session.id),
       eq(ordersTable.status, "pending"),
       eq(ordersTable.paymentStatus, "pending"),
-    )).returning({ id: ordersTable.id });
+    )).returning({
+      id: ordersTable.id,
+      walletAmountUsed: ordersTable.walletAmountUsed,
+    });
+    if (!success) {
+      await restoreWalletForCancelledOrders(tx, lockedSession, updatedOrders);
+    }
     if (updatedOrders.length) {
       await tx.insert(orderStatusEventsTable).values(updatedOrders.map((order) => ({
         orderId: order.id,
