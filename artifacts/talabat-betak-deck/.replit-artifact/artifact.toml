@@ -1,0 +1,28 @@
+kind = "slides"
+previewPath = "/talabat-betak-deck/"
+title = "Talabat Betak Project Deck"
+description = "A 17-slide project overview of Talabat Betak (طلبات بيتك), an Arabic-first Egypt-only food-delivery platform covering customer, restaurant, driver, admin, payment, wallet, refund, and tracking flows."
+version = "1.0.0"
+id = "artifacts/talabat-betak-deck"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/talabat-betak-deck/" ]
+localPort = 23735
+
+[services.development]
+run = "pnpm --filter @workspace/talabat-betak-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/talabat-betak-deck", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/talabat-betak-deck/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23735"
+BASE_PATH = "/talabat-betak-deck/"
