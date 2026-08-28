@@ -7,6 +7,7 @@ const router = Router();
 
 import { issueOtp, verifyOtpCode } from "../lib/otp";
 import { generateTelegramLink } from "../lib/authevo";
+import { DEVELOPMENT_FIXTURE_PHONE_BY_ROLE } from "../lib/seed-admin";
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -17,6 +18,38 @@ const ROLE_LABELS: Record<string, string> = {
   driver: "مندوب",
   admin: "مشرف",
 };
+const MOCK_ROLES = ["customer", "partner", "driver", "admin"] as const;
+type AuthRole = (typeof MOCK_ROLES)[number];
+type AuthUser = typeof usersTable.$inferSelect;
+
+function mockAuthEnabled(): boolean {
+  return (
+    (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") &&
+    process.env["MOCK_AUTH_ENABLED"] === "true"
+  );
+}
+
+function serializeUser(user: AuthUser) {
+  return {
+    id: user.id,
+    phone: user.phone,
+    role: user.role,
+    name: user.name ?? null,
+    lat: user.lat ?? null,
+    lng: user.lng ?? null,
+    addressText: user.addressText ?? null,
+    addressDetails: user.addressDetails ?? null,
+  };
+}
+
+async function createSession(user: AuthUser) {
+  const token = crypto.randomUUID();
+  await db
+    .update(usersTable)
+    .set({ sessionToken: token })
+    .where(eq(usersTable.id, user.id));
+  return { token, user: serializeUser(user) };
+}
 
 /**
  * Returns an Arabic error message when a phone is already registered under
@@ -155,6 +188,63 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/dev-login  ← development/test only
+// Never accepts a phone number: only a server-seeded fixture role can be used.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/auth/dev-login", async (req, res): Promise<void> => {
+  if (!mockAuthEnabled()) {
+    res.status(404).json({ error: "المسار غير متاح" });
+    return;
+  }
+
+  const role = req.body?.role;
+  if (typeof role !== "string" || !(MOCK_ROLES as readonly string[]).includes(role)) {
+    res.status(400).json({ error: "دور اختبار غير صحيح" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(and(
+      eq(usersTable.role, role as AuthRole),
+      eq(usersTable.phone, DEVELOPMENT_FIXTURE_PHONE_BY_ROLE[role as AuthRole]),
+      eq(usersTable.isDevelopmentFixture, true),
+    ))
+    .limit(1);
+  if (!user) {
+    res.status(503).json({ error: "حساب الاختبار غير جاهز — أعد تشغيل الخادم" });
+    return;
+  }
+
+  const session = await createSession(user);
+  req.log.info({ userId: user.id, role: user.role }, "Development test session created");
+  res.json(session);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/logout  — invalidate the current bearer session
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/auth/logout", async (req, res): Promise<void> => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "غير مصرح" });
+    return;
+  }
+  const token = auth.slice(7);
+  const rows = await db
+    .update(usersTable)
+    .set({ sessionToken: null })
+    .where(eq(usersTable.sessionToken, token))
+    .returning({ id: usersTable.id });
+  if (rows.length === 0) {
+    res.status(401).json({ error: "الجلسة منتهية" });
+    return;
+  }
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/verify-otp
 // type = "login"    → user MUST exist  → create session
 // type = "register" → user MUST NOT exist → create user + session
@@ -212,12 +302,7 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   }
 
   const user = rows[0];
-  const token = crypto.randomUUID();
-
-  await db
-    .update(usersTable)
-    .set({ sessionToken: token })
-    .where(eq(usersTable.id, user.id));
+  const session = await createSession(user);
 
   req.log.info({ userId: user.id, role, type }, "Session created");
 
@@ -236,15 +321,7 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   }
 
   res.json({
-    token,
-    user: {
-      id: user.id,
-      phone: user.phone,
-      role: user.role,
-      name: user.name ?? null,
-      lat: user.lat ?? null,
-      lng: user.lng ?? null,
-    },
+    ...session,
     ...(telegramLink ? { telegramLink } : {}),
   });
 });
@@ -299,16 +376,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   }
 
   const user = rows[0];
-  res.json({
-    id: user.id,
-    phone: user.phone,
-    role: user.role,
-    name: user.name ?? null,
-    lat: user.lat ?? null,
-    lng: user.lng ?? null,
-    addressText: user.addressText ?? null,
-    addressDetails: user.addressDetails ?? null,
-  });
+  res.json(serializeUser(user));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 // application-status view — no operational navigation or pages.
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { DashboardShell, Icon } from "@/components/tb/shell";
-import { getSession, clearSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import { GateBlockedCard, GateLoadingCard, useApplicationGate } from "@/components/tb/approval-gate";
 
 export const Route = createFileRoute("/partner")({
@@ -21,8 +21,8 @@ function PartnerLayout() {
 
   if (gate.kind === "approved") return <Outlet />;
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logoutSession();
     navigate({ to: "/auth/login" });
   }
 

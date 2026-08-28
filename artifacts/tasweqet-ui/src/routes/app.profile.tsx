@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppBar, MobileShell, Icon, Card } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
-import { getSession, validateWithServer, type AuthUser } from "@/lib/auth-session";
+import { getSession, logoutSession, validateWithServer, type AuthUser } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/app/profile")({
   head: () => ({
@@ -31,6 +31,7 @@ function formatPhone(phone: string) {
 }
 
 function AppProfile() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(getSession()?.user ?? null);
 
   useEffect(() => {
@@ -96,12 +97,19 @@ function AppProfile() {
           <span className="font-label-md text-label-md text-on-surface">العربية · EGP</span>
         </Card>
 
-        <Link to="/auth/welcome">
+        <button
+          type="button"
+          onClick={async () => {
+            await logoutSession();
+            navigate({ to: "/auth/login" });
+          }}
+          className="text-right"
+        >
           <Card className="flex items-center gap-3 p-3 text-error transition hover:border-error">
             <Icon name="logout" />
             <span className="flex-1 font-body-md text-body-md">تسجيل الخروج</span>
           </Card>
-        </Link>
+        </button>
 
         <p className="text-center font-label-md text-label-md text-outline">طلبات بيتك · الإصدار 1.0.0</p>
       </div>

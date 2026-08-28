@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Field, Icon } from "@/components/tb/shell";
-import { getSession, clearSession, saveSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, logoutSession, saveSession, getRoleDashboard } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/onboard-customer")({
   beforeLoad: () => {
@@ -60,8 +60,8 @@ function OnboardCustomer() {
     navigate({ to: "/app" });
   }
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logoutSession();
     navigate({ to: "/auth/login" });
   }
 

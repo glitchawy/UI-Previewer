@@ -17,6 +17,7 @@ export const branchesTable = pgTable("branches", {
   lng: doublePrecision("lng"),
   isOpen: boolean("is_open").notNull().default(true),
   notes: text("notes"),
+  isDevelopmentFixture: boolean("is_development_fixture").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

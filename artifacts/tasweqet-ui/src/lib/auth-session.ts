@@ -14,6 +14,7 @@ export interface AuthUser {
 export interface AuthSession {
   token: string;
   user: AuthUser;
+  isDevMode?: boolean;
 }
 
 export function saveSession(session: AuthSession): void {
@@ -32,6 +33,24 @@ export function getSession(): AuthSession | null {
 
 export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY);
+}
+
+/**
+ * Invalidate the opaque token on the server, then clear the local copy even
+ * when the request cannot be completed.
+ */
+export async function logoutSession(): Promise<void> {
+  const token = getToken();
+  try {
+    if (token) {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  } finally {
+    clearSession();
+  }
 }
 
 export function getToken(): string | null {
@@ -63,7 +82,7 @@ export async function validateWithServer(): Promise<AuthSession | null> {
       return null;
     }
     const user = (await res.json()) as AuthUser;
-    const updated: AuthSession = { token: session.token, user };
+    const updated: AuthSession = { token: session.token, user, isDevMode: session.isDevMode };
     saveSession(updated);
     return updated;
   } catch {

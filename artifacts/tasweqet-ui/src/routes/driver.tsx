@@ -2,7 +2,7 @@
 // application-status view (plus the documents route to complete their file).
 import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from "@tanstack/react-router";
 import { AppBar, Icon, MobileShell } from "@/components/tb/shell";
-import { getSession, clearSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import { GateBlockedCard, GateLoadingCard, useApplicationGate } from "@/components/tb/approval-gate";
 
 export const Route = createFileRoute("/driver")({
@@ -26,8 +26,8 @@ function DriverLayout() {
   if (gate.kind === "approved") return <Outlet />;
   if (EXEMPT_PATHS.some((p) => location.pathname.startsWith(p))) return <Outlet />;
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logoutSession();
     navigate({ to: "/auth/login" });
   }
 

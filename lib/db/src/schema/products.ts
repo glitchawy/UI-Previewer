@@ -12,6 +12,7 @@ export const productsTable = pgTable("products", {
   imageUrl: text("image_url"),
   basePrice: numeric("base_price", { precision: 10, scale: 2 }).notNull().default("0"),
   isAvailable: boolean("is_available").notNull().default(true),
+  isDevelopmentFixture: boolean("is_development_fixture").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

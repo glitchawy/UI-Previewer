@@ -1,6 +1,7 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useCart } from "@/lib/tb/cart";
+import { getSession, logoutSession } from "@/lib/auth-session";
 
 /* ============================== primitives ============================== */
 
@@ -324,9 +325,15 @@ export function MobileShell({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { cart } = useCart();
+  const isDevMode = getSession()?.isDevMode === true;
   return (
     <div dir="rtl" lang="ar" className="flex min-h-screen justify-center bg-surface-variant/40">
       <div className="tb-fade-up relative flex min-h-screen w-full max-w-full flex-col bg-surface sm:max-w-[480px] sm:shadow-[0_0_60px_rgba(94,60,26,0.12)]">
+        {isDevMode ? (
+          <span className="pointer-events-none fixed left-2 top-2 z-50 rounded-full bg-error px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow">
+            DEV MODE
+          </span>
+        ) : null}
         <div className="tb-tabbar-space min-w-0 flex-1">{children}</div>
         {fab}
         {tabs?.length ? (
@@ -395,8 +402,15 @@ export function DashboardShell({
   actions?: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const isDevMode = getSession()?.isDevMode === true;
   return (
     <div dir="rtl" lang="ar" className="flex min-h-screen bg-surface-variant/40">
+      {isDevMode ? (
+        <span className="pointer-events-none fixed left-2 top-2 z-50 rounded-full bg-error px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow">
+          DEV MODE
+        </span>
+      ) : null}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-l border-outline-variant bg-surface-container-lowest p-md lg:flex">
         <Link to="/" className="mb-md flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
@@ -432,13 +446,17 @@ export function DashboardShell({
             </ul>
           </div>
         ))}
-        <Link
-          to="/"
+        <button
+          type="button"
+          onClick={async () => {
+            await logoutSession();
+            navigate({ to: "/auth/login" });
+          }}
           className="mt-auto flex items-center gap-2 rounded-button px-3 py-2 font-label-md text-label-md text-outline hover:bg-surface-container-low"
         >
-          <Icon name="swap_horiz" className="text-[18px]" />
-          تغيير الدور
-        </Link>
+          <Icon name="logout" className="text-[18px]" />
+          تسجيل الخروج
+        </button>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -447,6 +465,18 @@ export function DashboardShell({
             {title}
           </h1>
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+          <button
+            type="button"
+            onClick={async () => {
+              await logoutSession();
+              navigate({ to: "/auth/login" });
+            }}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-error-container hover:text-error"
+            title="تسجيل الخروج"
+            aria-label="تسجيل الخروج"
+          >
+            <Icon name="logout" className="text-[20px]" />
+          </button>
         </header>
 
         {/* mobile nav */}

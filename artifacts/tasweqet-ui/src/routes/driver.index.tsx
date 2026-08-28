@@ -3,7 +3,7 @@ import { useState } from "react";
 import { AppBar, Badge, Card, Icon, MobileShell, Stat } from "@/components/tb/shell";
 import { EGP, driverWallet, drivers } from "@/lib/tb/data";
 import { driverTabs } from "@/lib/tb/nav";
-import { getSession, clearSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import {
   getGetActiveDriverOrderQueryKey,
   getGetAvailableDriverOrderQueryKey,
@@ -40,8 +40,8 @@ function DriverIndex() {
   });
   // Approval gating happens in the /driver layout route (driver.tsx).
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logoutSession();
     navigate({ to: "/auth/login" });
   }
 

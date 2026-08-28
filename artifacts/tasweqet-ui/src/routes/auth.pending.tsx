@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon, Badge } from "@/components/tb/shell";
-import { getSession, clearSession, getRoleDashboard, getToken } from "@/lib/auth-session";
+import { getSession, logoutSession, getRoleDashboard, getToken } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/pending")({
   beforeLoad: () => {
@@ -300,8 +300,8 @@ function AuthPending() {
 
   const canUpdate = appStatus === "PENDING" || appStatus === "REJECTED";
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logoutSession();
     navigate({ to: "/auth/login" });
   }
 

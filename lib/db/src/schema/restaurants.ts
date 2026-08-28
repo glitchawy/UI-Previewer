@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, doublePrecision, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -22,6 +22,7 @@ export const restaurantsTable = pgTable("restaurants", {
   coverUrl: text("cover_url"),
   coverUploadedAt: timestamp("cover_uploaded_at", { withTimezone: true }),
   status: text("status", { enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "ACTIVE"] }).notNull().default("PENDING"),
+  isDevelopmentFixture: boolean("is_development_fixture").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

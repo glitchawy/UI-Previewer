@@ -13,7 +13,7 @@ import {
 } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
 import { EGP, restaurantStats, orders } from "@/lib/tb/data";
-import { getSession, clearSession, getRoleDashboard } from "@/lib/auth-session";
+import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/partner/")({
   beforeLoad: () => {
@@ -36,8 +36,8 @@ function PartnerIndex() {
   // Approval gating happens in the /partner layout route (partner.tsx).
   const liveOrders = orders.filter((o) => !["DELIVERED", "CANCELLED"].includes(o.status));
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logoutSession();
     navigate({ to: "/auth/login" });
   }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { Icon, Card, SectionTitle, Badge, MobileShell } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
-import { getSession, clearSession, getRoleDashboard, getToken } from "@/lib/auth-session";
+import { getSession, logoutSession, getRoleDashboard, getToken } from "@/lib/auth-session";
 import { FavButton } from "@/lib/tb/favorites";
 
 export const Route = createFileRoute("/app/")({
@@ -67,7 +67,10 @@ function AppIndex() {
       .catch(() => {});
   }, []);
 
-  function handleLogout() { clearSession(); navigate({ to: "/auth/login" }); }
+  async function handleLogout() {
+    await logoutSession();
+    navigate({ to: "/auth/login" });
+  }
 
   const byCategory = allCategories;
 
