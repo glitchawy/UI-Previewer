@@ -23,10 +23,15 @@ type AuthRole = (typeof MOCK_ROLES)[number];
 type AuthUser = typeof usersTable.$inferSelect;
 
 function mockAuthEnabled(): boolean {
-  return (
-    (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") &&
-    process.env["MOCK_AUTH_ENABLED"] === "true"
-  );
+  const flagEnabled = process.env["MOCK_AUTH_ENABLED"] === "true";
+  const environment = process.env.NODE_ENV;
+  const localTestMode = (environment === "development" || environment === "test") && flagEnabled;
+  const publicWebTestMode =
+    environment === "production" &&
+    flagEnabled &&
+    process.env["PUBLIC_TEST_MODE_ENABLED"] === "true";
+
+  return localTestMode || publicWebTestMode;
 }
 
 function serializeUser(user: AuthUser) {

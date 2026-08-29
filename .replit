@@ -21,3 +21,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.production]
+MOCK_AUTH_ENABLED = "true"
+PUBLIC_TEST_MODE_ENABLED = "true"

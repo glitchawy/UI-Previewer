@@ -18,8 +18,8 @@ import { logger } from "./logger";
  *
  * In production the admin phone MUST be provided via ADMIN_PHONE — there is
  * no default account. In development a well-known local phone is used so the
- * dev OTP flow works out of the box (the dev OTP itself is disabled in
- * production, see routes/auth.ts).
+ * dev OTP flow works out of the box. Public web test mode uses separate,
+ * clearly labelled fixture users and must be explicitly enabled.
  */
 export async function seedAdminUser(): Promise<void> {
   const isProd = process.env.NODE_ENV === "production";
@@ -68,8 +68,14 @@ const DEV_FIXTURE_USERS = [
  */
 export async function seedDevelopmentFixtures(): Promise<void> {
   const environment = process.env.NODE_ENV;
-  if (environment !== "development" && environment !== "test") return;
-  if (process.env["MOCK_AUTH_ENABLED"] !== "true") return;
+  const localTestMode =
+    (environment === "development" || environment === "test") &&
+    process.env["MOCK_AUTH_ENABLED"] === "true";
+  const publicWebTestMode =
+    environment === "production" &&
+    process.env["MOCK_AUTH_ENABLED"] === "true" &&
+    process.env["PUBLIC_TEST_MODE_ENABLED"] === "true";
+  if (!localTestMode && !publicWebTestMode) return;
 
   const fixtureUsers = new Map<string, typeof usersTable.$inferSelect>();
   for (const fixture of DEV_FIXTURE_USERS) {

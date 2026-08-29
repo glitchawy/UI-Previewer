@@ -180,35 +180,33 @@ function AuthLogin() {
         <Button variant="outline" className="w-full" icon="person_add">إنشاء حساب جديد</Button>
       </Link>
 
-      {import.meta.env.DEV ? (
-        <section className="flex flex-col gap-3 rounded-card border-2 border-dashed border-error/40 bg-error-container/40 p-md">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-label-lg text-label-lg text-on-error-container">تسجيل دخول الاختبار</p>
-              <p className="font-label-md text-label-md text-on-surface-variant">
-                حسابات قاعدة بيانات حقيقية — للتطوير فقط
-              </p>
-            </div>
-            <span className="rounded-full bg-error px-2 py-1 text-[10px] font-bold tracking-wide text-white">
-              DEV MODE
-            </span>
+      <section className="flex flex-col gap-3 rounded-card border-2 border-dashed border-error/40 bg-error-container/40 p-md">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="font-label-lg text-label-lg text-on-error-container">تسجيل دخول الاختبار</p>
+            <p className="font-label-md text-label-md text-on-surface-variant">
+              حسابات قاعدة بيانات حقيقية — للاختبار عبر الويب
+            </p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {loginRoles.map((testRole) => (
-              <Button
-                key={testRole.value}
-                type="button"
-                variant="outline"
-                icon={testRole.icon}
-                disabled={devRolePending !== null}
-                onClick={() => handleDevLogin(testRole.value)}
-              >
-                {devRolePending === testRole.value ? "جاري الدخول..." : testRole.label}
-              </Button>
-            ))}
-          </div>
-        </section>
-      ) : null}
+          <span className="rounded-full bg-error px-2 py-1 text-[10px] font-bold tracking-wide text-white">
+            DEV MODE
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {loginRoles.map((testRole) => (
+            <Button
+              key={testRole.value}
+              type="button"
+              variant="outline"
+              icon={testRole.icon}
+              disabled={devRolePending !== null}
+              onClick={() => handleDevLogin(testRole.value)}
+            >
+              {devRolePending === testRole.value ? "جاري الدخول..." : testRole.label}
+            </Button>
+          ))}
+        </div>
+      </section>
 
       <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-md">
         <Icon name="sms" className="text-[18px] text-on-surface-variant" />
