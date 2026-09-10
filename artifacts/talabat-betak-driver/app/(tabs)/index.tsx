@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View, Text, Switch, ScrollView, RefreshControl } from 'react-native';
+import { StyleSheet, View, Text, Switch, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useTracking } from '@/ctx/TrackingContext';
@@ -11,7 +11,7 @@ export default function StatusScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isOnline, toggleOnline } = useTracking();
+  const { isOnline, toggleOnline, locationError, dispatchUpdatedAt, refreshDispatchLocation } = useTracking();
   
   const { data: account, refetch: refetchAccount, isLoading: accountLoading } = useGetDriverAccount();
   const { data: offer, refetch: refetchOffer } = useGetAvailableDriverOrder({
@@ -71,6 +71,24 @@ export default function StatusScreen() {
             />
           </View>
         </View>
+        {locationError ? (
+          <Text style={{ color: colors.destructive }}>{locationError}</Text>
+        ) : null}
+        {isOnline && !activeOrder ? (
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>موقع الإسناد</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              {locationError ? 'تعذر التحديث' : dispatchUpdatedAt &&
+                Date.now() - dispatchUpdatedAt < 120_000 ? 'الموقع حديث' : 'الموقع يحتاج تحديث'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => void refreshDispatchLocation()}
+              style={{ marginTop: 12, padding: 12, borderRadius: 8, backgroundColor: colors.primary }}
+            >
+              <Text style={{ color: colors.primaryForeground, textAlign: 'center' }}>تحديث موقع الإسناد</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -198,6 +216,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_500Medium',
     flex: 1,
+  },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
   },
   statsGrid: {
     flexDirection: 'row',

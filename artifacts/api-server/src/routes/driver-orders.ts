@@ -3,8 +3,8 @@ import type { Request, Response } from "express";
 import { and, desc, eq, gt, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import {
   db,
-  driverCommissionRulesTable,
-  driverEarningsTable,
+  branchesTable,
+  businessAuditLogsTable,
   driverLocationHistoryTable,
   driverOrderOffersTable,
   driverProfilesTable,
@@ -30,16 +30,25 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { lookupAuthorization } from "../lib/session";
-import { dispatchReadyOrder } from "../lib/driver-dispatch";
+import { dispatchReadyOrder, dispatchReadyOrders } from "../lib/driver-dispatch";
 import { logger } from "../lib/logger";
+import { requestIdForAudit } from "../lib/business-audit";
+import { settleDeliveredCashOrder } from "../lib/cash-order-accounting";
 
 const router = Router();
 const LOCATION_FRESH_MS = 2 * 60_000;
 const HEARTBEAT_FRESH_MS = 90_000;
 const LOCATION_HISTORY_INTERVAL_MS = 30_000;
+const FOREGROUND_FIX_MAX_AGE_MS = 30_000;
+const EGYPT_BOUNDS = { minLat: 21.7, maxLat: 31.8, minLng: 24.6, maxLng: 37 };
 
-function isCoarseCoordinate(value: number) {
-  return Number.isFinite(value) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-9;
+function isInEgypt(lat: number, lng: number) {
+  return lat >= EGYPT_BOUNDS.minLat && lat <= EGYPT_BOUNDS.maxLat &&
+    lng >= EGYPT_BOUNDS.minLng && lng <= EGYPT_BOUNDS.maxLng;
+}
+
+function roundDispatchCoordinate(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
@@ -103,51 +112,59 @@ router.post("/driver/location", async (req, res: Response): Promise<void> => {
     res.status(400).json({ error: "إحداثيات الموقع غير صحيحة" });
     return;
   }
-  const [activeOrder] = await db.select({ id: ordersTable.id }).from(ordersTable).where(and(
-    eq(ordersTable.driverProfileId, driver.profile.id),
-    inArray(ordersTable.status, ["ready", "picked_up"]),
-  )).limit(1);
-  if (!driver.profile.isOnline || !activeOrder) {
-    res.status(409).json({ error: "تحديث الموقع يتطلب حساباً متصلاً وتوصيلة نشطة مسندة" });
+  if (!isInEgypt(parsed.data.lat, parsed.data.lng)) {
+    res.status(400).json({ error: "الموقع يجب أن يكون داخل مصر" });
     return;
   }
-  const now = new Date();
-  const [updated] = await db.update(driverProfilesTable).set({
-    currentLat: parsed.data.lat,
-    currentLng: parsed.data.lng,
-    locationUpdatedAt: now,
-    lastHeartbeatAt: now,
-  }).where(and(
-    eq(driverProfilesTable.id, driver.profile.id),
-    eq(driverProfilesTable.status, "APPROVED"),
-    eq(driverProfilesTable.isOnline, true),
-    sql`exists (
-      select 1 from ${ordersTable}
-      where ${ordersTable.driverProfileId} = ${driver.profile.id}
-        and ${ordersTable.status} in ('ready', 'picked_up')
-    )`,
-  )).returning();
-  if (!updated) {
-    res.status(409).json({ error: "تغيرت حالة الاتصال أو التوصيلة، حدّث الصفحة" });
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78240, ${driver.profile.id})`);
+    const activeOrders = await tx.select({ id: ordersTable.id }).from(ordersTable).where(and(
+      eq(ordersTable.driverProfileId, driver.profile.id),
+      inArray(ordersTable.status, ["ready", "picked_up"]),
+    )).limit(2);
+    if (activeOrders.length !== 1) return null;
+    const activeOrder = activeOrders[0];
+    const now = new Date();
+    const [updated] = await tx.update(driverProfilesTable).set({
+      currentLat: parsed.data.lat,
+      currentLng: parsed.data.lng,
+      locationUpdatedAt: now,
+      dispatchLat: roundDispatchCoordinate(parsed.data.lat),
+      dispatchLng: roundDispatchCoordinate(parsed.data.lng),
+      dispatchLocationUpdatedAt: now,
+      dispatchLocationSource: "active_tracking",
+      lastHeartbeatAt: now,
+    }).where(and(
+      eq(driverProfilesTable.id, driver.profile.id),
+      eq(driverProfilesTable.status, "APPROVED"),
+      eq(driverProfilesTable.isOnline, true),
+    )).returning();
+    if (!updated) return null;
+    const [latest] = await tx.select({ recordedAt: driverLocationHistoryTable.recordedAt })
+      .from(driverLocationHistoryTable).where(and(
+        eq(driverLocationHistoryTable.driverProfileId, driver.profile.id),
+        eq(driverLocationHistoryTable.orderId, activeOrder.id),
+      )).orderBy(desc(driverLocationHistoryTable.recordedAt)).limit(1);
+    if (!latest || now.getTime() - latest.recordedAt.getTime() >= LOCATION_HISTORY_INTERVAL_MS) {
+      await tx.insert(driverLocationHistoryTable).values({
+        driverProfileId: driver.profile.id, orderId: activeOrder.id,
+        lat: parsed.data.lat, lng: parsed.data.lng, recordedAt: now,
+      });
+      await tx.delete(driverLocationHistoryTable).where(and(
+        eq(driverLocationHistoryTable.driverProfileId, driver.profile.id),
+        lt(driverLocationHistoryTable.recordedAt, new Date(now.getTime() - 7 * 86_400_000)),
+      ));
+    }
+    return updated;
+  });
+  if (!result) {
+    res.status(409).json({ error: "تحديث الموقع يتطلب اتصالاً وتوصيلة نشطة واحدة مسندة" });
     return;
-  }
-  const [latest] = await db.select({ recordedAt: driverLocationHistoryTable.recordedAt })
-    .from(driverLocationHistoryTable).where(eq(driverLocationHistoryTable.driverProfileId, driver.profile.id))
-    .orderBy(desc(driverLocationHistoryTable.recordedAt)).limit(1);
-  if (!latest || now.getTime() - latest.recordedAt.getTime() >= LOCATION_HISTORY_INTERVAL_MS) {
-    await db.insert(driverLocationHistoryTable).values({
-      driverProfileId: driver.profile.id, orderId: activeOrder?.id ?? null,
-      lat: parsed.data.lat, lng: parsed.data.lng, recordedAt: now,
-    });
-    await db.delete(driverLocationHistoryTable).where(and(
-      eq(driverLocationHistoryTable.driverProfileId, driver.profile.id),
-      lt(driverLocationHistoryTable.recordedAt, new Date(now.getTime() - 7 * 86_400_000)),
-    ));
   }
   res.json(UpdateDriverLocationResponse.parse({
-    lat: updated.currentLat,
-    lng: updated.currentLng,
-    updatedAt: updated.locationUpdatedAt,
+    lat: result.currentLat,
+    lng: result.currentLng,
+    updatedAt: result.locationUpdatedAt,
   }));
 });
 
@@ -155,40 +172,43 @@ router.post("/driver/dispatch-location", async (req, res: Response): Promise<voi
   const driver = await requireApprovedDriver(req, res);
   if (!driver) return;
   const parsed = UpdateDriverDispatchLocationBody.safeParse(req.body);
-  if (!parsed.success || !isCoarseCoordinate(parsed.data.lat) || !isCoarseCoordinate(parsed.data.lng)) {
-    res.status(400).json({ error: "موقع الإسناد يجب تقريبه إلى منزلتين عشريتين كحد أقصى" });
-    return;
-  }
-  const [activeOrder] = await db.select({ id: ordersTable.id }).from(ordersTable).where(and(
-    eq(ordersTable.driverProfileId, driver.profile.id),
-    inArray(ordersTable.status, ["ready", "picked_up"]),
-  )).limit(1);
-  if (!driver.profile.isOnline || !driver.profile.isAvailable || driver.profile.currentWorkload > 0 || activeOrder) {
-    res.status(409).json({ error: "موقع الإسناد متاح فقط للكابتن المتصل والمتاح بدون توصيلة نشطة" });
-    return;
-  }
   const now = new Date();
-  const [updated] = await db.update(driverProfilesTable).set({
-    dispatchLat: parsed.data.lat,
-    dispatchLng: parsed.data.lng,
-    dispatchLocationUpdatedAt: now,
-    lastHeartbeatAt: now,
-  }).where(and(
-    eq(driverProfilesTable.id, driver.profile.id),
-    eq(driverProfilesTable.status, "APPROVED"),
-    eq(driverProfilesTable.isOnline, true),
-    eq(driverProfilesTable.isAvailable, true),
-    lte(driverProfilesTable.currentWorkload, 0),
-    sql`not exists (
-      select 1 from ${ordersTable}
-      where ${ordersTable.driverProfileId} = ${driver.profile.id}
-        and ${ordersTable.status} in ('ready', 'picked_up')
-    )`,
-  )).returning({ updatedAt: driverProfilesTable.dispatchLocationUpdatedAt });
+  if (!parsed.success || !isInEgypt(parsed.data.lat, parsed.data.lng) ||
+      parsed.data.capturedAt.getTime() > now.getTime() + 5_000 ||
+      now.getTime() - parsed.data.capturedAt.getTime() > FOREGROUND_FIX_MAX_AGE_MS) {
+    res.status(400).json({ error: "إحداثيات موقع الإسناد غير صحيحة أو خارج مصر" });
+    return;
+  }
+  const updated = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78240, ${driver.profile.id})`);
+    const [record] = await tx.update(driverProfilesTable).set({
+      dispatchLat: roundDispatchCoordinate(parsed.data.lat),
+      dispatchLng: roundDispatchCoordinate(parsed.data.lng),
+      dispatchLocationUpdatedAt: now,
+      dispatchLocationSource: "foreground_idle",
+      lastHeartbeatAt: now,
+    }).where(and(
+      eq(driverProfilesTable.id, driver.profile.id),
+      eq(driverProfilesTable.status, "APPROVED"),
+      eq(driverProfilesTable.isOnline, true),
+      eq(driverProfilesTable.isAvailable, true),
+      lte(driverProfilesTable.currentWorkload, 0),
+      sql`not exists (
+        select 1 from ${ordersTable}
+        where ${ordersTable.driverProfileId} = ${driver.profile.id}
+          and ${ordersTable.status} in ('ready', 'picked_up')
+      )`,
+    )).returning({ updatedAt: driverProfilesTable.dispatchLocationUpdatedAt });
+    return record;
+  });
   if (!updated) {
     res.status(409).json({ error: "تغيرت حالة الاتصال أو التوصيلة، حدّث الصفحة" });
     return;
   }
+  await dispatchReadyOrders(new Date(), true).catch((error) => {
+    logger.warn({ err: error, driverProfileId: driver.profile.id },
+      "Immediate location-triggered dispatch recovery failed; worker will recover");
+  });
   res.json(UpdateDriverDispatchLocationResponse.parse({ updatedAt: updated.updatedAt }));
 });
 
@@ -202,7 +222,15 @@ router.put("/driver/availability", requireAuth, requireRole("driver"), async (re
   }
   const now = new Date();
   const [updated] = await db.update(driverProfilesTable).set({
-    isOnline: requested, isAvailable: requested, lastHeartbeatAt: now,
+    isOnline: requested,
+    isAvailable: requested,
+    lastHeartbeatAt: now,
+    ...(!requested ? {
+      dispatchLat: null,
+      dispatchLng: null,
+      dispatchLocationUpdatedAt: null,
+      dispatchLocationSource: null,
+    } : {}),
   }).where(and(eq(driverProfilesTable.id, profile.id), eq(driverProfilesTable.status, profile.status))).returning();
   if (!updated) { res.status(409).json({ error: "تغيرت حالة الحساب، حدّث الصفحة" }); return; }
   if (!requested) {
@@ -228,6 +256,14 @@ router.get("/driver/orders/active", async (req, res: Response): Promise<void> =>
   }
   const [customer] = await db.select({ name: usersTable.name, phone: usersTable.phone })
     .from(usersTable).where(eq(usersTable.id, order.customerId)).limit(1);
+  const [branch] = order.branchId
+    ? await db.select({
+      lat: branchesTable.lat,
+      lng: branchesTable.lng,
+      addressText: branchesTable.address,
+    }).from(branchesTable).where(eq(branchesTable.id, order.branchId)).limit(1)
+    : [];
+  const maySeeDeliveryCoordinates = order.status === "picked_up";
   res.json(GetActiveDriverOrderResponse.parse({
     id: order.id,
     code: orderCode(order.id),
@@ -238,8 +274,11 @@ router.get("/driver/orders/active", async (req, res: Response): Promise<void> =>
     customerName: customer?.name ?? null,
     customerPhone: customer?.phone ?? null,
     deliveryAddressText: order.deliveryAddressText,
-    deliveryLat: order.deliveryLat,
-    deliveryLng: order.deliveryLng,
+    pickupAddressText: branch?.addressText ?? null,
+    pickupLat: branch?.lat ?? null,
+    pickupLng: branch?.lng ?? null,
+    deliveryLat: maySeeDeliveryCoordinates ? order.deliveryLat : null,
+    deliveryLng: maySeeDeliveryCoordinates ? order.deliveryLng : null,
     notes: order.notes,
     driverLat: driver.profile.currentLat,
     driverLng: driver.profile.currentLng,
@@ -272,6 +311,13 @@ router.get("/driver/orders/available", async (req, res: Response): Promise<void>
       eq(driverOrderOffersTable.status, "pending"), gt(driverOrderOffersTable.expiresAt, now)))
     .orderBy(driverOrderOffersTable.expiresAt).limit(1);
   const order = offerResult?.order;
+  const [offerBranch] = order?.branchId
+    ? await db.select({
+      lat: branchesTable.lat,
+      lng: branchesTable.lng,
+      addressText: branchesTable.address,
+    }).from(branchesTable).where(eq(branchesTable.id, order.branchId)).limit(1)
+    : [];
   res.json(GetAvailableDriverOrderResponse.parse(order ? {
     id: order.id,
     offerId: offerResult.offer.id,
@@ -280,8 +326,11 @@ router.get("/driver/orders/available", async (req, res: Response): Promise<void>
     code: orderCode(order.id),
     restaurantName: order.restaurantName,
     deliveryAddressText: order.deliveryAddressText,
-    deliveryLat: order.deliveryLat,
-    deliveryLng: order.deliveryLng,
+    pickupAddressText: offerBranch?.addressText ?? null,
+    pickupLat: offerBranch?.lat ?? null,
+    pickupLng: offerBranch?.lng ?? null,
+    deliveryLat: null,
+    deliveryLng: null,
     deliveryFee: Number(order.deliveryFee),
     total: Number(order.total),
   } : null));
@@ -297,6 +346,7 @@ router.post("/driver/orders/:id/accept", async (req, res: Response): Promise<voi
   }
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${params.data.id})`);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78240, ${driver.profile.id})`);
     await tx.execute(sql`SELECT pg_advisory_xact_lock(78240, ${driver.profile.id})`);
     const [order] = await tx.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
     if (!order || order.status !== "ready") {
@@ -371,6 +421,7 @@ router.patch("/driver/orders/:id/status", async (req, res: Response): Promise<vo
     if (order.driverProfileId !== driver.profile.id) {
       return { error: 403 as const, message: "الطلب غير مسند لهذا الكابتن" };
     }
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78240, ${driver.profile.id})`);
     if (order.status === body.data.status) {
       return { order };
     }
@@ -387,18 +438,38 @@ router.patch("/driver/orders/:id/status", async (req, res: Response): Promise<vo
       deliveredAt: body.data.status === "delivered" ? now : order.deliveredAt,
     }).where(eq(ordersTable.id, order.id)).returning();
     await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: body.data.status });
+    await tx.insert(businessAuditLogsTable).values({
+      actorAdminId: null,
+      actorUserId: driver.user.id,
+      actorRole: "driver",
+      action: `driver.order.${body.data.status}`,
+      entityType: "order",
+      entityId: String(order.id),
+      before: {
+        status: order.status,
+        restaurantId: order.restaurantId,
+        branchId: order.branchId,
+      },
+      after: {
+        status: body.data.status,
+        restaurantId: order.restaurantId,
+        branchId: order.branchId,
+      },
+      requestId: requestIdForAudit(req),
+    });
     if (body.data.status === "delivered") {
-      const [rule] = await tx.select().from(driverCommissionRulesTable).where(eq(driverCommissionRulesTable.isActive, true))
-        .orderBy(desc(driverCommissionRulesTable.updatedAt)).limit(1);
-      const shareRate = Number(rule?.driverShareRate ?? 70), bonus = Number(rule?.bonusPerOrder ?? 0);
-      const net = Number(order.deliveryFee) * shareRate / 100 + bonus;
-      await tx.insert(driverEarningsTable).values({
-        orderId: order.id, driverProfileId: driver.profile.id, deliveryFee: order.deliveryFee,
-        shareRate: shareRate.toFixed(2), bonus: bonus.toFixed(2), netAmount: net.toFixed(2),
-      }).onConflictDoNothing();
       await tx.update(driverProfilesTable).set({
         currentWorkload: 0, isAvailable: driver.profile.isOnline,
+        currentLat: null, currentLng: null, locationUpdatedAt: null,
       }).where(eq(driverProfilesTable.id, driver.profile.id));
+      await tx.update(driverProfilesTable).set({
+        dispatchLat: null, dispatchLng: null, dispatchLocationUpdatedAt: null,
+        dispatchLocationSource: null,
+      }).where(and(
+        eq(driverProfilesTable.id, driver.profile.id),
+        eq(driverProfilesTable.dispatchLocationSource, "active_tracking"),
+      ));
+      if (order.paymentMethod === "cash") await settleDeliveredCashOrder(tx, order.id);
     }
     const notificationCopy = body.data.status === "picked_up"
       ? { title: "طلبك في الطريق", body: "استلم المندوب طلبك وهو في طريقه إليك" }
@@ -417,6 +488,12 @@ router.patch("/driver/orders/:id/status", async (req, res: Response): Promise<vo
   if ("error" in result && result.error) {
     res.status(result.error).json({ error: result.message });
     return;
+  }
+  if (result.order.status === "delivered") {
+    await dispatchReadyOrders(new Date(), true).catch((error) => {
+      logger.warn({ err: error, driverProfileId: driver.profile.id },
+        "Immediate availability-triggered dispatch recovery failed; worker will recover");
+    });
   }
   res.json(UpdateDriverOrderStatusResponse.parse({
     id: result.order.id,

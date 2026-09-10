@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
@@ -18,19 +18,34 @@ export default function DeliveryScreen() {
   });
 
   const updateStatus = useUpdateDriverOrderStatus();
+  const statusActionLock = useRef(false);
+  const [statusActionLocked, setStatusActionLocked] = useState(false);
+  const authoritativeStatusKey = activeOrder ? `${activeOrder.id}:${activeOrder.status}` : null;
+  const previousStatusKey = useRef(authoritativeStatusKey);
+  useEffect(() => {
+    if (previousStatusKey.current !== authoritativeStatusKey) {
+      previousStatusKey.current = authoritativeStatusKey;
+      statusActionLock.current = false;
+      setStatusActionLocked(false);
+    }
+  }, [authoritativeStatusKey]);
 
   const handleUpdateStatus = async (status: DriverOrderStatusUpdateStatus) => {
-    if (!activeOrder) return;
+    if (!activeOrder || statusActionLock.current) return;
+    statusActionLock.current = true;
+    setStatusActionLocked(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       await updateStatus.mutateAsync({
         id: activeOrder.id,
         data: { status }
       });
-      refetch();
+      await refetch();
     } catch (e) {
+      setStatusActionLocked(false);
+      statusActionLock.current = false;
       console.error(e);
-      refetch();
+      await refetch();
     }
   };
 
@@ -69,6 +84,8 @@ export default function DeliveryScreen() {
 
   const order = activeOrder as DriverActiveOrder;
   const isPickedUp = order.status === 'picked_up';
+  const destinationLat = isPickedUp ? order.deliveryLat : order.pickupLat;
+  const destinationLng = isPickedUp ? order.deliveryLng : order.pickupLng;
   
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -96,7 +113,7 @@ export default function DeliveryScreen() {
           </Text>
           
           <Text style={[styles.addressText, { color: colors.mutedForeground }]}>
-            {isPickedUp ? order.deliveryAddressText : 'Restaurant Address'}
+            {isPickedUp ? order.deliveryAddressText : (order.pickupAddressText || 'Restaurant Address')}
           </Text>
           
           {isPickedUp && order.notes && (
@@ -109,7 +126,10 @@ export default function DeliveryScreen() {
           <View style={styles.actionGrid}>
             <TouchableOpacity 
               style={[styles.actionBtn, { backgroundColor: colors.secondary }]}
-              onPress={() => openMaps(order.deliveryLat, order.deliveryLng)}
+              onPress={() => {
+                if (destinationLat != null && destinationLng != null) openMaps(destinationLat, destinationLng);
+              }}
+              disabled={destinationLat == null || destinationLng == null}
             >
               <Feather name="navigation" size={20} color={colors.secondaryForeground} />
               <Text style={[styles.actionBtnText, { color: colors.secondaryForeground }]}>Navigate</Text>
@@ -162,7 +182,7 @@ export default function DeliveryScreen() {
           <TouchableOpacity
             style={[styles.mainBtn, { backgroundColor: colors.primary }]}
             onPress={() => handleUpdateStatus('picked_up' as any)}
-            disabled={updateStatus.isPending}
+            disabled={statusActionLocked || updateStatus.isPending}
             testID="pickup-button"
           >
             {updateStatus.isPending ? (
@@ -175,7 +195,7 @@ export default function DeliveryScreen() {
           <TouchableOpacity
             style={[styles.mainBtn, { backgroundColor: colors.success }]}
             onPress={() => handleUpdateStatus('delivered' as any)}
-            disabled={updateStatus.isPending}
+            disabled={statusActionLocked || updateStatus.isPending}
             testID="deliver-button"
           >
             {updateStatus.isPending ? (

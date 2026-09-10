@@ -4,11 +4,12 @@ import {
   restaurantsTable,
   driverProfilesTable,
   branchesTable,
+  branchStaffTable,
   categoriesTable,
   productsTable,
   adminAccountsTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { runtimeCapabilities } from "./deployment-profile";
 
@@ -79,6 +80,11 @@ const DEV_FIXTURE_USERS = [
   { phone: DEVELOPMENT_FIXTURE_PHONE_BY_ROLE.driver, role: "driver" as const, name: "DEV TEST — مندوب" },
   { phone: DEVELOPMENT_FIXTURE_PHONE_BY_ROLE.admin, role: "admin" as const, name: "DEV TEST — مشرف" },
 ];
+const DEV_FIXTURE_HOURS = JSON.stringify(Object.fromEntries(
+  ["SAT", "SUN", "MON", "TUE", "WED", "THU", "FRI"].map((day) => [
+    day, { open: "00:00", close: "00:00", closed: false },
+  ]),
+));
 
 /**
  * Seeds the small, clearly labelled fixture graph used by the development
@@ -148,7 +154,7 @@ export async function seedDevelopmentFixtures(): Promise<void> {
         phone: partner.phone,
         address: "وسط البلد، القاهرة",
         branches: 1,
-        hours: JSON.stringify({ sat: { open: "09:00", close: "23:00" } }),
+        hours: DEV_FIXTURE_HOURS,
         category: "مصري",
         deliveryType: "restaurant",
         lat: 30.0444,
@@ -157,14 +163,24 @@ export async function seedDevelopmentFixtures(): Promise<void> {
         isDevelopmentFixture: true,
       }).returning();
     }
+    if (restaurant.isDevelopmentFixture && restaurant.hours !== DEV_FIXTURE_HOURS) {
+      [restaurant] = await db.update(restaurantsTable)
+        .set({ hours: DEV_FIXTURE_HOURS })
+        .where(and(eq(restaurantsTable.id, restaurant.id), eq(restaurantsTable.isDevelopmentFixture, true)))
+        .returning();
+    }
 
-    const [branch] = await db
+    let [branch] = await db
       .select()
       .from(branchesTable)
-      .where(eq(branchesTable.restaurantId, restaurant.id))
+      .where(and(
+        eq(branchesTable.restaurantId, restaurant.id),
+        eq(branchesTable.isDevelopmentFixture, true),
+      ))
+      .orderBy(asc(branchesTable.id))
       .limit(1);
     if (!branch) {
-      await db.insert(branchesTable).values({
+      [branch] = await db.insert(branchesTable).values({
         restaurantId: restaurant.id,
         name: "DEV TEST — الفرع الرئيسي",
         address: "وسط البلد، القاهرة",
@@ -174,8 +190,54 @@ export async function seedDevelopmentFixtures(): Promise<void> {
         isOpen: true,
         notes: "Development fixture",
         isDevelopmentFixture: true,
-      });
+      }).returning();
     }
+
+    // The partner role alone grants no fulfillment access. The fixture owner
+    // receives exactly its deterministic fixture branch, idempotently.
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        // Serialize fixture repair with approval and other assignment writers.
+        // The partial unique index remains the final concurrency guard.
+        sql`select pg_advisory_xact_lock(hashtextextended(${"partner-membership:" + partner.id}, 0))`,
+      );
+      await tx.update(branchStaffTable).set({ leftAt: new Date() }).where(and(
+        eq(branchStaffTable.userId, partner.id),
+        isNull(branchStaffTable.leftAt),
+        sql`${branchStaffTable.branchId} <> ${branch.id}`,
+      ));
+      const [active] = await tx.select({ id: branchStaffTable.id })
+        .from(branchStaffTable)
+        .where(and(
+          eq(branchStaffTable.userId, partner.id),
+          eq(branchStaffTable.branchId, branch.id),
+          isNull(branchStaffTable.leftAt),
+        ))
+        .limit(1);
+      if (!active) {
+        const [prior] = await tx.select({ id: branchStaffTable.id })
+          .from(branchStaffTable)
+          .where(and(
+            eq(branchStaffTable.userId, partner.id),
+            eq(branchStaffTable.branchId, branch.id),
+          ))
+          .orderBy(asc(branchStaffTable.id))
+          .limit(1);
+        if (prior) {
+          await tx.update(branchStaffTable).set({
+            leftAt: null,
+            role: "MANAGER",
+            joinedAt: new Date(),
+          }).where(eq(branchStaffTable.id, prior.id));
+        } else {
+          await tx.insert(branchStaffTable).values({
+            branchId: branch.id,
+            userId: partner.id,
+            role: "MANAGER",
+          });
+        }
+      }
+    });
 
     let [category] = await db
       .select()

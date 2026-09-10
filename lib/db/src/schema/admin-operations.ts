@@ -27,15 +27,57 @@ export const driverCommissionRulesTable = pgTable("driver_commission_rules", {
 }, t => [check("driver_commission_values_check", sql`${t.driverShareRate} >= 0 AND ${t.driverShareRate} <= 100 AND ${t.bonusPerOrder} >= 0`)]);
 export const restaurantSettlementsTable = pgTable("restaurant_settlements", {
   id: serial("id").primaryKey(), idempotencyKey: text("idempotency_key").notNull(), restaurantId: integer("restaurant_id").notNull(),
+  orderId: integer("order_id"),
   periodStart: date("period_start", { mode: "string" }).notNull(), periodEnd: date("period_end", { mode: "string" }).notNull(),
   orderCount: integer("order_count").notNull(), grossAmount: numeric("gross_amount", { precision: 12, scale: 2 }).notNull(),
   commissionRate: numeric("commission_rate", { precision: 5, scale: 2 }).notNull(), commissionAmount: numeric("commission_amount", { precision: 12, scale: 2 }).notNull(),
   refundAmount: numeric("refund_amount", { precision: 12, scale: 2 }).notNull(), netAmount: numeric("net_amount", { precision: 12, scale: 2 }).notNull(),
   status: text("status", { enum: ["pending", "approved", "paid"] }).notNull().default("pending"),
-  createdByAdminId: integer("created_by_admin_id").notNull(), approvedByAdminId: integer("approved_by_admin_id"), paidByAdminId: integer("paid_by_admin_id"),
+  createdByAdminId: integer("created_by_admin_id"), approvedByAdminId: integer("approved_by_admin_id"), paidByAdminId: integer("paid_by_admin_id"),
   approvedAt: timestamp("approved_at", { withTimezone: true }), paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => [uniqueIndex("restaurant_settlements_idempotency_uidx").on(t.idempotencyKey), index("restaurant_settlements_period_idx").on(t.periodStart, t.periodEnd)]);
+}, t => [uniqueIndex("restaurant_settlements_idempotency_uidx").on(t.idempotencyKey), uniqueIndex("restaurant_settlements_order_uidx").on(t.orderId).where(sql`${t.orderId} is not null`), index("restaurant_settlements_period_idx").on(t.periodStart, t.periodEnd)]);
+export const cashOrderReconciliationsTable = pgTable("cash_order_reconciliations", {
+  id: serial("id").primaryKey(), orderId: integer("order_id").notNull(),
+  status: text("status", { enum: ["pending", "processing", "retry", "processed", "dead_letter", "skipped"] }).notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  leaseOwner: text("lease_owner"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  lastError: text("last_error"), processedAt: timestamp("processed_at", { withTimezone: true }),
+  deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
+  safeReason: text("safe_reason", {
+    enum: ["REFUNDED_ORDER_NOT_SETTLEMENT_ELIGIBLE", "FAILED_ORDER_NOT_SETTLEMENT_ELIGIBLE", "CANCELLED_ORDER_NOT_SETTLEMENT_ELIGIBLE"],
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("cash_order_reconciliations_order_uidx").on(t.orderId),
+  index("cash_order_reconciliations_claim_idx").on(t.status, t.nextAttemptAt, t.leaseExpiresAt),
+  check("cash_order_reconciliation_error_length", sql`${t.lastError} IS NULL OR length(${t.lastError}) <= 2000`),
+  check("cash_order_reconciliation_safe_reason_check", sql`
+    (${t.status} = 'skipped' and ${t.safeReason} in
+      ('REFUNDED_ORDER_NOT_SETTLEMENT_ELIGIBLE','FAILED_ORDER_NOT_SETTLEMENT_ELIGIBLE','CANCELLED_ORDER_NOT_SETTLEMENT_ELIGIBLE'))
+    or (${t.status} <> 'skipped' and ${t.safeReason} is null)
+  `),
+]);
+export const platformRevenueAllocationsTable = pgTable("platform_revenue_allocations", {
+  id: serial("id").primaryKey(),
+  reference: text("reference").notNull(),
+  kind: text("kind", { enum: ["delivery_fee_share"] }).notNull(),
+  source: text("source", { enum: ["cash_delivery"] }).notNull(),
+  orderId: integer("order_id").notNull(),
+  paymentMethod: text("payment_method", { enum: ["cash"] }).notNull(),
+  paymentSessionId: integer("payment_session_id"),
+  restaurantId: integer("restaurant_id").notNull(),
+  driverProfileId: integer("driver_profile_id").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("platform_revenue_allocations_reference_uidx").on(t.reference),
+  uniqueIndex("platform_revenue_allocations_order_uidx").on(t.orderId),
+  index("platform_revenue_allocations_created_idx").on(t.createdAt, t.id),
+  check("platform_revenue_allocations_amount_check", sql`${t.amount} >= 0`),
+]);
 export const notificationOutboxTable = pgTable("notification_outbox", {
   id: serial("id").primaryKey(), eventType: text("event_type").notNull(), audience: jsonb("audience").notNull(),
   title: text("title").notNull(), body: text("body").notNull(),

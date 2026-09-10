@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import {
   cartItemsTable,
+  businessAuditLogsTable,
+  cashOrderReconciliationsTable,
   db,
   driverProfilesTable,
   notificationDeliveryAttemptsTable,
@@ -22,6 +24,7 @@ import { logger } from "./logger";
 import { dispatchReadyOrders } from "./driver-dispatch";
 import { processNotificationDelivery } from "./notification-delivery";
 import { evaluateOperationsHealth, processOperationsAlertDelivery } from "./operations-health";
+import { settleDeliveredCashOrder } from "./cash-order-accounting";
 
 type PaymobCallback = {
   obj?: Record<string, unknown>;
@@ -51,7 +54,7 @@ function retryDelay(attempt: number) {
 
 class QuarantinedEvent extends Error {}
 
-async function claimRows(table: "paymob_webhook_inbox" | "notification_outbox" | "notification_delivery_attempts" | "operations_alert_deliveries", owner: string) {
+async function claimRows(table: "paymob_webhook_inbox" | "notification_outbox" | "notification_delivery_attempts" | "operations_alert_deliveries" | "cash_order_reconciliations", owner: string) {
   const result = await db.execute(sql.raw(`
     UPDATE ${table} AS work
     SET status = 'processing', lease_owner = '${owner.replaceAll("'", "''")}',
@@ -69,6 +72,220 @@ async function claimRows(table: "paymob_webhook_inbox" | "notification_outbox" |
     RETURNING work.id
   `));
   return result.rows.map((row) => Number(row.id));
+}
+
+export async function enqueueCashOrderReconciliations(
+  executor: Pick<typeof db, "execute"> = db,
+  onlyOrderId: number | null = null,
+) {
+  await executor.execute(sql`
+    insert into cash_order_reconciliations (order_id)
+    select id from orders
+    where status = 'delivered' and payment_method = 'cash'
+      and payment_status in ('pending','paid')
+      and (${onlyOrderId}::integer is null or id = ${onlyOrderId})
+      and (
+        payment_status <> 'paid'
+        or not exists (select 1 from restaurant_settlements s where s.order_id = orders.id)
+        or not exists (select 1 from driver_earnings e where e.order_id = orders.id)
+        or not exists (select 1 from platform_revenue_allocations p where p.order_id = orders.id)
+        or exists (
+          select 1 from restaurant_settlements s
+          join restaurants r on r.id = orders.restaurant_id
+          where s.order_id = orders.id and s.net_amount > 0
+            and not exists (
+              select 1 from wallet_transactions w
+              where w.user_id = r.owner_user_id and w.type = 'credit'
+                and w.reference_type = 'restaurant_settlement' and w.reference_id = orders.id
+            )
+        )
+        or exists (
+          select 1 from driver_earnings e
+          join driver_profiles d on d.id = orders.driver_profile_id
+          where e.order_id = orders.id and e.net_amount > 0
+            and not exists (
+              select 1 from wallet_transactions w
+              where w.user_id = d.user_id and w.type = 'credit'
+                and w.reference_type = 'driver_earning' and w.reference_id = orders.id
+            )
+        )
+        or exists (
+          select 1 from driver_profiles d
+          where d.id = orders.driver_profile_id
+            and (d.current_lat is not null or d.current_lng is not null
+              or d.location_updated_at is not null or d.dispatch_location_source = 'active_tracking')
+            and not exists (
+              select 1 from orders active
+              where active.driver_profile_id = d.id and active.id <> orders.id
+                and active.status in ('ready','picked_up')
+            )
+        )
+      )
+    order by id
+    limit ${BATCH_SIZE}
+    on conflict (order_id) do update
+      set status = 'pending', attempt_count = 0, next_attempt_at = now(), processed_at = null,
+          lease_owner = null, lease_expires_at = null, last_error = null, updated_at = now()
+      where cash_order_reconciliations.status = 'processed'
+  `);
+}
+
+export async function skipIneligibleCashOrderReconciliations(now = new Date()) {
+  const candidates = await db.select({
+    id: cashOrderReconciliationsTable.id,
+    orderId: cashOrderReconciliationsTable.orderId,
+    paymentStatus: ordersTable.paymentStatus,
+    orderStatus: ordersTable.status,
+  }).from(cashOrderReconciliationsTable)
+    .innerJoin(ordersTable, eq(ordersTable.id, cashOrderReconciliationsTable.orderId))
+    .where(and(
+      eq(ordersTable.paymentMethod, "cash"),
+      or(inArray(ordersTable.paymentStatus, ["refunded", "failed"]),
+        eq(ordersTable.status, "cancelled")),
+      or(
+        inArray(cashOrderReconciliationsTable.status, ["pending", "retry", "dead_letter"]),
+        and(
+          eq(cashOrderReconciliationsTable.status, "processing"),
+          or(isNull(cashOrderReconciliationsTable.leaseExpiresAt),
+            lte(cashOrderReconciliationsTable.leaseExpiresAt, now)),
+        ),
+      ),
+    ))
+    .orderBy(cashOrderReconciliationsTable.id)
+    .limit(BATCH_SIZE);
+  let skipped = 0;
+  for (const candidate of candidates) {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${candidate.orderId})`);
+      const [current] = await tx.select({
+        reconciliation: cashOrderReconciliationsTable,
+        paymentStatus: ordersTable.paymentStatus,
+        paymentMethod: ordersTable.paymentMethod,
+        orderStatus: ordersTable.status,
+      }).from(cashOrderReconciliationsTable)
+        .innerJoin(ordersTable, eq(ordersTable.id, cashOrderReconciliationsTable.orderId))
+        .where(eq(cashOrderReconciliationsTable.id, candidate.id)).limit(1);
+      if (!current || current.paymentMethod !== "cash" ||
+          (!["refunded", "failed"].includes(current.paymentStatus) &&
+            current.orderStatus !== "cancelled") ||
+          !["pending", "retry", "dead_letter", "processing"].includes(current.reconciliation.status) ||
+          (current.reconciliation.status === "processing" &&
+            current.reconciliation.leaseExpiresAt &&
+            current.reconciliation.leaseExpiresAt > now)) return;
+      const safeReason = current.orderStatus === "cancelled"
+        ? "CANCELLED_ORDER_NOT_SETTLEMENT_ELIGIBLE" as const
+        : current.paymentStatus === "refunded"
+          ? "REFUNDED_ORDER_NOT_SETTLEMENT_ELIGIBLE" as const
+          : "FAILED_ORDER_NOT_SETTLEMENT_ELIGIBLE" as const;
+      const [changed] = await tx.update(cashOrderReconciliationsTable).set({
+        status: "skipped",
+        safeReason,
+        processedAt: now,
+        deadLetteredAt: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        lastError: null,
+        updatedAt: now,
+      }).where(and(
+        eq(cashOrderReconciliationsTable.id, candidate.id),
+        or(
+          inArray(cashOrderReconciliationsTable.status, ["pending", "retry", "dead_letter"]),
+          and(eq(cashOrderReconciliationsTable.status, "processing"),
+            or(isNull(cashOrderReconciliationsTable.leaseExpiresAt),
+              lte(cashOrderReconciliationsTable.leaseExpiresAt, now))),
+        ),
+      )).returning({ id: cashOrderReconciliationsTable.id });
+      if (!changed) return;
+      await tx.insert(businessAuditLogsTable).values({
+        actorAdminId: null,
+        actorUserId: null,
+        actorRole: "system",
+        action: "system.cash_order.reconciliation_skipped",
+        entityType: "order",
+        entityId: String(candidate.orderId),
+        before: { reconciliationStatus: current.reconciliation.status },
+        after: { reconciliationStatus: "skipped", safeReason },
+        reason: "Cash settlement reconciliation became ineligible",
+        requestId: `cash-order-reconciliation-skipped:${candidate.orderId}`,
+      }).onConflictDoNothing();
+      skipped += 1;
+    });
+  }
+  return skipped;
+}
+
+export async function processCashOrderReconciliation(id: number) {
+  await db.transaction(async (tx) => {
+    const [work] = await tx.select().from(cashOrderReconciliationsTable).where(and(
+      eq(cashOrderReconciliationsTable.id, id),
+      eq(cashOrderReconciliationsTable.status, "processing"),
+    )).limit(1);
+    if (!work) return;
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${work.orderId})`);
+    const [order] = await tx.select().from(ordersTable)
+      .where(eq(ordersTable.id, work.orderId)).limit(1);
+    if (!order || order.paymentMethod !== "cash") {
+      throw new QuarantinedEvent("RECONCILIATION_ORDER_NOT_DELIVERED_CASH");
+    }
+    if (order.status === "cancelled" || order.paymentStatus === "refunded" ||
+        order.paymentStatus === "failed") {
+      const safeReason = order.status === "cancelled"
+        ? "CANCELLED_ORDER_NOT_SETTLEMENT_ELIGIBLE" as const
+        : order.paymentStatus === "refunded"
+          ? "REFUNDED_ORDER_NOT_SETTLEMENT_ELIGIBLE" as const
+          : "FAILED_ORDER_NOT_SETTLEMENT_ELIGIBLE" as const;
+      await tx.update(cashOrderReconciliationsTable).set({
+        status: "skipped", safeReason, processedAt: new Date(), deadLetteredAt: null,
+        leaseOwner: null, leaseExpiresAt: null, lastError: null, updatedAt: new Date(),
+      }).where(eq(cashOrderReconciliationsTable.id, id));
+      await tx.insert(businessAuditLogsTable).values({
+        actorAdminId: null, actorUserId: null, actorRole: "system",
+        action: "system.cash_order.reconciliation_skipped",
+        entityType: "order", entityId: String(order.id),
+        before: { reconciliationStatus: work.status },
+        after: { reconciliationStatus: "skipped", safeReason },
+        reason: "Cash settlement reconciliation became ineligible",
+        requestId: `cash-order-reconciliation-skipped:${order.id}`,
+      }).onConflictDoNothing();
+      return;
+    }
+    if (order.status !== "delivered") {
+      throw new QuarantinedEvent("RECONCILIATION_ORDER_NOT_DELIVERED_CASH");
+    }
+    await settleDeliveredCashOrder(tx, order.id);
+    await tx.insert(businessAuditLogsTable).values({
+      actorAdminId: null,
+      actorUserId: null,
+      actorRole: "system",
+      action: "system.cash_order.reconciled",
+      entityType: "order",
+      entityId: String(order.id),
+      before: { accountingComplete: false },
+      after: { accountingComplete: true, paymentStatus: "paid" },
+      reason: "Recovered missing canonical cash-delivery accounting",
+      requestId: `cash-order-reconciliation:${order.id}`,
+    }).onConflictDoNothing();
+    await tx.update(cashOrderReconciliationsTable).set({
+      status: "processed", processedAt: new Date(), leaseOwner: null,
+      leaseExpiresAt: null, lastError: null, updatedAt: new Date(),
+    }).where(eq(cashOrderReconciliationsTable.id, id));
+  });
+}
+
+async function failCashOrderReconciliation(id: number, error: unknown) {
+  const [row] = await db.select({ attempts: cashOrderReconciliationsTable.attemptCount })
+    .from(cashOrderReconciliationsTable).where(eq(cashOrderReconciliationsTable.id, id)).limit(1);
+  if (!row) return;
+  const dead = error instanceof QuarantinedEvent || row.attempts >= MAX_ATTEMPTS;
+  await db.update(cashOrderReconciliationsTable).set({
+    status: dead ? "dead_letter" : "retry",
+    deadLetteredAt: dead ? new Date() : null,
+    nextAttemptAt: new Date(Date.now() + retryDelay(row.attempts)),
+    leaseOwner: null, leaseExpiresAt: null, lastError: boundedError(error), updatedAt: new Date(),
+  }).where(and(eq(cashOrderReconciliationsTable.id, id),
+    eq(cashOrderReconciliationsTable.status, "processing")));
+  if (dead) logger.error({ reconciliationId: id, attempts: row.attempts },
+    "Cash order reconciliation dead-lettered");
 }
 
 export async function processPaymobInboxEvent(id: number) {
@@ -370,6 +587,13 @@ async function failOperationsAlertDelivery(id: number, error: unknown) {
 }
 
 export async function runOperationsWorkerOnce(owner = randomUUID()) {
+  const skippedCashReconciliations = await skipIneligibleCashOrderReconciliations();
+  await enqueueCashOrderReconciliations();
+  const reconciliationIds = await claimRows("cash_order_reconciliations", owner);
+  for (const id of reconciliationIds) {
+    try { await processCashOrderReconciliation(id); }
+    catch (error) { await failCashOrderReconciliation(id, error); }
+  }
   const inboxIds = await claimRows("paymob_webhook_inbox", owner);
   for (const id of inboxIds) {
     try { await processPaymobInboxEvent(id); } catch (error) { await failInbox(id, error); }
@@ -397,6 +621,8 @@ export async function runOperationsWorkerOnce(owner = randomUUID()) {
     try { await processOperationsAlertDelivery(id); } catch (error) { await failOperationsAlertDelivery(id, error); }
   }
   return {
+    cashReconciliations: reconciliationIds.length,
+    skippedCashReconciliations,
     inbox: inboxIds.length, outbox: outboxIds.length, reconciledNotifications,
     deliveries: deliveryIds.length, alerts: alertIds.length, healthCritical: health.critical, dispatch,
   };

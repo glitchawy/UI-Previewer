@@ -17,4 +17,5 @@ export interface DriverDispatchLocationUpdate {
      * @maximum 180
      */
   lng: number;
+  capturedAt: Date;
 }

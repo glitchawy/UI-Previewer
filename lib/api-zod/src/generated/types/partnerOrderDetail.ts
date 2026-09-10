@@ -7,6 +7,7 @@
  */
 import type { OrderLine } from './orderLine';
 import type { OrderTimelineEntry } from './orderTimelineEntry';
+import type { PartnerOrderDetailDispatchStatus } from './partnerOrderDetailDispatchStatus';
 import type { PartnerOrderSummary } from './partnerOrderSummary';
 
 export type PartnerOrderDetail = PartnerOrderSummary & ({
@@ -17,6 +18,7 @@ export type PartnerOrderDetail = PartnerOrderSummary & ({
   notes: string | null;
   /** @nullable */
   driverName: string | null;
+  dispatchStatus: PartnerOrderDetailDispatchStatus;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });

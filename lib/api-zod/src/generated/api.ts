@@ -445,7 +445,7 @@ export const UpdateDriverLocationResponse = zod.object({
 
 
 /**
- * Coordinates must have no more than two decimal places. The driver must be approved, online, available, and have no active delivery.
+ * A foreground-only one-shot refresh. The server rounds coordinates to two decimal places. The driver must be approved, online, available, and have no active delivery.
  * @summary Save a coarse foreground-only location for idle dispatch matching
  */
 export const updateDriverDispatchLocationBodyLatMin = -90;
@@ -458,7 +458,8 @@ export const updateDriverDispatchLocationBodyLngMax = 180;
 
 export const UpdateDriverDispatchLocationBody = zod.object({
   "lat": zod.number().min(updateDriverDispatchLocationBodyLatMin).max(updateDriverDispatchLocationBodyLatMax),
-  "lng": zod.number().min(updateDriverDispatchLocationBodyLngMin).max(updateDriverDispatchLocationBodyLngMax)
+  "lng": zod.number().min(updateDriverDispatchLocationBodyLngMin).max(updateDriverDispatchLocationBodyLngMax),
+  "capturedAt": zod.coerce.date()
 })
 
 export const UpdateDriverDispatchLocationResponse = zod.object({
@@ -479,8 +480,11 @@ export const GetActiveDriverOrderResponse = zod.union([zod.object({
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string().nullable(),
   "deliveryAddressText": zod.string(),
-  "deliveryLat": zod.number(),
-  "deliveryLng": zod.number(),
+  "pickupAddressText": zod.string().nullable(),
+  "pickupLat": zod.number().nullable(),
+  "pickupLng": zod.number().nullable(),
+  "deliveryLat": zod.number().nullable(),
+  "deliveryLng": zod.number().nullable(),
   "notes": zod.string().nullable(),
   "driverLat": zod.number().nullable(),
   "driverLng": zod.number().nullable(),
@@ -512,8 +516,11 @@ export const GetAvailableDriverOrderResponse = zod.union([zod.object({
   "code": zod.string(),
   "restaurantName": zod.string(),
   "deliveryAddressText": zod.string(),
-  "deliveryLat": zod.number(),
-  "deliveryLng": zod.number(),
+  "pickupAddressText": zod.string().nullable(),
+  "pickupLat": zod.number().nullable(),
+  "pickupLng": zod.number().nullable(),
+  "deliveryLat": zod.number().nullable(),
+  "deliveryLng": zod.number().nullable(),
   "deliveryFee": zod.number(),
   "total": zod.number()
 }),zod.null()])
@@ -645,6 +652,12 @@ export const GetPartnerOrderResponse = zod.object({
   "deliveryFee": zod.number(),
   "notes": zod.string().nullable(),
   "driverName": zod.string().nullable(),
+  "dispatchStatus": zod.object({
+  "state": zod.enum(['not_started', 'actively_offered', 'retry_scheduled', 'assigned', 'terminal']),
+  "nextRetryAt": zod.coerce.date().nullable(),
+  "offerExpiresAt": zod.coerce.date().nullable(),
+  "reason": zod.union([zod.literal('NO_FRESH_ELIGIBLE_DRIVER'),zod.literal('BRANCH_LOCATION_UNAVAILABLE'),zod.literal('OFFER_CONFLICT'),zod.literal(null)]).nullable()
+}),
   "timeline": zod.array(zod.object({
   "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
   "at": zod.coerce.date(),
@@ -1319,7 +1332,20 @@ export const ListAdminCoreOrdersQueryParams = zod.object({
 })
 
 export const ListAdminCoreOrdersResponse = zod.object({
-  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "customerId": zod.number(),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string().nullable(),
+  "restaurantName": zod.string(),
+  "status": zod.string(),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "paymentStatus": zod.string(),
+  "total": zod.number(),
+  "walletAmountUsed": zod.number(),
+  "createdAt": zod.coerce.date()
+})),
   "page": zod.number(),
   "pageSize": zod.number(),
   "total": zod.number(),
@@ -1337,7 +1363,50 @@ export const GetAdminCoreOrderParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
-export const GetAdminCoreOrderResponse = zod.record(zod.string(), zod.unknown())
+export const GetAdminCoreOrderResponse = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "status": zod.string(),
+  "paymentMethod": zod.enum(['cash', 'card']),
+  "paymentStatus": zod.string(),
+  "restaurantName": zod.string(),
+  "branchName": zod.string().nullable(),
+  "deliveryAddressText": zod.string(),
+  "notes": zod.string().nullable(),
+  "subtotal": zod.number(),
+  "deliveryFee": zod.number(),
+  "total": zod.number(),
+  "walletAmountUsed": zod.number(),
+  "externalAmountDue": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "customer": zod.object({
+  "id": zod.number(),
+  "name": zod.string().nullable(),
+  "phone": zod.string().nullable(),
+  "walletBalance": zod.number()
+}),
+  "restaurant": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "status": zod.string().nullable()
+}),
+  "driver": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string().nullable(),
+  "area": zod.string()
+}).nullable(),
+  "dispatchStatus": zod.object({
+  "state": zod.enum(['not_started', 'actively_offered', 'retry_scheduled', 'assigned', 'terminal']),
+  "nextRetryAt": zod.coerce.date().nullable(),
+  "offerExpiresAt": zod.coerce.date().nullable(),
+  "reason": zod.string().nullable()
+}),
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "history": zod.array(zod.record(zod.string(), zod.unknown())),
+  "refunds": zod.array(zod.record(zod.string(), zod.unknown())),
+  "relatedOrders": zod.array(zod.record(zod.string(), zod.unknown()))
+})
 
 
 /**
@@ -1350,7 +1419,14 @@ export const ListEligibleOrderDriversParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
-export const ListEligibleOrderDriversResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListEligibleOrderDriversResponseItem = zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "area": zod.string(),
+  "currentWorkload": zod.number(),
+  "distanceKm": zod.number(),
+  "locationUpdatedAt": zod.coerce.date()
+})
 export const ListEligibleOrderDriversResponse = zod.array(ListEligibleOrderDriversResponseItem)
 
 
@@ -1701,6 +1777,33 @@ export const RevokeNotificationDeviceResponse = zod.record(zod.string(), zod.unk
 /**
  * @summary Read secret-free worker, queue, dispatch, storage, and provider health
  */
-export const GetAdminOperationsHealthResponse = zod.record(zod.string(), zod.unknown())
+export const GetAdminOperationsHealthResponse = zod.object({
+  "worker": zod.object({
+  "lastStartedAt": zod.coerce.date(),
+  "lastSucceededAt": zod.coerce.date().nullable(),
+  "lastErrorAt": zod.coerce.date().nullable(),
+  "lastHealthEvaluatedAt": zod.coerce.date().nullable(),
+  "healthy": zod.boolean()
+}).nullable(),
+  "pendingWebhookEvents": zod.number(),
+  "deadWebhookEvents": zod.number(),
+  "notificationDeadLetters": zod.number(),
+  "cashReconciliationDeadLetters": zod.number(),
+  "staleReadyOrders": zod.number(),
+  "notificationFailures": zod.number(),
+  "alerts": zod.object({
+  "active": zod.number(),
+  "pending": zod.number(),
+  "deadLetter": zod.number(),
+  "lastEvaluationAt": zod.coerce.date().nullable()
+}),
+  "configuration": zod.object({
+  "objectStorageConfigured": zod.boolean(),
+  "expoProviderSupported": zod.boolean(),
+  "notificationWebhookConfigured": zod.boolean(),
+  "operationsAlertWebhookConfigured": zod.boolean(),
+  "expoPushReady": zod.boolean()
+})
+})
 
 

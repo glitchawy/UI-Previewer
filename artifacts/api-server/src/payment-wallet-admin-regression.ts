@@ -9,10 +9,14 @@ import {
   businessAuditLogsTable,
   cartItemsTable,
   db,
+  orderItemsTable,
   ordersTable,
+  notificationsTable,
   paymentRefundClaimsTable,
   paymentSessionsTable,
   paymobWebhookInboxTable,
+  productAddonsTable,
+  productVariantsTable,
   productsTable,
   pool,
   refundRequestsTable,
@@ -41,7 +45,10 @@ const inboxIds: number[] = [];
 const checkoutFixtureRestaurantIds: number[] = [];
 const checkoutFixtureBranchIds: number[] = [];
 const checkoutFixtureProductIds: number[] = [];
+const checkoutFixtureVariantIds: number[] = [];
+const checkoutFixtureAddonIds: number[] = [];
 let server: ReturnType<typeof app.listen> | undefined;
+let adminPrivacyOrderId: number | undefined;
 
 async function rejectsDb(operation: PromiseLike<unknown>, message: string) {
   let rejected = false;
@@ -390,13 +397,47 @@ async function main() {
         lat: 30,
         lng: 31,
       },
+      {
+        phone: `${prefix}-options-customer`,
+        role: "customer",
+        name: prefix,
+        walletBalance: "0.00",
+        addressText: prefix,
+        lat: 30,
+        lng: 31,
+      },
+      {
+        phone: `${prefix}-unavailable-customer`,
+        role: "customer",
+        name: prefix,
+        walletBalance: "0.00",
+        addressText: prefix,
+        lat: 30,
+        lng: 31,
+      },
+      {
+        phone: `${prefix}-closed-customer`,
+        role: "customer",
+        name: prefix,
+        walletBalance: "100.00",
+        addressText: prefix,
+        lat: 30,
+        lng: 31,
+      },
     ]).returning();
     userIds.push(...checkoutCustomers.map((row) => row.id));
     const [restaurant] = await db.insert(restaurantsTable).values({
       ownerUserId: checkoutCustomers[0]!.id,
       name: `${prefix}-checkout-restaurant`,
       address: prefix,
+      lat: 30,
+      lng: 31,
       status: "ACTIVE",
+      hours: JSON.stringify(Object.fromEntries(
+        ["SAT", "SUN", "MON", "TUE", "WED", "THU", "FRI"].map((day) => [
+          day, { open: "00:00", close: "00:00", closed: false },
+        ]),
+      )),
     }).returning();
     checkoutFixtureRestaurantIds.push(restaurant.id);
     const [branch] = await db.insert(branchesTable).values({
@@ -413,13 +454,68 @@ async function main() {
       basePrice: "10.00",
     }).returning();
     checkoutFixtureProductIds.push(product.id);
-    await db.insert(cartItemsTable).values(checkoutCustomers.map((checkoutCustomer) => ({
+    const [closedRestaurant] = await db.insert(restaurantsTable).values({
+      ownerUserId: checkoutCustomers[5]!.id,
+      name: `${prefix}-closed-restaurant`,
+      address: prefix,
+      lat: 30,
+      lng: 31,
+      status: "ACTIVE",
+      hours: JSON.stringify(Object.fromEntries(
+        ["SAT", "SUN", "MON", "TUE", "WED", "THU", "FRI"].map((day) => [
+          day, { open: "10:00", close: "18:00", closed: true },
+        ]),
+      )),
+    }).returning();
+    checkoutFixtureRestaurantIds.push(closedRestaurant.id);
+    const [closedBranch] = await db.insert(branchesTable).values({
+      restaurantId: closedRestaurant.id,
+      name: prefix,
+      address: prefix,
+      lat: 30,
+      lng: 31,
+      isOpen: true,
+    }).returning();
+    checkoutFixtureBranchIds.push(closedBranch.id);
+    const [closedProduct] = await db.insert(productsTable).values({
+      restaurantId: closedRestaurant.id,
+      name: `${prefix}-closed-product`,
+      basePrice: "10.00",
+    }).returning();
+    checkoutFixtureProductIds.push(closedProduct.id);
+    await db.insert(cartItemsTable).values(checkoutCustomers.slice(0, 3).map((checkoutCustomer) => ({
       userId: checkoutCustomer.id,
       restaurantId: restaurant.id,
       productId: product.id,
       quantity: 1,
       unitPrice: "10.00",
     })));
+    await db.insert(cartItemsTable).values({
+      userId: checkoutCustomers[5]!.id,
+      restaurantId: closedRestaurant.id,
+      productId: closedProduct.id,
+      quantity: 1,
+      unitPrice: "10.00",
+    });
+    const [optionsProduct] = await db.insert(productsTable).values({
+      restaurantId: restaurant.id,
+      name: `${prefix}-options-product`,
+      basePrice: "70.00",
+    }).returning();
+    checkoutFixtureProductIds.push(optionsProduct.id);
+    const [optionVariant] = await db.insert(productVariantsTable).values({
+      productId: optionsProduct.id,
+      name: "وسط",
+      priceDelta: "10.00",
+      isDefault: true,
+    }).returning();
+    checkoutFixtureVariantIds.push(optionVariant.id);
+    const [optionAddon] = await db.insert(productAddonsTable).values({
+      productId: optionsProduct.id,
+      name: "جبنة إضافية",
+      price: "15.00",
+    }).returning();
+    checkoutFixtureAddonIds.push(optionAddon.id);
     const checkoutTokens = await Promise.all(checkoutCustomers.map(async (checkoutCustomer) =>
       (await issueSession(checkoutCustomer)).token
     ));
@@ -456,10 +552,25 @@ async function main() {
       "rejected card checkout must leave the cart untouched",
     );
 
+    const closedOrder = await place(5, { paymentMethod: "cash", useWalletAmount: 10 });
+    assert.equal(closedOrder.status, 409);
+    assert.equal((await closedOrder.json() as { code?: string }).code, "RESTAURANT_NOT_ACCEPTING");
+    assert.equal((await db.select().from(ordersTable)
+      .where(eq(ordersTable.customerId, checkoutCustomers[5]!.id))).length, 0);
+    assert.equal((await db.select().from(paymentSessionsTable)
+      .where(eq(paymentSessionsTable.customerId, checkoutCustomers[5]!.id))).length, 0);
+    assert.equal((await db.select().from(walletTransactionsTable)
+      .where(eq(walletTransactionsTable.userId, checkoutCustomers[5]!.id))).length, 0);
+    assert.equal((await db.select().from(notificationsTable)
+      .where(eq(notificationsTable.userId, checkoutCustomers[5]!.id))).length, 0);
+    assert.equal((await db.select().from(cartItemsTable)
+      .where(eq(cartItemsTable.userId, checkoutCustomers[5]!.id))).length, 1);
+
     const cash = await place(1, { paymentMethod: "cash" });
     assert.equal(cash.status, 201, "cash checkout must remain available");
     const cashResult = await cash.json() as { orders: { id: number }[] };
     orderIds.push(...cashResult.orders.map((order) => order.id));
+    adminPrivacyOrderId = cashResult.orders[0]?.id;
 
     const walletOnly = await place(2, { paymentMethod: "card", useWalletAmount: 1000 });
     assert.equal(walletOnly.status, 201, "a fully wallet-covered order must not require Paymob");
@@ -470,6 +581,76 @@ async function main() {
     orderIds.push(...walletResult.orders.map((order) => order.id));
     assert.equal(walletResult.paymentSessionId, null);
     assert.ok(walletResult.orders.every((order) => order.externalAmountDue === 0));
+
+    // Construct the cart input exclusively from the real public menu response.
+    // No client price is accepted: checkout recomputes 70 + 10 + 15 + 25.
+    // Construct options from the canonical public menu while its branch and
+    // schedule are both accepting orders.
+    const menuResponse = await fetch(`${base}/api/restaurants/${restaurant.id}/menu`);
+    assert.equal(menuResponse.status, 200);
+    const menu = await menuResponse.json() as {
+      products: {
+        id: number;
+        name: string;
+        variants: { id: number; name: string }[];
+        addons: { id: number; name: string }[];
+      }[];
+    };
+    const apiProduct = menu.products.find((candidate) => candidate.id === optionsProduct.id);
+    assert.ok(apiProduct);
+    const apiVariant = apiProduct.variants.find((candidate) => candidate.name === "وسط");
+    const apiAddon = apiProduct.addons.find((candidate) => candidate.name === "جبنة إضافية");
+    assert.ok(apiVariant);
+    assert.ok(apiAddon);
+    const addFromApiShape = (index: number, productId: number, variantId: number | null, addonIds: number[]) =>
+      fetch(`${base}/api/cart/items`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${checkoutTokens[index]}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ productId, variantId, addonIds, quantity: 1 }),
+      });
+    const validCart = await addFromApiShape(3, apiProduct.id, apiVariant.id, [apiAddon.id]);
+    assert.equal(validCart.status, 201);
+    const validCartBody = await validCart.json() as { total: number };
+    assert.equal(validCartBody.total, 95);
+    const validOptionsOrder = await place(3, { paymentMethod: "cash" });
+    assert.equal(validOptionsOrder.status, 201);
+    const validOptionsResult = await validOptionsOrder.json() as {
+      orders: { id: number; total: number }[];
+    };
+    orderIds.push(...validOptionsResult.orders.map((order) => order.id));
+    assert.equal(validOptionsResult.orders[0]?.total, 120);
+    const [storedOptionLine] = await db.select({
+      unitPrice: orderItemsTable.unitPrice,
+      addonPrice: orderItemsTable.addonPrice,
+    }).from(orderItemsTable).where(eq(orderItemsTable.orderId, validOptionsResult.orders[0]!.id));
+    assert.equal(Number(storedOptionLine.unitPrice), 95);
+    assert.equal(Number(storedOptionLine.addonPrice), 15);
+
+    // IDs from another product are rejected, even when the add-on itself exists.
+    const tamperedCart = await addFromApiShape(4, product.id, null, [apiAddon.id]);
+    assert.equal(tamperedCart.status, 400);
+    const laterUnavailableCart = await addFromApiShape(4, apiProduct.id, apiVariant.id, [apiAddon.id]);
+    assert.equal(laterUnavailableCart.status, 201);
+    await db.update(productAddonsTable).set({ isAvailable: false }).where(eq(productAddonsTable.id, apiAddon.id));
+    const unavailableOrder = await place(4, { paymentMethod: "cash" });
+    assert.equal(unavailableOrder.status, 409);
+    assert.equal(
+      (await db.select().from(ordersTable).where(eq(ordersTable.customerId, checkoutCustomers[4]!.id))).length,
+      0,
+    );
+    await db.update(productAddonsTable).set({ isAvailable: true }).where(eq(productAddonsTable.id, apiAddon.id));
+    await db.update(cartItemsTable)
+      .set({ restaurantId: -restaurant.id })
+      .where(eq(cartItemsTable.userId, checkoutCustomers[4]!.id));
+    const crossRestaurantOrder = await place(4, { paymentMethod: "cash" });
+    assert.equal(crossRestaurantOrder.status, 409);
+    assert.equal(
+      (await db.select().from(ordersTable).where(eq(ordersTable.customerId, checkoutCustomers[4]!.id))).length,
+      0,
+    );
   } finally {
     for (const [key, value] of savedPaymobEnvironment) {
       if (value === undefined) delete process.env[key];
@@ -499,12 +680,29 @@ async function main() {
     });
     assert.equal(inactive.status, 403, `${path} must deny an inactive admin`);
   }
-  await db.update(adminPermissionGroupsTable).set({ permissions: ["pricing.read"] })
+  await db.update(adminPermissionGroupsTable).set({ permissions: ["pricing.read", "orders.read"] })
     .where(eq(adminPermissionGroupsTable.id, emptyGroup.id));
   const granted = await fetch(`${base}/api/admin/operations/pricing`, {
     headers: { authorization: `Bearer ${adminToken}` },
   });
   assert.equal(granted.status, 200, "an explicitly granted operation must be allowed");
+
+  // Coordinates remain available to internal dispatch calculations, but no
+  // customer or driver coordinate key or precise value may reach an admin.
+  assert.ok(adminPrivacyOrderId);
+  await db.update(ordersTable).set({
+    deliveryLat: 30.123456,
+    deliveryLng: 31.654321,
+  }).where(eq(ordersTable.id, adminPrivacyOrderId));
+  const adminDetailResponse = await fetch(`${base}/api/admin/core/orders/${adminPrivacyOrderId}`, {
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(adminDetailResponse.status, 200);
+  const adminDetail = await adminDetailResponse.json() as Record<string, unknown>;
+  const serializedAdminDetail = JSON.stringify(adminDetail);
+  assert.doesNotMatch(serializedAdminDetail, /"(?:lat|lng|[A-Za-z]+Lat|[A-Za-z]+Lng)":/i);
+  assert.equal(serializedAdminDetail.includes("30.123456"), false);
+  assert.equal(serializedAdminDetail.includes("31.654321"), false);
 
   // Settlement financial snapshots and business audit records are immutable.
   const [settlement] = await db.insert(restaurantSettlementsTable).values({
@@ -604,6 +802,12 @@ try {
     await db.delete(cartItemsTable).where(inArray(cartItemsTable.userId, userIds));
   }
   if (checkoutFixtureProductIds.length) {
+    if (checkoutFixtureAddonIds.length) {
+      await db.delete(productAddonsTable).where(inArray(productAddonsTable.id, checkoutFixtureAddonIds));
+    }
+    if (checkoutFixtureVariantIds.length) {
+      await db.delete(productVariantsTable).where(inArray(productVariantsTable.id, checkoutFixtureVariantIds));
+    }
     await db.delete(productsTable).where(inArray(productsTable.id, checkoutFixtureProductIds));
   }
   if (checkoutFixtureBranchIds.length) {

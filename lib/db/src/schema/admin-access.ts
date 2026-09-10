@@ -9,6 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -43,7 +44,9 @@ export const adminAccountsTable = pgTable("admin_accounts", {
 
 export const businessAuditLogsTable = pgTable("business_audit_logs", {
   id: serial("id").primaryKey(),
-  actorAdminId: integer("actor_admin_id").notNull(),
+  actorAdminId: integer("actor_admin_id"),
+  actorUserId: integer("actor_user_id"),
+  actorRole: text("actor_role"),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id").notNull(),
@@ -56,6 +59,8 @@ export const businessAuditLogsTable = pgTable("business_audit_logs", {
   index("business_audit_entity_idx").on(table.entityType, table.entityId, table.createdAt),
   index("business_audit_actor_idx").on(table.actorAdminId, table.createdAt),
   index("business_audit_request_idx").on(table.requestId),
+  uniqueIndex("business_audit_transition_uidx").on(table.action, table.entityType, table.entityId)
+    .where(sql`${table.action} in ('driver.order.picked_up','driver.order.delivered','system.cash_order.reconciled','system.cash_order.reconciliation_skipped')`),
 ]);
 
 export const insertAdminPermissionGroupSchema = createInsertSchema(adminPermissionGroupsTable)

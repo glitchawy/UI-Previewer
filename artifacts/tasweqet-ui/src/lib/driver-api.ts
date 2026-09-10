@@ -1,4 +1,5 @@
 import { getToken } from "./auth-session";
+export { getFreshForegroundFix } from "./driver-location";
 
 export async function driverApi<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
@@ -19,7 +20,9 @@ export async function driverApi<T>(path: string, options: RequestInit = {}): Pro
 export type DriverAccount = {
   id: number; fullName: string; phone: string; area: string; vehicleType: string; status: string;
   isOnline: boolean; isAvailable: boolean; lastHeartbeatAt: string | null;
-  locationUpdatedAt: string | null; currentWorkload: number; deliveries: number;
+  locationUpdatedAt: string | null; dispatchLocationUpdatedAt: string | null;
+  dispatchLocationSource: "foreground_idle" | "active_tracking" | null;
+  currentWorkload: number; deliveries: number;
 };
 export type DriverDelivery = {
   id: number; code: string; restaurantName: string; deliveryAddressText: string;

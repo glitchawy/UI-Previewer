@@ -6,4 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AdminOrderPageItemsItem = { [key: string]: unknown };
+export type AdminOrderDetailRelatedOrdersItem = { [key: string]: unknown };

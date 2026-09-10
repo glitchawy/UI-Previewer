@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -35,7 +36,11 @@ export const branchStaffTable = pgTable("branch_staff", {
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   leftAt: timestamp("left_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("branch_staff_branch_id_idx").on(table.branchId),
+  index("branch_staff_user_id_idx").on(table.userId),
+  uniqueIndex("branch_staff_active_user_uidx").on(table.userId).where(sql`${table.leftAt} is null`),
+]);
 
 export const insertBranchSchema = createInsertSchema(branchesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertBranch = z.infer<typeof insertBranchSchema>;

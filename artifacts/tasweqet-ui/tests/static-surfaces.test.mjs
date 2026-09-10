@@ -50,3 +50,69 @@ test("checkout defaults online payment to server-driven unavailable", () => {
   assert.match(source, /بعد إتمام إعداد مزود الدفع/);
   assert.match(source, /useState<"cash" \| "card">\("cash"\)/);
 });
+
+test("product customization keeps native add-on controls clickable and closes after success", () => {
+  const source = readFileSync(join(root, "src", "components", "tb", "product-options-sheet.tsx"), "utf8");
+  assert.match(source, /type="checkbox" className="peer size-5 shrink-0 cursor-pointer accent-primary"/);
+  assert.doesNotMatch(source, /type="checkbox" className="peer sr-only"/);
+  assert.match(source, /runSingleSubmission/);
+});
+
+test("customer restaurant surfaces format structured schedules instead of rendering raw JSON", () => {
+  const detail = readFileSync(join(routes, "app.restaurant.$id.tsx"), "utf8");
+  const listing = readFileSync(join(routes, "app.index.tsx"), "utf8");
+  for (const source of [detail, listing]) {
+    assert.match(source, /restaurantHoursSummary/);
+    assert.doesNotMatch(source, />\{r\.hours\}</);
+  }
+  assert.match(detail, /role="status"/);
+  assert.match(detail, /onAdded=/);
+});
+
+test("restaurant acceptance is server-driven across menu and checkout UI", () => {
+  const detail = readFileSync(join(routes, "app.restaurant.$id.tsx"), "utf8");
+  const listing = readFileSync(join(routes, "app.index.tsx"), "utf8");
+  const checkout = readFileSync(join(routes, "app.checkout.tsx"), "utf8");
+  const product = readFileSync(join(routes, "app.product.$id.tsx"), "utf8");
+  assert.match(detail, /disabled=\{!p\.acceptingOrders\}/);
+  assert.match(detail, /r\.acceptanceReason/);
+  assert.match(listing, /r\.acceptingOrders/);
+  assert.match(listing, /event\.preventDefault\(\)/);
+  assert.match(checkout, /await refreshCart\(\)/);
+  assert.match(checkout, /unavailableRestaurants\.length > 0/);
+  assert.match(checkout, /group\.acceptanceReason/);
+  assert.match(product, /disabled=\{!product\.acceptingOrders\}/);
+});
+
+test("partner order detail exits loading on forbidden or missing responses", () => {
+  const source = readFileSync(join(routes, "partner.orders.$id.tsx"), "utf8");
+  assert.match(source, /retry: false/);
+  assert.match(source, /result\.state\.status === "success" \? 15_000 : false/);
+  assert.match(source, /query\.isError \|\| !order/);
+  assert.match(source, /تعذر الوصول إلى الطلب/);
+  assert.match(source, /رجوع للطلبات/);
+  assert.doesNotMatch(source, /الطلب غير موجود أو لا يخص مطعمك/);
+});
+
+test("partner fulfillment UI consumes only server-masked phones and safe dispatch states", () => {
+  const list = readFileSync(join(routes, "partner.orders.tsx"), "utf8");
+  const detail = readFileSync(join(routes, "partner.orders.$id.tsx"), "utf8");
+  assert.doesNotMatch(list, /slice\(0,\s*4\)|slice\(-4\)/);
+  for (const state of ["actively_offered", "retry_scheduled", "assigned", "terminal"]) {
+    assert.match(detail, new RegExp(`dispatchStatus\\.state === "${state}"`));
+  }
+});
+
+test("admin nested orders render their child and dashboard uses safe operational health", () => {
+  const orders = readFileSync(join(routes, "admin.orders.tsx"), "utf8");
+  const dashboard = readFileSync(join(routes, "admin.index.tsx"), "utf8");
+  const adminCore = readFileSync(join(root, "..", "api-server", "src", "routes", "admin-core.ts"), "utf8");
+  assert.match(orders, /useChildMatches\(\)/);
+  assert.match(orders, /childMatches\.length \? <Outlet \/>/);
+  assert.match(dashboard, /\/admin\/operations\/health/);
+  assert.match(dashboard, /operationsAlertWebhookConfigured/);
+  assert.doesNotMatch(dashboard, /payload|token|deliveryLat|deliveryLng|phone/);
+  assert.match(adminCore, /name: sql<string>`max\(\$\{ordersTable\.restaurantName\}\)`/);
+  assert.match(adminCore, /\.groupBy\(ordersTable\.restaurantId\)/);
+  assert.doesNotMatch(adminCore, /\.groupBy\(ordersTable\.restaurantId,\s*ordersTable\.restaurantName\)/);
+});

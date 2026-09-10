@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppBar, Badge, Button, Card, Icon, MobileShell, Stat } from "@/components/tb/shell";
 import { EGP } from "@/lib/tb/data";
 import { driverTabs } from "@/lib/tb/nav";
@@ -10,9 +10,9 @@ import {
   useGetActiveDriverOrder,
   useGetAvailableDriverOrder,
   useUpdateDriverAvailability,
-  useUpdateDriverLocation,
+  useUpdateDriverDispatchLocation,
 } from "@workspace/api-client-react";
-import { type DriverAccount, type DriverEarnings } from "@/lib/driver-api";
+import { getFreshForegroundFix, type DriverAccount, type DriverEarnings } from "@/lib/driver-api";
 import { useDriverData } from "@/lib/use-driver-data";
 
 export const Route = createFileRoute("/driver/")({
@@ -36,45 +36,115 @@ function DriverIndex() {
   const account = useDriverData<DriverAccount>("/account");
   const earnings = useDriverData<DriverEarnings>("/earnings");
   const availability = useUpdateDriverAvailability();
-  const location = useUpdateDriverLocation();
+  const location = useUpdateDriverDispatchLocation();
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const locationMutationRef = useRef(location.mutateAsync);
+  const locationFlightRef = useRef<Promise<boolean> | null>(null);
+  locationMutationRef.current = location.mutateAsync;
   const online = account.data?.isOnline ?? false;
-  const locationRef = useRef(location.mutate);
-  locationRef.current = location.mutate;
+  const dispatchLocationAge = account.data?.dispatchLocationUpdatedAt
+    ? Date.now() - Date.parse(account.data.dispatchLocationUpdatedAt)
+    : Number.POSITIVE_INFINITY;
+  const dispatchLocationStatus = dispatchLocationAge <= 120_000
+    ? "محدّث"
+    : account.data?.dispatchLocationUpdatedAt
+      ? "بحاجة للتحديث"
+      : "غير متاح";
   const activeOrder = useGetActiveDriverOrder({
     query: { queryKey: getGetActiveDriverOrderQueryKey(), refetchInterval: 15_000 },
   });
   const availableOrder = useGetAvailableDriverOrder({
     query: { queryKey: getGetAvailableDriverOrderQueryKey(), enabled: online, refetchInterval: online ? 10_000 : false },
   });
+  const availableOrderRef = useRef(availableOrder.refetch);
+  availableOrderRef.current = availableOrder.refetch;
   // Approval gating happens in the /driver layout route (driver.tsx).
 
   async function handleLogout() {
     await logoutSession();
     navigate({ to: "/auth/login" });
   }
-  function sendPosition() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(result => {
-      locationRef.current({ data: { lat: result.coords.latitude, lng: result.coords.longitude } });
-    }, () => undefined, { enableHighAccuracy: true, maximumAge: 15_000, timeout: 12_000 });
-  }
+  const refreshDispatchLocation = useCallback(() => {
+    if (locationFlightRef.current) return locationFlightRef.current;
+    const flight = (async () => {
+      setLocationError(null);
+      try {
+        if (!navigator.geolocation) throw new Error("خدمة الموقع غير متاحة على هذا الجهاز");
+        const fix = await getFreshForegroundFix(navigator.geolocation);
+        await locationMutationRef.current({
+          data: {
+            lat: fix.position.coords.latitude,
+            lng: fix.position.coords.longitude,
+            capturedAt: new Date(fix.capturedAt).toISOString(),
+          },
+        });
+        await account.retry();
+        await availableOrderRef.current();
+        return true;
+      } catch (cause) {
+        if (typeof cause === "object" && cause && "code" in cause &&
+            Number((cause as { code: unknown }).code) === 1) {
+          setLocationPermissionDenied(true);
+        }
+        const status = typeof cause === "object" && cause && "status" in cause
+          ? Number((cause as { status: unknown }).status)
+          : null;
+        setLocationError(status === 400
+          ? "الموقع غير حديث أو خارج نطاق مصر. حاول تحديث الموقع مرة أخرى."
+          : "تعذر الوصول للموقع. اسمح بخدمة الموقع ثم أعد المحاولة.");
+        return false;
+      } finally {
+        locationFlightRef.current = null;
+      }
+    })();
+    locationFlightRef.current = flight;
+    return flight;
+  }, []);
+
   function toggleOnline() {
+    setLocationError(null);
+    setLocationPermissionDenied(false);
     availability.mutate({ data: { available: !online } }, {
       onSuccess: async () => {
         await account.retry();
-        if (!online) sendPosition();
+        if (!online) {
+          await refreshDispatchLocation();
+        } else {
+        }
         availableOrder.refetch();
       },
     });
   }
+
   useEffect(() => {
-    if (!online || activeOrder.data) return;
-    const recover = () => { if (document.visibilityState === "visible" && navigator.onLine) sendPosition(); };
-    const timer = window.setInterval(sendPosition, 45_000);
-    window.addEventListener("online", recover); document.addEventListener("visibilitychange", recover);
-    recover();
-    return () => { window.clearInterval(timer); window.removeEventListener("online", recover); document.removeEventListener("visibilitychange", recover); };
-  }, [online, activeOrder.data]);
+    if (!online || activeOrder.data || locationPermissionDenied) return;
+    let timer: number | null = null;
+    const stop = () => {
+      if (timer !== null) window.clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      stop();
+      if (document.visibilityState === "visible") {
+        timer = window.setInterval(() => void refreshDispatchLocation(), 60_000);
+      }
+    };
+    const visibilityChanged = () => {
+      if (document.visibilityState === "visible") {
+        void refreshDispatchLocation();
+        start();
+      } else {
+        stop();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
+  }, [online, activeOrder.data, locationPermissionDenied, refreshDispatchLocation]);
 
   return (
     <MobileShell tabs={driverTabs}>
@@ -114,6 +184,21 @@ function DriverIndex() {
         </Card>
 
         {availability.isError || account.error ? <Card className="p-md text-error"><p>{account.error || "تعذر تحديث حالة الاتصال"}</p><Button className="mt-sm" onClick={account.retry}>إعادة المحاولة</Button></Card> : null}
+        {locationError ? <Card className="p-md text-error"><p>{locationError}</p></Card> : null}
+        {online && !activeOrder.data ? (
+          <Card className="flex items-center justify-between gap-3 p-md">
+            <div>
+              <p className="font-label-lg text-label-lg">موقع الإسناد</p>
+              <p className="font-label-md text-label-md text-on-surface-variant">
+                {locationError ? "تعذر التحديث" : dispatchLocationAge < 120_000
+                  ? "حديث" : "يحتاج تحديث"}
+              </p>
+            </div>
+            <Button disabled={location.isPending} onClick={() => void refreshDispatchLocation()}>
+              تحديث موقع الإسناد
+            </Button>
+          </Card>
+        ) : null}
         {online && availableOrder.data && !activeOrder.data ? (
           <Link to="/driver/offer" className="block">
             <Card className="tb-pulse-ring border-primary bg-primary-container/30 p-md">
@@ -151,7 +236,7 @@ function DriverIndex() {
             <Stat label="إجمالي التوصيلات" value={String(account.data?.deliveries ?? "—")} icon="local_shipping" tone="info" />
             <Stat label="أرباح اليوم" value={earnings.data ? EGP(earnings.data.today) : "—"} icon="payments" tone="success" />
             <Stat label="الحمل الحالي" value={String(account.data?.currentWorkload ?? "—")} icon="route" tone="warn" />
-            <Stat label="حالة الموقع" value={account.data?.locationUpdatedAt ? "محدّث" : "غير متاح"} icon="location_on" tone="warn" />
+            <Stat label="حالة موقع الإسناد" value={dispatchLocationStatus} icon="location_on" tone="warn" />
           </div>
         </div>
 

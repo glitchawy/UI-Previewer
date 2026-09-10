@@ -5,6 +5,7 @@ import { customerTabs } from "@/lib/tb/nav";
 import { FavButton } from "@/lib/tb/favorites";
 import { ProductOptionsSheet } from "@/components/tb/product-options-sheet";
 import { useCart } from "@/lib/tb/cart";
+import { restaurantHoursSummary } from "@/lib/tb/restaurant-hours";
 
 export const Route = createFileRoute("/app/restaurant/$id")({
   head: () => ({
@@ -17,9 +18,9 @@ const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minim
 
 type Variant = { id: number; name: string; priceDelta: string; isDefault: boolean };
 type Addon = { id: number; name: string; price: string; isAvailable: boolean };
-type Product = { id: number; restaurantId: number; categoryId: number | null; name: string; description: string | null; imageUrl: string | null; basePrice: string; isAvailable: boolean; variants: Variant[]; addons: Addon[] };
+type Product = { id: number; restaurantId: number; categoryId: number | null; name: string; description: string | null; imageUrl: string | null; basePrice: string; isAvailable: boolean; acceptingOrders: boolean; acceptanceReason: string; nextOpeningSummary: string | null; variants: Variant[]; addons: Addon[] };
 type Category = { id: number; name: string; isActive: boolean };
-type Restaurant = { id: number; name: string; description: string | null; address: string; category: string | null; deliveryType: string; logoUrl: string | null; coverUrl: string | null; hours: string | null };
+type Restaurant = { id: number; name: string; description: string | null; address: string; category: string | null; deliveryType: string; logoUrl: string | null; coverUrl: string | null; hours: string | null; acceptingOrders: boolean; acceptanceReason: string; nextOpeningSummary: string | null };
 type MenuData = { restaurant: Restaurant; categories: Category[]; products: Product[] };
 
 function AppRestaurantId() {
@@ -33,6 +34,7 @@ function AppRestaurantId() {
 
   // Product sheet state
   const [sheetProduct, setSheetProduct] = useState<Product | null>(null);
+  const [cartFeedback, setCartFeedback] = useState("");
 
   useEffect(() => {
     fetch(`/api/restaurants/${id}/menu`)
@@ -43,11 +45,12 @@ function AppRestaurantId() {
   }, [id]);
 
   function openSheet(p: Product) {
+    if (!p.acceptingOrders) return;
     setSheetProduct(p);
   }
 
   const activeCats = menu?.categories.filter((c) => c.isActive) ?? [];
-  const products = menu?.products.filter((p) => p.isAvailable) ?? [];
+  const products = menu?.products ?? [];
   const filtered = activeCat === null ? products : products.filter((p) => p.categoryId === activeCat);
 
   if (loading) return (
@@ -69,6 +72,7 @@ function AppRestaurantId() {
   );
 
   const r = menu.restaurant;
+  const hours = restaurantHoursSummary(r.hours);
 
   return (
     <MobileShell tabs={customerTabs}>
@@ -104,12 +108,27 @@ function AppRestaurantId() {
         {r.description && <p className="font-body-md text-body-md text-on-surface-variant">{r.description}</p>}
         <div className="flex flex-wrap gap-2">
           {r.category && <Badge tone="neutral">{r.category}</Badge>}
-          {r.hours && <Badge tone="neutral"><Icon name="schedule" className="text-[14px]" />{r.hours}</Badge>}
+          <span className="max-w-full" title={hours?.full ?? r.acceptanceReason} aria-label={hours?.full ?? r.acceptanceReason}>
+              <Badge tone={r.acceptingOrders ? "success" : "neutral"} className="max-w-full whitespace-normal break-words">
+                <Icon name="schedule" className="shrink-0 text-[14px]" />{r.acceptanceReason}
+              </Badge>
+          </span>
           <Badge tone={r.deliveryType === "platform" ? "info" : "success"}>
             {r.deliveryType === "platform" ? "توصيل طلبات بيتك" : "توصيل المطعم"}
           </Badge>
         </div>
       </div>
+      {!r.acceptingOrders && (
+        <p className="mx-md rounded-button bg-error-container p-3 text-center font-label-md text-error" role="alert">
+          {r.acceptanceReason}{r.nextOpeningSummary ? ` — ${r.nextOpeningSummary}` : ""}
+        </p>
+      )}
+
+      {cartFeedback && (
+        <p className="mx-md rounded-button bg-success/10 p-3 text-center font-label-md text-success" role="status">
+          <Icon name="check_circle" className="ml-1 align-middle text-[18px]" filled />{cartFeedback}
+        </p>
+      )}
 
       {/* Category tabs */}
       {activeCats.length > 0 && (
@@ -137,7 +156,9 @@ function AppRestaurantId() {
         ) : (
           filtered.map((p) => (
             <button key={p.id} type="button" onClick={() => openSheet(p)}
-              className="relative flex items-center gap-3 rounded-card border border-outline-variant bg-surface-container-lowest p-md text-right transition hover:border-secondary active:scale-[0.99]">
+              disabled={!p.acceptingOrders}
+              aria-label={p.acceptingOrders ? `إضافة ${p.name}` : `${p.name} — ${p.acceptanceReason}`}
+              className="relative flex items-center gap-3 rounded-card border border-outline-variant bg-surface-container-lowest p-md text-right transition enabled:hover:border-secondary enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">
               <FavButton targetType="product" targetId={p.id} className="absolute left-2 top-2" />
               {p.imageUrl ? (
                 <img src={`/api/storage${p.imageUrl}`} alt={p.name} className="size-20 shrink-0 rounded-button object-cover" />
@@ -154,7 +175,9 @@ function AppRestaurantId() {
                   {p.variants.length > 0 && <Badge tone="info">أحجام متعددة</Badge>}
                 </div>
               </div>
-              <Icon name="add_circle" className="text-[28px] text-primary" />
+              {p.acceptingOrders
+                ? <Icon name="add_circle" className="text-[28px] text-primary" />
+                : <Badge tone="neutral">{p.isAvailable ? "المطعم مغلق" : "غير متاح"}</Badge>}
             </button>
           ))
         )}
@@ -171,7 +194,14 @@ function AppRestaurantId() {
         </div>
       )}
 
-      <ProductOptionsSheet product={sheetProduct} onClose={() => setSheetProduct(null)} />
+      <ProductOptionsSheet
+        product={sheetProduct}
+        onClose={() => setSheetProduct(null)}
+        onAdded={() => {
+          setCartFeedback("تمت الإضافة للسلة");
+          window.setTimeout(() => setCartFeedback(""), 3000);
+        }}
+      />
     </MobileShell>
   );
 }

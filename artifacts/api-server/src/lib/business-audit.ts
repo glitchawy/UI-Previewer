@@ -5,7 +5,9 @@ import { businessAuditLogsTable, db } from "@workspace/db";
 type AuditValue = Record<string, unknown> | unknown[] | null;
 
 export interface BusinessAuditInput {
-  actorAdminId: number;
+  actorAdminId: number | null;
+  actorUserId?: number | null;
+  actorRole?: string | null;
   action: string;
   entityType: string;
   entityId: string | number;
@@ -30,6 +32,8 @@ export async function recordBusinessAudit(
 ): Promise<void> {
   await executor.insert(businessAuditLogsTable).values({
     actorAdminId: input.actorAdminId,
+    actorUserId: input.actorUserId,
+    actorRole: input.actorRole,
     action: input.action,
     entityType: input.entityType,
     entityId: String(input.entityId),

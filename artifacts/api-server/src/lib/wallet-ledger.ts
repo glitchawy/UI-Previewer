@@ -14,7 +14,12 @@ export function fromCents(cents: number) {
   return (cents / 100).toFixed(2);
 }
 
-type LedgerReferenceType = "refund" | "order_payment" | "admin_adjustment";
+type LedgerReferenceType =
+  | "refund"
+  | "order_payment"
+  | "admin_adjustment"
+  | "restaurant_settlement"
+  | "driver_earning";
 
 export async function debitWallet(
   tx: DbTransaction,

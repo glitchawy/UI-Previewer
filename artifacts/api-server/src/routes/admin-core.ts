@@ -1,7 +1,8 @@
 import { Router, type Response } from "express";
 import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, or, sql, sum } from "drizzle-orm";
 import {
-  branchesTable, db, driverOrderOffersTable, driverProfilesTable, notificationOutboxTable, orderAddonsTable, orderItemsTable, ordersTable,
+  branchesTable, db, driverOrderOffersTable, driverProfilesTable, notificationOutboxTable, orderAddonsTable, orderItemsTable,
+  orderDispatchAttemptsTable, ordersTable,
   orderStatusEventsTable, refundRequestsTable, restaurantsTable, usersTable,
   walletTransactionsTable,
 } from "@workspace/db";
@@ -35,9 +36,9 @@ adminRouter.get("/overview", requireAdminPermission("overview.read"), async (_re
     activeDrivers: sql<number>`count(*) filter (where ${driverProfilesTable.status} = 'APPROVED')`,
   }).from(driverProfilesTable);
   const topRestaurants = await db.select({
-    id: ordersTable.restaurantId, name: ordersTable.restaurantName,
+    id: ordersTable.restaurantId, name: sql<string>`max(${ordersTable.restaurantName})`,
     orders: count(), gmv: sum(ordersTable.total),
-  }).from(ordersTable).groupBy(ordersTable.restaurantId, ordersTable.restaurantName)
+  }).from(ordersTable).groupBy(ordersTable.restaurantId)
     .orderBy(desc(sum(ordersTable.total))).limit(5);
   const monthly = await db.select({
     month: sql<string>`to_char(date_trunc('month', ${ordersTable.createdAt}), 'YYYY-MM')`,
@@ -95,7 +96,7 @@ adminRouter.get("/orders/:id", requireAdminPermission("orders.read"), async (req
     .leftJoin(restaurantsTable, eq(restaurantsTable.id, ordersTable.restaurantId))
     .where(eq(ordersTable.id, id)).limit(1);
   if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
-  const [items, history, refunds, related, driver] = await Promise.all([
+  const [items, history, refunds, related, driver, activeOffers, dispatchAttempts] = await Promise.all([
     db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id)).limit(200),
     db.select().from(orderStatusEventsTable).where(eq(orderStatusEventsTable.orderId, id)).orderBy(asc(orderStatusEventsTable.createdAt)).limit(100),
     db.select({ id: refundRequestsTable.id, amount: refundRequestsTable.amount, status: refundRequestsTable.status, method: refundRequestsTable.method, reason: refundRequestsTable.reason, createdAt: refundRequestsTable.createdAt })
@@ -105,13 +106,49 @@ adminRouter.get("/orders/:id", requireAdminPermission("orders.read"), async (req
     order.order.driverProfileId ? db.select({ id: driverProfilesTable.id, name: driverProfilesTable.fullName, area: driverProfilesTable.area, phone: usersTable.phone })
       .from(driverProfilesTable).leftJoin(usersTable, eq(usersTable.id, driverProfilesTable.userId))
       .where(eq(driverProfilesTable.id, order.order.driverProfileId)).limit(1) : Promise.resolve([]),
+    db.select({ expiresAt: driverOrderOffersTable.expiresAt }).from(driverOrderOffersTable).where(and(
+      eq(driverOrderOffersTable.orderId, id),
+      eq(driverOrderOffersTable.status, "pending"),
+      gt(driverOrderOffersTable.expiresAt, new Date()),
+    )).limit(1),
+    db.select({
+      outcome: orderDispatchAttemptsTable.outcome,
+      safeReason: orderDispatchAttemptsTable.safeReason,
+      nextRetryAt: orderDispatchAttemptsTable.nextRetryAt,
+      attemptedAt: orderDispatchAttemptsTable.attemptedAt,
+    }).from(orderDispatchAttemptsTable).where(eq(orderDispatchAttemptsTable.orderId, id))
+      .orderBy(desc(orderDispatchAttemptsTable.attemptNumber)).limit(1),
   ]);
   const itemIds = items.map((i) => i.id);
   const addons = itemIds.length ? await db.select().from(orderAddonsTable).where(inArray(orderAddonsTable.orderItemId, itemIds)).limit(500) : [];
   res.json({
-    ...order.order, code: code(id), customer: { id: order.order.customerId, name: order.customerName, phone: order.customerPhone, walletBalance: money(order.customerWallet) },
+    id: order.order.id,
+    code: code(id),
+    status: order.order.status,
+    paymentMethod: order.order.paymentMethod,
+    paymentStatus: order.order.paymentStatus,
+    restaurantName: order.order.restaurantName,
+    branchName: order.order.branchName,
+    deliveryAddressText: order.order.deliveryAddressText,
+    notes: order.order.notes,
+    createdAt: order.order.createdAt,
+    customer: { id: order.order.customerId, name: order.customerName, phone: order.customerPhone, walletBalance: money(order.customerWallet) },
     restaurant: { id: order.order.restaurantId, name: order.order.restaurantName, status: order.restaurantStatus },
     driver: driver[0] ?? null,
+    dispatchStatus: order.order.status === "delivered" || order.order.status === "cancelled"
+      ? { state: "terminal", nextRetryAt: null, offerExpiresAt: null, reason: null }
+      : order.order.driverProfileId
+        ? { state: "assigned", nextRetryAt: null, offerExpiresAt: null, reason: null }
+        : activeOffers[0]
+          ? { state: "actively_offered", nextRetryAt: null, offerExpiresAt: activeOffers[0].expiresAt, reason: null }
+          : order.order.status === "ready" && dispatchAttempts[0]?.outcome === "no_eligible_driver"
+            ? {
+                state: "retry_scheduled",
+                nextRetryAt: dispatchAttempts[0].nextRetryAt,
+                offerExpiresAt: null,
+                reason: dispatchAttempts[0].safeReason,
+              }
+            : { state: "not_started", nextRetryAt: null, offerExpiresAt: null, reason: null },
     subtotal: money(order.order.subtotal), deliveryFee: money(order.order.deliveryFee), total: money(order.order.total),
     walletAmountUsed: money(order.order.walletAmountUsed), externalAmountDue: money(order.order.externalAmountDue),
     items: items.map((i) => ({ ...i, unitPrice: money(i.unitPrice), addonPrice: money(i.addonPrice), lineTotal: money(i.lineTotal),

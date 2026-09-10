@@ -3,6 +3,8 @@ import { and, asc, count, desc, eq, ilike, inArray, isNull, max, or, sql } from 
 import {
   applicationDecisionsTable,
   applicationDocumentsTable,
+  branchesTable,
+  branchStaffTable,
   db,
   driverProfilesTable,
   notificationsTable,
@@ -22,8 +24,9 @@ const adminManageAuth = [...adminAuth, requireAdminPermission("applications.mana
 const RESTAURANT_TRANSITIONS: Record<string, string[]> = {
   PENDING: ["UNDER_REVIEW", "REJECTED"],
   UNDER_REVIEW: ["APPROVED", "REJECTED"],
-  APPROVED: ["ACTIVE", "REJECTED"],
-  ACTIVE: ["REJECTED"],
+  APPROVED: ["ACTIVE", "REJECTED", "SUSPENDED"],
+  ACTIVE: ["REJECTED", "SUSPENDED"],
+  SUSPENDED: ["APPROVED", "REJECTED"],
   REJECTED: ["UNDER_REVIEW"],
 };
 const DRIVER_TRANSITIONS: Record<string, string[]> = {
@@ -254,7 +257,32 @@ router.get("/admin/restaurants", ...adminReadAuth, async (req, res): Promise<voi
   const rows = await db.select().from(restaurantsTable).where(where)
     .orderBy(req.query.sort === "reuploaded" ? desc(restaurantsTable.latestDocumentUploadedAt) : desc(restaurantsTable.createdAt))
     .limit(pageSize).offset(offset);
-  res.json({ items: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(), logoUploadedAt: r.logoUploadedAt?.toISOString() ?? null, coverUploadedAt: r.coverUploadedAt?.toISOString() ?? null, latestDocumentUploadedAt: r.latestDocumentUploadedAt?.toISOString() ?? null })), page, pageSize, total: totalRow?.total ?? 0 });
+  const activeMemberships = rows.length
+    ? await db.select({
+        restaurantId: branchesTable.restaurantId,
+        userId: branchStaffTable.userId,
+      })
+        .from(branchStaffTable)
+        .innerJoin(branchesTable, eq(branchesTable.id, branchStaffTable.branchId))
+        .where(and(
+          inArray(branchesTable.restaurantId, rows.map((row) => row.id)),
+          isNull(branchStaffTable.leftAt),
+        ))
+    : [];
+  const activeMembershipKeys = new Set(
+    activeMemberships.map((membership) => `${membership.restaurantId}:${membership.userId}`),
+  );
+  res.json({ items: rows.map((r) => ({
+    ...r,
+    fulfillmentAccessIssue: ["APPROVED", "ACTIVE"].includes(r.status) &&
+      !activeMembershipKeys.has(`${r.id}:${r.ownerUserId}`)
+      ? "MISSING_ACTIVE_BRANCH_MEMBERSHIP"
+      : null,
+    createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
+    logoUploadedAt: r.logoUploadedAt?.toISOString() ?? null,
+    coverUploadedAt: r.coverUploadedAt?.toISOString() ?? null,
+    latestDocumentUploadedAt: r.latestDocumentUploadedAt?.toISOString() ?? null,
+  })), page, pageSize, total: totalRow?.total ?? 0 });
 });
 
 router.get("/admin/drivers", ...adminReadAuth, async (req, res): Promise<void> => {
@@ -317,6 +345,80 @@ async function transitionApplication(type: "restaurant" | "driver", id: number, 
     const applicantUserId = type === "restaurant"
       ? (current as typeof restaurantsTable.$inferSelect).ownerUserId
       : (current as typeof driverProfilesTable.$inferSelect).userId;
+    if (type === "restaurant") {
+      const restaurant = current as typeof restaurantsTable.$inferSelect;
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${"partner-membership:" + applicantUserId}, 0))`,
+      );
+      const restaurantBranches = await tx.select({ id: branchesTable.id })
+        .from(branchesTable)
+        .where(eq(branchesTable.restaurantId, restaurant.id))
+        .orderBy(asc(branchesTable.id));
+
+      if (newStatus === "APPROVED" || newStatus === "ACTIVE") {
+        if (restaurantBranches.length > 1) {
+          throw new Error("AMBIGUOUS_BRANCH_MEMBERSHIP");
+        }
+        let branchId = restaurantBranches[0]?.id;
+        if (!branchId) {
+          const [createdBranch] = await tx.insert(branchesTable).values({
+            restaurantId: restaurant.id,
+            name: `${restaurant.name} — الفرع الرئيسي`,
+            address: restaurant.address,
+            phone: restaurant.phone,
+            lat: restaurant.lat,
+            lng: restaurant.lng,
+            notes: "Created during partner approval",
+          }).returning({ id: branchesTable.id });
+          branchId = createdBranch.id;
+        }
+        await tx.update(branchStaffTable).set({ leftAt: new Date() }).where(and(
+          eq(branchStaffTable.userId, applicantUserId),
+          isNull(branchStaffTable.leftAt),
+          sql`${branchStaffTable.branchId} <> ${branchId}`,
+        ));
+        const [active] = await tx.select({ id: branchStaffTable.id })
+          .from(branchStaffTable)
+          .where(and(
+            eq(branchStaffTable.userId, applicantUserId),
+            eq(branchStaffTable.branchId, branchId),
+            isNull(branchStaffTable.leftAt),
+          ))
+          .limit(1);
+        if (!active) {
+          const [prior] = await tx.select({ id: branchStaffTable.id })
+            .from(branchStaffTable)
+            .where(and(
+              eq(branchStaffTable.userId, applicantUserId),
+              eq(branchStaffTable.branchId, branchId),
+            ))
+            .orderBy(asc(branchStaffTable.id))
+            .limit(1);
+          if (prior) {
+            await tx.update(branchStaffTable).set({
+              leftAt: null,
+              role: "MANAGER",
+              joinedAt: new Date(),
+            }).where(eq(branchStaffTable.id, prior.id));
+          } else {
+            await tx.insert(branchStaffTable).values({
+              branchId,
+              userId: applicantUserId,
+              role: "MANAGER",
+            });
+          }
+        }
+      } else if (newStatus === "REJECTED" || newStatus === "SUSPENDED") {
+        const branchIds = restaurantBranches.map((branch) => branch.id);
+        if (branchIds.length) {
+          await tx.update(branchStaffTable).set({ leftAt: new Date() }).where(and(
+            eq(branchStaffTable.userId, applicantUserId),
+            inArray(branchStaffTable.branchId, branchIds),
+            isNull(branchStaffTable.leftAt),
+          ));
+        }
+      }
+    }
     if (newStatus === "SUSPENDED") {
       await revokeAllUserSessions(applicantUserId, "account_suspended", tx);
     }
@@ -352,6 +454,13 @@ for (const type of ["restaurants", "drivers"] as const) {
       const message = error instanceof Error ? error.message : "";
       if (message === "NOT_FOUND") { res.status(404).json({ error: "لم يتم العثور على الطلب" }); return; }
       if (message === "CONCURRENT_UPDATE") { res.status(409).json({ error: "تم تعديل الطلب بواسطة مشرف آخر، حدّث الصفحة" }); return; }
+      if (message === "AMBIGUOUS_BRANCH_MEMBERSHIP") {
+        res.status(422).json({
+          error: "تعذر تحديد فرع الشريك تلقائياً؛ يجب حل تعارض الفروع قبل الموافقة",
+          code: "AMBIGUOUS_BRANCH_MEMBERSHIP",
+        });
+        return;
+      }
       if (message.startsWith("INVALID_TRANSITION:")) {
         const [, currentStatus, allowed] = message.split(":");
         res.status(422).json({ error: "انتقال الحالة غير مسموح", currentStatus, allowedTransitions: allowed ? allowed.split(",") : [] }); return;

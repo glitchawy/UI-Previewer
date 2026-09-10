@@ -461,7 +461,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: A cart item is no longer available
+          description: A cart item is unavailable or a restaurant is not accepting orders (code RESTAURANT_NOT_ACCEPTING)
           content:
             application/json:
               schema:
@@ -724,7 +724,7 @@ paths:
       operationId: updateDriverDispatchLocation
       tags: [driver]
       summary: Save a coarse foreground-only location for idle dispatch matching
-      description: Coordinates must have no more than two decimal places. The driver must be approved, online, available, and have no active delivery.
+      description: A foreground-only one-shot refresh. The server rounds coordinates to two decimal places. The driver must be approved, online, available, and have no active delivery.
       security:
         - bearerAuth: []
       requestBody:
@@ -741,7 +741,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DriverDispatchLocationResult"
         "400":
-          description: Coordinates are invalid or have more than two decimal places
+          description: Coordinates are invalid or outside Egypt
           content:
             application/json:
               schema:
@@ -1825,7 +1825,7 @@ paths:
           description: Order detail
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema: { $ref: "#/components/schemas/AdminOrderDetail" }
         "404":
           description: Not found
           content:
@@ -1845,7 +1845,7 @@ paths:
           description: Eligible drivers without exposing coordinates
           content:
             application/json:
-              schema: { type: array, items: { type: object, additionalProperties: true } }
+              schema: { type: array, items: { $ref: "#/components/schemas/AdminEligibleDriver" } }
 
   /admin/core/orders/{id}/dispatch:
     post:
@@ -2196,7 +2196,7 @@ paths:
       security: [{ bearerAuth: [] }]
       summary: Read secret-free worker, queue, dispatch, storage, and provider health
       responses:
-        "200": { description: Operational health, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+        "200": { description: Operational health, content: { application/json: { schema: { $ref: "#/components/schemas/AdminOperationsHealth" } } } }
 
 components:
   securitySchemes:
@@ -2274,11 +2274,146 @@ components:
       type: object
       required: [items, page, pageSize, total, totalPages]
       properties:
-        items: { type: array, items: { type: object, additionalProperties: true } }
+        items: { type: array, items: { $ref: "#/components/schemas/AdminOrderSummary" } }
         page: { type: number }
         pageSize: { type: number }
         total: { type: number }
         totalPages: { type: number }
+    AdminOrderSummary:
+      type: object
+      additionalProperties: false
+      required: [id, code, customerId, customerName, customerPhone, restaurantName, status, paymentMethod, paymentStatus, total, walletAmountUsed, createdAt]
+      properties:
+        id: { type: number }
+        code: { type: string }
+        customerId: { type: number }
+        customerName: { type: [string, "null"] }
+        customerPhone: { type: [string, "null"] }
+        restaurantName: { type: string }
+        status: { type: string }
+        paymentMethod: { type: string, enum: [cash, card] }
+        paymentStatus: { type: string }
+        total: { type: number }
+        walletAmountUsed: { type: number }
+        createdAt: { type: string, format: date-time }
+    AdminEligibleDriver:
+      type: object
+      additionalProperties: false
+      required: [id, fullName, area, currentWorkload, distanceKm, locationUpdatedAt]
+      properties:
+        id: { type: number }
+        fullName: { type: string }
+        area: { type: string }
+        currentWorkload: { type: number }
+        distanceKm: { type: number }
+        locationUpdatedAt: { type: string, format: date-time }
+    AdminOrderDetail:
+      type: object
+      additionalProperties: false
+      required: [id, code, status, paymentMethod, paymentStatus, restaurantName, branchName, deliveryAddressText, notes, subtotal, deliveryFee, total, walletAmountUsed, externalAmountDue, createdAt, customer, restaurant, driver, dispatchStatus, items, history, refunds, relatedOrders]
+      properties:
+        id: { type: number }
+        code: { type: string }
+        status: { type: string }
+        paymentMethod: { type: string, enum: [cash, card] }
+        paymentStatus: { type: string }
+        restaurantName: { type: string }
+        branchName: { type: [string, "null"] }
+        deliveryAddressText: { type: string }
+        notes: { type: [string, "null"] }
+        subtotal: { type: number }
+        deliveryFee: { type: number }
+        total: { type: number }
+        walletAmountUsed: { type: number }
+        externalAmountDue: { type: number }
+        createdAt: { type: string, format: date-time }
+        customer:
+          type: object
+          additionalProperties: false
+          required: [id, name, phone, walletBalance]
+          properties:
+            id: { type: number }
+            name: { type: [string, "null"] }
+            phone: { type: [string, "null"] }
+            walletBalance: { type: number }
+        restaurant:
+          type: object
+          additionalProperties: false
+          required: [id, name, status]
+          properties:
+            id: { type: number }
+            name: { type: string }
+            status: { type: [string, "null"] }
+        driver:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [id, name, phone, area]
+          properties:
+            id: { type: number }
+            name: { type: string }
+            phone: { type: [string, "null"] }
+            area: { type: string }
+        dispatchStatus:
+          type: object
+          additionalProperties: false
+          required: [state, nextRetryAt, offerExpiresAt, reason]
+          properties:
+            state: { type: string, enum: [not_started, actively_offered, retry_scheduled, assigned, terminal] }
+            nextRetryAt: { type: [string, "null"], format: date-time }
+            offerExpiresAt: { type: [string, "null"], format: date-time }
+            reason: { type: [string, "null"] }
+        items:
+          type: array
+          items: { type: object, additionalProperties: true }
+        history:
+          type: array
+          items: { type: object, additionalProperties: true }
+        refunds:
+          type: array
+          items: { type: object, additionalProperties: true }
+        relatedOrders:
+          type: array
+          items: { type: object, additionalProperties: true }
+    AdminOperationsHealth:
+      type: object
+      additionalProperties: false
+      required: [worker, pendingWebhookEvents, deadWebhookEvents, notificationDeadLetters, cashReconciliationDeadLetters, staleReadyOrders, notificationFailures, alerts, configuration]
+      properties:
+        worker:
+          type: [object, "null"]
+          additionalProperties: false
+          required: [lastStartedAt, lastSucceededAt, lastErrorAt, lastHealthEvaluatedAt, healthy]
+          properties:
+            lastStartedAt: { type: string, format: date-time }
+            lastSucceededAt: { type: [string, "null"], format: date-time }
+            lastErrorAt: { type: [string, "null"], format: date-time }
+            lastHealthEvaluatedAt: { type: [string, "null"], format: date-time }
+            healthy: { type: boolean }
+        pendingWebhookEvents: { type: number }
+        deadWebhookEvents: { type: number }
+        notificationDeadLetters: { type: number }
+        cashReconciliationDeadLetters: { type: number }
+        staleReadyOrders: { type: number }
+        notificationFailures: { type: number }
+        alerts:
+          type: object
+          additionalProperties: false
+          required: [active, pending, deadLetter, lastEvaluationAt]
+          properties:
+            active: { type: number }
+            pending: { type: number }
+            deadLetter: { type: number }
+            lastEvaluationAt: { type: [string, "null"], format: date-time }
+        configuration:
+          type: object
+          additionalProperties: false
+          required: [objectStorageConfigured, expoProviderSupported, notificationWebhookConfigured, operationsAlertWebhookConfigured, expoPushReady]
+          properties:
+            objectStorageConfigured: { type: boolean }
+            expoProviderSupported: { type: boolean }
+            notificationWebhookConfigured: { type: boolean }
+            operationsAlertWebhookConfigured: { type: boolean }
+            expoPushReady: { type: boolean }
     AdminCustomerPage:
       type: object
       required: [items, page, pageSize, total, totalPages]
@@ -2629,7 +2764,7 @@ components:
 
     LocationUpdate:
       type: object
-      required: [lat, lng]
+      required: [lat, lng, capturedAt]
       properties:
         lat:
           type: number
@@ -3092,7 +3227,7 @@ components:
     DriverDispatchLocationUpdate:
       type: object
       additionalProperties: false
-      required: [lat, lng]
+      required: [lat, lng, capturedAt]
       properties:
         lat:
           type: number
@@ -3102,6 +3237,9 @@ components:
           type: number
           minimum: -180
           maximum: 180
+        capturedAt:
+          type: string
+          format: date-time
 
     DriverDispatchLocationResult:
       type: object
@@ -3158,7 +3296,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/PartnerOrderSummary"
         - type: object
-          required: [deliveryAddressText, subtotal, deliveryFee, notes, driverName, timeline, items]
+          required: [deliveryAddressText, subtotal, deliveryFee, notes, driverName, dispatchStatus, timeline, items]
           properties:
             deliveryAddressText:
               type: string
@@ -3170,6 +3308,22 @@ components:
               type: ["string", "null"]
             driverName:
               type: ["string", "null"]
+            dispatchStatus:
+              type: object
+              required: [state, nextRetryAt, offerExpiresAt, reason]
+              properties:
+                state:
+                  type: string
+                  enum: [not_started, actively_offered, retry_scheduled, assigned, terminal]
+                nextRetryAt:
+                  type: ["string", "null"]
+                  format: date-time
+                offerExpiresAt:
+                  type: ["string", "null"]
+                  format: date-time
+                reason:
+                  type: ["string", "null"]
+                  enum: [NO_FRESH_ELIGIBLE_DRIVER, BRANCH_LOCATION_UNAVAILABLE, OFFER_CONFLICT, null]
             timeline:
               type: array
               items:
@@ -3193,7 +3347,7 @@ components:
 
     DriverActiveOrder:
       type: object
-      required: [id, code, restaurantName, status, paymentMethod, total, customerName, customerPhone, deliveryAddressText, deliveryLat, deliveryLng, notes, driverLat, driverLng, driverLocationUpdatedAt, items]
+      required: [id, code, restaurantName, status, paymentMethod, total, customerName, customerPhone, deliveryAddressText, pickupAddressText, pickupLat, pickupLng, deliveryLat, deliveryLng, notes, driverLat, driverLng, driverLocationUpdatedAt, items]
       properties:
         id:
           type: number
@@ -3213,10 +3367,16 @@ components:
           type: ["string", "null"]
         deliveryAddressText:
           type: string
+        pickupAddressText:
+          type: ["string", "null"]
+        pickupLat:
+          type: ["number", "null"]
+        pickupLng:
+          type: ["number", "null"]
         deliveryLat:
-          type: number
+          type: ["number", "null"]
         deliveryLng:
-          type: number
+          type: ["number", "null"]
         notes:
           type: ["string", "null"]
         driverLat:
@@ -3233,7 +3393,7 @@ components:
 
     DriverOrderOffer:
       type: object
-      required: [id, offerId, expiresAt, distanceKm, code, restaurantName, deliveryAddressText, deliveryLat, deliveryLng, deliveryFee, total]
+      required: [id, offerId, expiresAt, distanceKm, code, restaurantName, deliveryAddressText, pickupAddressText, pickupLat, pickupLng, deliveryLat, deliveryLng, deliveryFee, total]
       properties:
         id:
           type: number
@@ -3250,10 +3410,16 @@ components:
           type: string
         deliveryAddressText:
           type: string
+        pickupAddressText:
+          type: ["string", "null"]
+        pickupLat:
+          type: ["number", "null"]
+        pickupLng:
+          type: ["number", "null"]
         deliveryLat:
-          type: number
+          type: ["number", "null"]
         deliveryLng:
-          type: number
+          type: ["number", "null"]
         deliveryFee:
           type: number
         total:

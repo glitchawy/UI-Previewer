@@ -3,17 +3,32 @@ import { createHash, createHmac } from "node:crypto";
 import { eq, inArray, like, sql } from "drizzle-orm";
 import {
   db,
+  businessAuditLogsTable,
+  cashOrderReconciliationsTable,
+  driverCommissionRulesTable,
+  driverEarningsTable,
+  driverProfilesTable,
   notificationOutboxTable,
   notificationDeliveryAttemptsTable,
   notificationsTable,
   paymobWebhookInboxTable,
+  platformRevenueAllocationsTable,
+  restaurantSettlementsTable,
+  restaurantsTable,
+  ordersTable,
+  walletTransactionsTable,
   pool,
   usersTable,
 } from "@workspace/db";
 import { runMigrations } from "@workspace/db/migrate";
 import app from "./app";
-import { processNotification } from "./lib/operations-worker";
+import {
+  enqueueCashOrderReconciliations,
+  processNotification,
+  skipIneligibleCashOrderReconciliations,
+} from "./lib/operations-worker";
 import { processNotificationDelivery } from "./lib/notification-delivery";
+import { settleDeliveredCashOrder } from "./lib/cash-order-accounting";
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
 process.env.PAYMOB_HMAC_SECRET = "operations-worker-regression-secret";
@@ -56,9 +71,125 @@ const terminal = signedPayload(transaction);
 let fanoutUserIds: number[] = [];
 let fanoutOutboxId: number | undefined;
 let privacyNotificationId: number | undefined;
+let refundedFixture: { orderId: number; restaurantId: number; userIds: number[] } | undefined;
 const fanoutPrefix = `fanout-${Date.now()}-${process.pid}`;
 
 await runMigrations();
+{
+  const fixture = `refunded-cash-${Date.now()}-${process.pid}`;
+  const [owner, customer] = await db.insert(usersTable).values([
+    { phone: `${fixture}-owner`, role: "partner" as const },
+    { phone: `${fixture}-customer`, role: "customer" as const },
+  ]).returning();
+  const [restaurant] = await db.insert(restaurantsTable).values({
+    ownerUserId: owner.id, name: fixture, address: fixture, status: "ACTIVE",
+  }).returning();
+  const [order] = await db.insert(ordersTable).values({
+    customerId: customer.id, restaurantId: restaurant.id, restaurantName: fixture,
+    status: "delivered", paymentMethod: "cash", paymentStatus: "refunded",
+    deliveryAddressText: fixture, deliveryLat: 30, deliveryLng: 31,
+    subtotal: "100.00", deliveryFee: "25.00", total: "125.00",
+    walletAmountUsed: "0.00", externalAmountDue: "125.00", deliveredAt: new Date(),
+  }).returning();
+  refundedFixture = { orderId: order.id, restaurantId: restaurant.id, userIds: [owner.id, customer.id] };
+  await db.insert(cashOrderReconciliationsTable).values({
+    orderId: order.id, status: "dead_letter", attemptCount: 8,
+    deadLetteredAt: new Date(), lastError: "DELIVERED_ORDER_DRIVER_REQUIRED",
+  });
+  assert.ok(await skipIneligibleCashOrderReconciliations() >= 1);
+  assert.equal(await skipIneligibleCashOrderReconciliations(), 0, "skipped recovery must not replay");
+  const [work] = await db.select().from(cashOrderReconciliationsTable)
+    .where(eq(cashOrderReconciliationsTable.orderId, order.id));
+  assert.equal(work.status, "skipped");
+  assert.equal(work.safeReason, "REFUNDED_ORDER_NOT_SETTLEMENT_ELIGIBLE");
+  assert.equal(work.deadLetteredAt, null);
+  const [unchanged] = await db.select().from(ordersTable).where(eq(ordersTable.id, order.id));
+  assert.equal(unchanged.paymentStatus, "refunded");
+  assert.equal((await db.select().from(restaurantSettlementsTable)
+    .where(eq(restaurantSettlementsTable.orderId, order.id))).length, 0);
+  assert.equal((await db.select().from(driverEarningsTable)
+    .where(eq(driverEarningsTable.orderId, order.id))).length, 0);
+  assert.equal((await db.select().from(platformRevenueAllocationsTable)
+    .where(eq(platformRevenueAllocationsTable.orderId, order.id))).length, 0);
+  assert.equal((await db.select().from(walletTransactionsTable)
+    .where(eq(walletTransactionsTable.referenceId, order.id))).length, 0);
+  assert.equal((await db.select().from(businessAuditLogsTable).where(eq(
+    businessAuditLogsTable.requestId, `cash-order-reconciliation-skipped:${order.id}`,
+  ))).length, 1);
+}
+const rollbackMarker = new Error("ROLLBACK_CASH_ACCOUNTING_REGRESSION");
+await assert.rejects(db.transaction(async (tx) => {
+  const fixture = `cash-accounting-${Date.now()}-${process.pid}`;
+  const [owner, driverUser, customer] = await tx.insert(usersTable).values([
+    { phone: `${fixture}-owner`, role: "partner" as const },
+    { phone: `${fixture}-driver`, role: "driver" as const },
+    { phone: `${fixture}-customer`, role: "customer" as const },
+  ]).returning();
+  const [restaurant] = await tx.insert(restaurantsTable).values({
+    ownerUserId: owner.id, name: fixture, address: fixture, status: "ACTIVE",
+  }).returning();
+  const [driver] = await tx.insert(driverProfilesTable).values({
+    userId: driverUser.id, fullName: fixture, area: fixture, vehicleType: "bike",
+    status: "APPROVED", isOnline: true, currentLat: 30, currentLng: 31,
+    locationUpdatedAt: new Date(), dispatchLat: 30.01, dispatchLng: 31.01,
+    dispatchLocationUpdatedAt: new Date(), dispatchLocationSource: "foreground_idle",
+  }).returning();
+  await tx.insert(driverCommissionRulesTable).values({
+    name: fixture, scope: "all", driverShareRate: "65.00", bonusPerOrder: "0.00",
+    isActive: true, createdByAdminId: owner.id, updatedByAdminId: owner.id,
+    updatedAt: new Date("2099-01-01T00:00:00Z"),
+  });
+  const [delivered] = await tx.insert(ordersTable).values({
+    customerId: customer.id, restaurantId: restaurant.id, restaurantName: fixture,
+    driverProfileId: driver.id, status: "delivered", paymentMethod: "cash",
+    paymentStatus: "pending", deliveryAddressText: fixture, deliveryLat: 30, deliveryLng: 31,
+    subtotal: "100.00", deliveryFee: "25.00", total: "125.00",
+    walletAmountUsed: "0.00", externalAmountDue: "125.00", deliveredAt: new Date(),
+  }).returning();
+  const [otherActive] = await tx.insert(ordersTable).values({
+    customerId: customer.id, restaurantId: restaurant.id, restaurantName: fixture,
+    driverProfileId: driver.id, status: "ready", paymentMethod: "cash",
+    deliveryAddressText: fixture, deliveryLat: 30, deliveryLng: 31,
+    subtotal: "10.00", deliveryFee: "5.00", total: "15.00",
+    walletAmountUsed: "0.00", externalAmountDue: "15.00",
+  }).returning();
+  await tx.insert(cashOrderReconciliationsTable).values({
+    orderId: delivered.id, status: "processed", processedAt: new Date(),
+  });
+  await enqueueCashOrderReconciliations(tx, delivered.id);
+  const [requeued] = await tx.select().from(cashOrderReconciliationsTable)
+    .where(eq(cashOrderReconciliationsTable.orderId, delivered.id));
+  assert.equal(requeued.status, "pending", "processed legacy work must requeue for new invariants");
+  assert.equal(requeued.attemptCount, 0);
+  await settleDeliveredCashOrder(tx, delivered.id);
+  await settleDeliveredCashOrder(tx, delivered.id);
+  const [earning] = await tx.select().from(driverEarningsTable)
+    .where(eq(driverEarningsTable.orderId, delivered.id));
+  const [settlement] = await tx.select().from(restaurantSettlementsTable)
+    .where(eq(restaurantSettlementsTable.orderId, delivered.id));
+  const allocations = await tx.select().from(platformRevenueAllocationsTable)
+    .where(eq(platformRevenueAllocationsTable.orderId, delivered.id));
+  assert.equal(Number(earning.netAmount), 16.25, "non-default driver share must be exact");
+  assert.equal(Number(settlement.netAmount), 100);
+  assert.equal(Number(settlement.commissionAmount), 0);
+  assert.equal(settlement.status, "pending", "delivery must not approve or pay restaurant payout");
+  assert.equal(allocations.length, 1, "platform delivery share must be exactly-once");
+  assert.equal(Number(allocations[0]!.amount), 8.75);
+  assert.equal(Number(settlement.netAmount) + Number(settlement.commissionAmount), 100);
+  assert.equal(Number(earning.netAmount) + Number(allocations[0]!.amount), 25);
+  let [location] = await tx.select().from(driverProfilesTable)
+    .where(eq(driverProfilesTable.id, driver.id));
+  assert.equal(location.currentLat, 30, "another active order must retain precise location");
+  await tx.delete(ordersTable).where(eq(ordersTable.id, otherActive.id));
+  await settleDeliveredCashOrder(tx, delivered.id);
+  [location] = await tx.select().from(driverProfilesTable)
+    .where(eq(driverProfilesTable.id, driver.id));
+  assert.equal(location.currentLat, null);
+  assert.equal(location.locationUpdatedAt, null);
+  assert.equal(location.dispatchLat, 30.01, "foreground dispatch location must be preserved");
+  assert.equal(location.dispatchLocationSource, "foreground_idle");
+  throw rollbackMarker;
+}), error => error === rollbackMarker);
 const server = app.listen(0);
 try {
   const address = server.address();
@@ -178,6 +309,22 @@ try {
   assert.equal(outboundCalls, 0, "inactive-session webhook delivery must not make outbound HTTP");
   console.log("operations worker regression passed");
 } finally {
+  if (refundedFixture) {
+    await db.delete(cashOrderReconciliationsTable)
+      .where(eq(cashOrderReconciliationsTable.orderId, refundedFixture.orderId));
+    await db.execute(sql`ALTER TABLE business_audit_logs DISABLE TRIGGER USER`);
+    try {
+      await db.delete(businessAuditLogsTable).where(eq(
+        businessAuditLogsTable.requestId,
+        `cash-order-reconciliation-skipped:${refundedFixture.orderId}`,
+      ));
+    } finally {
+      await db.execute(sql`ALTER TABLE business_audit_logs ENABLE TRIGGER USER`);
+    }
+    await db.delete(ordersTable).where(eq(ordersTable.id, refundedFixture.orderId));
+    await db.delete(restaurantsTable).where(eq(restaurantsTable.id, refundedFixture.restaurantId));
+    await db.delete(usersTable).where(inArray(usersTable.id, refundedFixture.userIds));
+  }
   if (privacyNotificationId) {
     await db.delete(notificationDeliveryAttemptsTable)
       .where(eq(notificationDeliveryAttemptsTable.notificationId, privacyNotificationId));

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button, Card, DashboardShell, EmptyState, StatusBadge, Table, Td } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
@@ -10,6 +10,11 @@ const statuses = ["", "pending", "confirmed", "preparing", "ready", "picked_up",
 const labels: Record<string, string> = { "": "الكل", pending: "جديد", confirmed: "مؤكد", preparing: "قيد التحضير", ready: "جاهز", picked_up: "خرج للتوصيل", delivered: "تم التوصيل", cancelled: "ملغي" };
 
 function AdminOrders() {
+  const childMatches = useChildMatches();
+  return childMatches.length ? <Outlet /> : <AdminOrdersList />;
+}
+
+function AdminOrdersList() {
   const [page, setPage] = useState(1), [q, setQ] = useState(""), [status, setStatus] = useState(""), [payment, setPayment] = useState("");
   const [data, setData] = useState<Page<AdminOrder>>(), [error, setError] = useState(""), [retry, setRetry] = useState(0);
   useEffect(() => {

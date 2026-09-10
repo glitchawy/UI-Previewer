@@ -8,10 +8,14 @@
  */
 
 import { Router } from "express";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   db,
+  branchesTable,
+  branchStaffTable,
   driverProfilesTable,
+  driverOrderOffersTable,
+  orderDispatchAttemptsTable,
   orderAddonsTable,
   orderItemsTable,
   orderStatusEventsTable,
@@ -32,6 +36,7 @@ import type { Request, Response } from "express";
 import { lookupAuthorization } from "../lib/session";
 import { dispatchReadyOrder } from "../lib/driver-dispatch";
 import { logger } from "../lib/logger";
+import { recordBusinessAudit, requestIdForAudit } from "../lib/business-audit";
 
 const router = Router();
 
@@ -49,6 +54,24 @@ async function getPartnerRestaurant(userId: number) {
   const rows = await db.select().from(restaurantsTable)
     .where(eq(restaurantsTable.ownerUserId, userId)).limit(1);
   return rows[0] ?? null;
+}
+
+async function getPartnerFulfillmentAccess(userId: number) {
+  const [access] = await db.select({
+    restaurant: restaurantsTable,
+    branchId: branchesTable.id,
+  })
+    .from(branchStaffTable)
+    .innerJoin(branchesTable, eq(branchesTable.id, branchStaffTable.branchId))
+    .innerJoin(restaurantsTable, eq(restaurantsTable.id, branchesTable.restaurantId))
+    .where(and(
+      eq(branchStaffTable.userId, userId),
+      eq(restaurantsTable.ownerUserId, userId),
+      isNull(branchStaffTable.leftAt),
+      inArray(restaurantsTable.status, ["APPROVED", "ACTIVE"]),
+    ))
+    .limit(1);
+  return access ?? null;
 }
 
 function serializeRestaurant(r: typeof restaurantsTable.$inferSelect) {
@@ -77,6 +100,14 @@ function serializeRestaurant(r: typeof restaurantsTable.$inferSelect) {
 
 function orderCode(id: number) {
   return `TB-${String(id).padStart(6, "0")}`;
+}
+
+/** Partner fulfillment never receives a dialable customer phone number. */
+function partnerCustomerPhone(phone: string | null | undefined) {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 8) return null;
+  return `${digits.slice(0, 4)} •• ${digits.slice(-4)}`;
 }
 
 const orderStatusLabels: Record<typeof ordersTable.$inferSelect.status, string> = {
@@ -164,8 +195,8 @@ router.patch("/partner/restaurant", async (req, res: Response): Promise<void> =>
 router.get("/partner/orders", async (req, res: Response): Promise<void> => {
   const user = await getPartner(req);
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
-  const restaurant = await getPartnerRestaurant(user.id);
-  if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const access = await getPartnerFulfillmentAccess(user.id);
+  if (!access) { res.status(403).json({ error: "لا يوجد تكليف فرع نشط لتنفيذ الطلبات" }); return; }
   const page = Number(req.query.page ?? 1), pageSize = Number(req.query.pageSize ?? 20);
   const status = typeof req.query.status === "string" ? req.query.status : "";
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50 ||
@@ -173,8 +204,15 @@ router.get("/partner/orders", async (req, res: Response): Promise<void> => {
     res.status(400).json({ error: "بيانات التصفية أو الصفحات غير صحيحة" }); return;
   }
   const condition = status
-    ? and(eq(ordersTable.restaurantId, restaurant.id), eq(ordersTable.status, status as typeof ordersTable.status.enumValues[number]))
-    : eq(ordersTable.restaurantId, restaurant.id);
+    ? and(
+        eq(ordersTable.restaurantId, access.restaurant.id),
+        eq(ordersTable.branchId, access.branchId),
+        eq(ordersTable.status, status as typeof ordersTable.status.enumValues[number]),
+      )
+    : and(
+        eq(ordersTable.restaurantId, access.restaurant.id),
+        eq(ordersTable.branchId, access.branchId),
+      );
   const orders = await db.select().from(ordersTable)
     .where(condition)
     .orderBy(desc(ordersTable.createdAt), desc(ordersTable.id))
@@ -186,7 +224,7 @@ router.get("/partner/orders", async (req, res: Response): Promise<void> => {
       id: order.id,
       code: orderCode(order.id),
       customerName: customer?.name ?? null,
-      customerPhone: customer?.phone ?? null,
+      customerPhone: partnerCustomerPhone(customer?.phone),
       branchName: order.branchName,
       status: order.status,
       paymentMethod: order.paymentMethod,
@@ -201,17 +239,21 @@ router.get("/partner/orders", async (req, res: Response): Promise<void> => {
 router.get("/partner/orders/:id", async (req, res: Response): Promise<void> => {
   const user = await getPartner(req);
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
-  const restaurant = await getPartnerRestaurant(user.id);
-  if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const access = await getPartnerFulfillmentAccess(user.id);
+  if (!access) { res.status(403).json({ error: "لا يوجد تكليف فرع نشط لتنفيذ الطلبات" }); return; }
   const params = GetPartnerOrderParams.safeParse(req.params);
   if (!params.success || !Number.isInteger(params.data.id)) {
     res.status(400).json({ error: "رقم الطلب غير صحيح" });
     return;
   }
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
-  if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
-  if (order.restaurantId !== restaurant.id) {
-    res.status(403).json({ error: "الطلب لا يخص هذا المطعم" });
+  const [order] = await db.select().from(ordersTable).where(and(
+    eq(ordersTable.id, params.data.id),
+    eq(ordersTable.restaurantId, access.restaurant.id),
+    eq(ordersTable.branchId, access.branchId),
+  )).limit(1);
+  if (!order) {
+    // Deliberately identical for a missing and an out-of-scope id.
+    res.status(403).json({ error: "تعذر الوصول إلى هذا الطلب" });
     return;
   }
   const [customer] = await db.select({ name: usersTable.name, phone: usersTable.phone })
@@ -229,11 +271,39 @@ router.get("/partner/orders/:id", async (req, res: Response): Promise<void> => {
     .where(eq(orderStatusEventsTable.orderId, order.id))
     .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
   const timeline = events.length ? events : [{ status: order.status, createdAt: order.createdAt }];
+  const now = new Date();
+  const [activeOffer] = await db.select({ expiresAt: driverOrderOffersTable.expiresAt })
+    .from(driverOrderOffersTable).where(and(
+      eq(driverOrderOffersTable.orderId, order.id),
+      eq(driverOrderOffersTable.status, "pending"),
+      gt(driverOrderOffersTable.expiresAt, now),
+    )).limit(1);
+  const [latestDispatch] = await db.select({
+    outcome: orderDispatchAttemptsTable.outcome,
+    safeReason: orderDispatchAttemptsTable.safeReason,
+    nextRetryAt: orderDispatchAttemptsTable.nextRetryAt,
+  }).from(orderDispatchAttemptsTable)
+    .where(eq(orderDispatchAttemptsTable.orderId, order.id))
+    .orderBy(desc(orderDispatchAttemptsTable.attemptNumber)).limit(1);
+  const dispatchStatus = order.status === "delivered" || order.status === "cancelled"
+    ? { state: "terminal" as const, nextRetryAt: null, offerExpiresAt: null, reason: null }
+    : order.driverProfileId
+      ? { state: "assigned" as const, nextRetryAt: null, offerExpiresAt: null, reason: null }
+      : activeOffer
+        ? { state: "actively_offered" as const, nextRetryAt: null, offerExpiresAt: activeOffer.expiresAt, reason: null }
+        : order.status === "ready" && latestDispatch?.outcome === "no_eligible_driver"
+          ? {
+              state: "retry_scheduled" as const,
+              nextRetryAt: latestDispatch.nextRetryAt,
+              offerExpiresAt: null,
+              reason: latestDispatch.safeReason,
+            }
+          : { state: "not_started" as const, nextRetryAt: null, offerExpiresAt: null, reason: null };
   res.json(GetPartnerOrderResponse.parse({
     id: order.id,
     code: orderCode(order.id),
     customerName: customer?.name ?? null,
-    customerPhone: customer?.phone ?? null,
+    customerPhone: partnerCustomerPhone(customer?.phone),
     branchName: order.branchName,
     status: order.status,
     paymentMethod: order.paymentMethod,
@@ -245,6 +315,7 @@ router.get("/partner/orders/:id", async (req, res: Response): Promise<void> => {
     deliveryFee: Number(order.deliveryFee),
     notes: order.notes,
     driverName: driver?.name ?? null,
+    dispatchStatus,
     timeline: timeline.map((event) => ({
       status: event.status,
       at: event.createdAt,
@@ -265,22 +336,44 @@ router.get("/partner/orders/:id", async (req, res: Response): Promise<void> => {
 });
 
 router.patch("/partner/orders/:id/status", async (req, res: Response): Promise<void> => {
-  const user = await getPartner(req);
-  if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
-  const restaurant = await getPartnerRestaurant(user.id);
-  if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const partnerAuthorization = await lookupAuthorization(req.headers.authorization);
+  if (!partnerAuthorization || partnerAuthorization.user.role !== "partner") {
+    res.status(401).json({ error: "غير مصرح" }); return;
+  }
+  const user = partnerAuthorization.user;
+  const access = await getPartnerFulfillmentAccess(user.id);
+  if (!access) { res.status(403).json({ error: "لا يوجد تكليف فرع نشط لتنفيذ الطلبات" }); return; }
   const params = UpdatePartnerOrderStatusParams.safeParse(req.params);
   const body = UpdatePartnerOrderStatusBody.safeParse(req.body);
   if (!params.success || !Number.isInteger(params.data.id) || !body.success) {
     res.status(400).json({ error: "بيانات تحديث الطلب غير صحيحة" });
     return;
   }
+  const auditRequestId = requestIdForAudit(req);
   const result = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${"partner-membership:" + user.id}, 0))`,
+    );
     await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${params.data.id})`);
+    const [currentAccess] = await tx.select({ branchId: branchesTable.id })
+      .from(branchStaffTable)
+      .innerJoin(branchesTable, eq(branchesTable.id, branchStaffTable.branchId))
+      .innerJoin(restaurantsTable, eq(restaurantsTable.id, branchesTable.restaurantId))
+      .where(and(
+        eq(branchStaffTable.userId, user.id),
+        eq(restaurantsTable.ownerUserId, user.id),
+        eq(branchesTable.id, access.branchId),
+        isNull(branchStaffTable.leftAt),
+        inArray(restaurantsTable.status, ["APPROVED", "ACTIVE"]),
+      ))
+      .limit(1);
+    if (!currentAccess) {
+      return { error: 403 as const, message: "لم يعد لديك تكليف نشط لهذا الفرع" };
+    }
     const [order] = await tx.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
     if (!order) return { error: 404 as const, message: "الطلب غير موجود" };
-    if (order.restaurantId !== restaurant.id) {
-      return { error: 403 as const, message: "الطلب لا يخص هذا المطعم" };
+    if (order.restaurantId !== access.restaurant.id || order.branchId !== access.branchId) {
+      return { error: 403 as const, message: "الطلب لا يخص فرعك" };
     }
     if (order.status === body.data.status) return { order };
     const validTransition =
@@ -294,9 +387,35 @@ router.patch("/partner/orders/:id/status", async (req, res: Response): Promise<v
       return { error: 400 as const, message: "لا يمكن تجهيز طلب أونلاين قبل تأكيد الدفع" };
     }
     const [updated] = await tx.update(ordersTable).set({ status: body.data.status })
-      .where(and(eq(ordersTable.id, order.id), eq(ordersTable.restaurantId, restaurant.id)))
+      .where(and(
+        eq(ordersTable.id, order.id),
+        eq(ordersTable.restaurantId, access.restaurant.id),
+        eq(ordersTable.branchId, access.branchId),
+      ))
       .returning();
     await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: body.data.status });
+    await recordBusinessAudit(tx, {
+      actorAdminId: user.id,
+      action: "partner.order_status_changed",
+      entityType: "order",
+      entityId: order.id,
+      before: {
+        status: order.status,
+        orderId: order.id,
+        restaurantId: order.restaurantId,
+        branchId: order.branchId,
+      },
+      after: {
+        status: body.data.status,
+        orderId: order.id,
+        restaurantId: order.restaurantId,
+        branchId: order.branchId,
+        actorUserId: user.id,
+        actorRole: "partner",
+        sessionId: partnerAuthorization.session.id,
+      },
+      requestId: auditRequestId,
+    });
     const notificationCopy = {
       confirmed: { title: "تم تأكيد طلبك", body: `أكد ${order.restaurantName} طلبك وبدأ العمل عليه` },
       preparing: { title: "طلبك قيد التحضير", body: `${order.restaurantName} يحضّر طلبك الآن` },

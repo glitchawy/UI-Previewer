@@ -14,8 +14,16 @@ export interface DriverOrderOffer {
   code: string;
   restaurantName: string;
   deliveryAddressText: string;
-  deliveryLat: number;
-  deliveryLng: number;
+  /** @nullable */
+  pickupAddressText: string | null;
+  /** @nullable */
+  pickupLat: number | null;
+  /** @nullable */
+  pickupLng: number | null;
+  /** @nullable */
+  deliveryLat: number | null;
+  /** @nullable */
+  deliveryLng: number | null;
   deliveryFee: number;
   total: number;
 }

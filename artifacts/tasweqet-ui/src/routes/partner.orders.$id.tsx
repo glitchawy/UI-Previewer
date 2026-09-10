@@ -50,7 +50,12 @@ function PartnerOrderDetail() {
   const orderId = Number(id);
   const queryClient = useQueryClient();
   const query = useGetPartnerOrder(orderId, {
-    query: { queryKey: getGetPartnerOrderQueryKey(orderId), enabled: Number.isInteger(orderId), refetchInterval: 15_000 },
+    query: {
+      queryKey: getGetPartnerOrderQueryKey(orderId),
+      enabled: Number.isInteger(orderId),
+      retry: false,
+      refetchInterval: (result) => result.state.status === "success" ? 15_000 : false,
+    },
   });
   const updateStatus = useUpdatePartnerOrderStatus();
   const order = query.data;
@@ -75,8 +80,15 @@ function PartnerOrderDetail() {
   if (query.isLoading) {
     return <DashboardShell brand="طلبات بيتك" role="صاحب مطعم" nav={partnerNav} title="تفاصيل الطلب"><div className="flex h-72 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[38px] text-primary" /></div></DashboardShell>;
   }
-  if (!order) {
-    return <DashboardShell brand="طلبات بيتك" role="صاحب مطعم" nav={partnerNav} title="تفاصيل الطلب"><EmptyState icon="error" title="تعذر تحميل الطلب" body="الطلب غير موجود أو لا يخص مطعمك" /></DashboardShell>;
+  if (query.isError || !order) {
+    return (
+      <DashboardShell brand="طلبات بيتك" role="صاحب مطعم" nav={partnerNav} title="تفاصيل الطلب">
+        <div className="flex flex-col items-center gap-md">
+          <EmptyState icon="lock" title="تعذر الوصول إلى الطلب" body="الطلب غير متاح أو لا تملك صلاحية عرضه." />
+          <Link to="/partner/orders"><Button variant="outline" icon="arrow_forward">رجوع للطلبات</Button></Link>
+        </div>
+      </DashboardShell>
+    );
   }
 
   const currentFlowIndex = restaurantFlow.indexOf(order.status);
@@ -129,7 +141,17 @@ function PartnerOrderDetail() {
 
             <Card className="p-md">
               <SectionTitle title="التوصيل" icon="delivery_dining" />
-              {order.driverName ? <Badge tone="success">الكابتن: {order.driverName}</Badge> : <Badge tone="info">{order.status === "ready" ? "جاري انتظار قبول كابتن" : "سيبدأ البحث عن كابتن عند جاهزية الطلب"}</Badge>}
+              {order.dispatchStatus.state === "assigned" ? (
+                <Badge tone="success">{order.driverName ? `الكابتن: ${order.driverName}` : "تم إسناد كابتن للطلب"}</Badge>
+              ) : order.dispatchStatus.state === "actively_offered" ? (
+                <Badge tone="info">تم إرسال عرض لكابتن وجارٍ انتظار الرد</Badge>
+              ) : order.dispatchStatus.state === "retry_scheduled" ? (
+                <Badge tone="warn">لا يوجد كابتن مؤهل حالياً — ستتم إعادة المحاولة تلقائياً</Badge>
+              ) : order.dispatchStatus.state === "terminal" ? (
+                <Badge tone="neutral">انتهت مرحلة الإسناد لهذا الطلب</Badge>
+              ) : (
+                <Badge tone="info">سيبدأ البحث عن كابتن عند جاهزية الطلب</Badge>
+              )}
             </Card>
           </div>
 

@@ -28,7 +28,10 @@ router.get("/driver/account", async (req, res: Response): Promise<void> => {
     id: profile.id, fullName: profile.fullName, phone: req.authUser!.phone,
     area: profile.area, vehicleType: profile.vehicleType, status: profile.status,
     isOnline: profile.isOnline, isAvailable: profile.isAvailable,
-    lastHeartbeatAt: profile.lastHeartbeatAt, locationUpdatedAt: profile.locationUpdatedAt,
+    lastHeartbeatAt: profile.lastHeartbeatAt,
+    locationUpdatedAt: profile.locationUpdatedAt,
+    dispatchLocationUpdatedAt: profile.dispatchLocationUpdatedAt,
+    dispatchLocationSource: profile.dispatchLocationSource,
     currentWorkload: profile.currentWorkload, deliveries: stats.deliveries,
   });
 });

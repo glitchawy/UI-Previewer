@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
+  driverProfilesTable,
   ordersTable,
   orderStatusEventsTable,
   paymentRefundClaimsTable,
@@ -228,6 +229,15 @@ router.post("/orders/:id/cancel", async (req, res: Response): Promise<void> => {
       }
       const [cancelled] = await tx.update(ordersTable).set({ status: "cancelled" })
         .where(eq(ordersTable.id, order.id)).returning();
+      if (order.driverProfileId) await tx.update(driverProfilesTable).set({
+        currentWorkload: 0, isAvailable: sql`${driverProfilesTable.isOnline}`,
+        currentLat: null, currentLng: null, locationUpdatedAt: null,
+      }).where(eq(driverProfilesTable.id, order.driverProfileId));
+      if (order.driverProfileId) await tx.update(driverProfilesTable).set({
+        dispatchLat: null, dispatchLng: null, dispatchLocationUpdatedAt: null,
+        dispatchLocationSource: null,
+      }).where(and(eq(driverProfilesTable.id, order.driverProfileId),
+        eq(driverProfilesTable.dispatchLocationSource, "active_tracking")));
       await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: "cancelled" });
       return { kind: "provider" as const, order: cancelled, claim };
     }
@@ -259,6 +269,15 @@ router.post("/orders/:id/cancel", async (req, res: Response): Promise<void> => {
       status: "cancelled",
       paymentStatus,
     }).where(eq(ordersTable.id, order.id)).returning();
+    if (order.driverProfileId) await tx.update(driverProfilesTable).set({
+      currentWorkload: 0, isAvailable: sql`${driverProfilesTable.isOnline}`,
+      currentLat: null, currentLng: null, locationUpdatedAt: null,
+    }).where(eq(driverProfilesTable.id, order.driverProfileId));
+    if (order.driverProfileId) await tx.update(driverProfilesTable).set({
+      dispatchLat: null, dispatchLng: null, dispatchLocationUpdatedAt: null,
+      dispatchLocationSource: null,
+    }).where(and(eq(driverProfilesTable.id, order.driverProfileId),
+      eq(driverProfilesTable.dispatchLocationSource, "active_tracking")));
     await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: "cancelled" });
     return { kind: "local" as const, order: cancelled, grouped: false, refundRequestId };
   });

@@ -22,6 +22,7 @@ type Addon = { id: number; name: string; price: string; isAvailable: boolean };
 type ProductDetail = {
   id: number; restaurantId: number; name: string; description: string | null;
   imageUrl: string | null; basePrice: string; isAvailable: boolean;
+  acceptingOrders: boolean; acceptanceReason: string; nextOpeningSummary: string | null;
   variants: Variant[]; addons: Addon[];
   restaurant: { id: number; name: string; logoUrl: string | null; deliveryType: string };
 };
@@ -33,6 +34,7 @@ function AppProductId() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const [cartFeedback, setCartFeedback] = useState("");
 
   useEffect(() => {
     fetch(`/api/products/${id}`)
@@ -136,11 +138,25 @@ function AppProductId() {
       </div>
 
       <div className="sticky bottom-0 z-20 border-t border-outline-variant bg-surface-container-lowest/95 p-md backdrop-blur">
-        <Button className="w-full justify-between" icon="add_shopping_cart" onClick={() => setCartSheetOpen(true)}>
-          <span>اختار وأضف للسلة</span><span>من {EGP(product.basePrice)}</span>
+        {cartFeedback && <p className="mb-2 text-center font-label-md text-success" role="status">{cartFeedback}</p>}
+        {!product.acceptingOrders && (
+          <p className="mb-2 rounded-button bg-error-container p-3 text-center font-label-md text-error" role="alert">
+            {product.acceptanceReason}{product.nextOpeningSummary ? ` — ${product.nextOpeningSummary}` : ""}
+          </p>
+        )}
+        <Button className="w-full justify-between" icon="add_shopping_cart"
+          disabled={!product.acceptingOrders} onClick={() => setCartSheetOpen(true)}>
+          <span>{product.acceptingOrders ? "اختار وأضف للسلة" : "غير متاح للطلب حالياً"}</span><span>من {EGP(product.basePrice)}</span>
         </Button>
       </div>
-      <ProductOptionsSheet product={cartSheetOpen ? product : null} onClose={() => setCartSheetOpen(false)} />
+      <ProductOptionsSheet
+        product={cartSheetOpen ? product : null}
+        onClose={() => setCartSheetOpen(false)}
+        onAdded={() => {
+          setCartFeedback("تمت الإضافة للسلة");
+          window.setTimeout(() => setCartFeedback(""), 3000);
+        }}
+      />
     </MobileShell>
   );
 }

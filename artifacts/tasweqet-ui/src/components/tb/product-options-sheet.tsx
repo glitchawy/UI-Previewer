@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Icon } from "@/components/tb/shell";
 import { addCartItem, useCart } from "@/lib/tb/cart";
+import { runSingleSubmission } from "@/lib/tb/single-submission";
 
 export type OptionVariant = { id: number; name: string; priceDelta: string; isDefault: boolean };
 export type OptionAddon = { id: number; name: string; price: string; isAvailable: boolean };
@@ -21,6 +22,7 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
   const [error, setError] = useState("");
   const [confirmMode, setConfirmMode] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const submissionLock = useRef(false);
 
   useEffect(() => {
     if (!product) { setIsVisible(false); return; }
@@ -45,12 +47,28 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
   async function submit(replaceOtherRestaurants = false) {
     if (currentProduct.variants.length && variantId === null) { setError("اختار الحجم أولاً"); return; }
     if (addingAnotherRestaurant && !confirmMode) { setConfirmMode(true); return; }
-    setPending(true); setError("");
-    try {
-      await addCartItem({ productId: currentProduct.id, variantId, addonIds, quantity, replaceOtherRestaurants });
-      onAdded?.(); handleClose();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر الإضافة للسلة"); }
-    finally { setPending(false); }
+    await runSingleSubmission({
+      lock: submissionLock,
+      submit: () => addCartItem({
+        productId: currentProduct.id,
+        variantId,
+        addonIds,
+        quantity,
+        replaceOtherRestaurants,
+      }),
+      onStart: () => { setPending(true); setError(""); },
+      onSuccess: () => {
+        // Successful submission must synchronously clear the parent's product
+        // state. Animation-only local state left the mounted sheet visible.
+        setIsVisible(false);
+        onAdded?.();
+        onClose();
+      },
+      onError: (cause) => {
+        setError(cause instanceof Error ? cause.message : "تعذر الإضافة للسلة");
+      },
+      onSettled: () => setPending(false),
+    });
   }
 
   const availableAddons = product.addons.filter((addon) => addon.isAvailable);
@@ -131,12 +149,10 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
                 <div className="flex flex-col gap-2">
                   {availableAddons.map((addon) => (
                     <label key={addon.id} className="group relative flex cursor-pointer items-center justify-between rounded-card border-2 p-3.5 transition-all has-[:checked]:border-primary has-[:checked]:bg-primary-container/10 has-[:not(:checked)]:border-outline-variant/40 has-[:not(:checked)]:bg-surface-container-lowest hover:bg-surface-container-low">
-                      <input type="checkbox" className="peer sr-only" checked={addonIds.includes(addon.id)} 
+                      <input type="checkbox" className="peer size-5 shrink-0 cursor-pointer accent-primary" checked={addonIds.includes(addon.id)}
+                        aria-label={addon.name}
                         onChange={(e) => setAddonIds((current) => e.target.checked ? [...current, addon.id] : current.filter((id) => id !== addon.id))} />
                       <div className="flex items-center gap-3">
-                        <div className="flex size-5 items-center justify-center rounded-md border-2 border-outline-variant peer-checked:border-primary peer-checked:bg-primary text-on-primary transition-all">
-                          <Icon name="check" className="text-[14px] opacity-0 peer-checked:opacity-100 transition-opacity" />
-                        </div>
                         <span className="font-label-lg text-[15px] text-on-surface group-hover:text-primary transition-colors">{addon.name}</span>
                       </div>
                       <span className="font-label-md text-[14px] text-on-surface-variant font-medium">

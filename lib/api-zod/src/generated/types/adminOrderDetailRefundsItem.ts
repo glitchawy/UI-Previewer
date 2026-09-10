@@ -6,4 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetAdminCoreOrder200 = { [key: string]: unknown };
+export type AdminOrderDetailRefundsItem = { [key: string]: unknown };

@@ -23,10 +23,37 @@ export const driverOrderOffersTable = pgTable("driver_order_offers", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
 }, t => [
-  uniqueIndex("driver_order_offer_attempt_uidx").on(t.orderId, t.driverProfileId),
   uniqueIndex("driver_order_offer_pending_order_uidx").on(t.orderId).where(sql`${t.status} = 'pending'`),
   uniqueIndex("driver_order_offer_pending_driver_uidx").on(t.driverProfileId).where(sql`${t.status} = 'pending'`),
   index("driver_order_offer_driver_status_idx").on(t.driverProfileId, t.status, t.expiresAt),
+]);
+
+export const orderDispatchAttemptsTable = pgTable("order_dispatch_attempts", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull(),
+  attemptNumber: integer("attempt_number").notNull(),
+  outcome: text("outcome", { enum: ["offered", "no_eligible_driver"] }).notNull(),
+  safeReason: text("safe_reason", {
+    enum: ["NO_FRESH_ELIGIBLE_DRIVER", "BRANCH_LOCATION_UNAVAILABLE", "OFFER_CONFLICT"],
+  }),
+  offerId: integer("offer_id"),
+  driverProfileId: integer("driver_profile_id"),
+  // This distance is calculated exclusively from the driver's separately collected coarse dispatch location.
+  coarseDistanceKm: doublePrecision("coarse_distance_km"),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("order_dispatch_attempt_number_uidx").on(t.orderId, t.attemptNumber),
+  uniqueIndex("order_dispatch_attempt_offer_uidx").on(t.offerId).where(sql`${t.offerId} is not null`),
+  index("order_dispatch_attempt_order_time_idx").on(t.orderId, t.attemptedAt),
+  index("order_dispatch_attempt_retry_idx").on(t.nextRetryAt).where(sql`${t.outcome} = 'no_eligible_driver'`),
+  check("order_dispatch_attempt_outcome_check", sql`
+    (${t.outcome} = 'offered' and ${t.offerId} is not null and ${t.driverProfileId} is not null
+      and ${t.coarseDistanceKm} is not null and ${t.safeReason} is null and ${t.nextRetryAt} is null)
+    or
+    (${t.outcome} = 'no_eligible_driver' and ${t.offerId} is null and ${t.driverProfileId} is null
+      and ${t.coarseDistanceKm} is null and ${t.safeReason} is not null and ${t.nextRetryAt} is not null)
+  `),
 ]);
 
 export const driverEarningsTable = pgTable("driver_earnings", {

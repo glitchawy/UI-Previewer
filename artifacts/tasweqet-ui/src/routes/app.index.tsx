@@ -4,6 +4,7 @@ import { Icon, Card, SectionTitle, Badge, MobileShell } from "@/components/tb/sh
 import { customerTabs } from "@/lib/tb/nav";
 import { getSession, logoutSession, getRoleDashboard, getToken } from "@/lib/auth-session";
 import { FavButton } from "@/lib/tb/favorites";
+import { restaurantHoursSummary } from "@/lib/tb/restaurant-hours";
 
 export const Route = createFileRoute("/app/")({
   beforeLoad: () => {
@@ -24,7 +25,8 @@ type ApiRestaurant = {
   id: number; name: string; description: string | null; address: string;
   category: string | null; deliveryType: string; logoUrl: string | null;
   coverUrl: string | null; hours: string | null; status: string;
-  isOpen: boolean; distanceKm: number | null;
+  isOpen: boolean; acceptingOrders: boolean; acceptanceReason: string;
+  nextOpeningSummary: string | null; distanceKm: number | null;
 };
 
 function AppIndex() {
@@ -183,7 +185,10 @@ function AppIndex() {
           ) : (
             <div className="tb-stagger flex flex-col gap-3">
               {(activeCategory ? restaurants.filter((r) => r.category === activeCategory) : restaurants).map((r) => (
-                <Link key={r.id} to="/app/restaurant/$id" params={{ id: String(r.id) }} className="block">
+                <Link key={r.id} to="/app/restaurant/$id" params={{ id: String(r.id) }}
+                  aria-disabled={!r.acceptingOrders}
+                  onClick={(event) => { if (!r.acceptingOrders) event.preventDefault(); }}
+                  className={`block ${r.acceptingOrders ? "" : "cursor-not-allowed"}`}>
                   <Card className="overflow-hidden transition hover:border-secondary active:scale-[0.99]">
                     <div className="relative h-32 w-full">
                       {r.coverUrl ? (
@@ -221,7 +226,16 @@ function AppIndex() {
                         <Badge tone={r.deliveryType === "platform" ? "info" : "success"}>
                           {r.deliveryType === "platform" ? "توصيل طلبات بيتك" : "توصيل المطعم"}
                         </Badge>
-                        {r.hours && <Badge tone="neutral"><Icon name="schedule" className="text-[14px]" />{r.hours}</Badge>}
+                        <span
+                            className="max-w-full"
+                            title={restaurantHoursSummary(r.hours)?.full ?? r.acceptanceReason}
+                            aria-label={restaurantHoursSummary(r.hours)?.full ?? r.acceptanceReason}
+                          >
+                            <Badge tone="neutral" className="max-w-full whitespace-normal break-words">
+                              <Icon name="schedule" className="shrink-0 text-[14px]" />
+                              {r.acceptanceReason}{r.nextOpeningSummary ? ` — ${r.nextOpeningSummary}` : ""}
+                            </Badge>
+                          </span>
                       </div>
                     </div>
                   </Card>

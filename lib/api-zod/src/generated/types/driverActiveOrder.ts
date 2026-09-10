@@ -21,8 +21,16 @@ export interface DriverActiveOrder {
   /** @nullable */
   customerPhone: string | null;
   deliveryAddressText: string;
-  deliveryLat: number;
-  deliveryLng: number;
+  /** @nullable */
+  pickupAddressText: string | null;
+  /** @nullable */
+  pickupLat: number | null;
+  /** @nullable */
+  pickupLng: number | null;
+  /** @nullable */
+  deliveryLat: number | null;
+  /** @nullable */
+  deliveryLng: number | null;
   /** @nullable */
   notes: string | null;
   /** @nullable */

@@ -5,10 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminOrderPageItemsItem } from './adminOrderPageItemsItem';
+import type { AdminOrderSummary } from './adminOrderSummary';
 
 export interface AdminOrderPage {
-  items: AdminOrderPageItemsItem[];
+  items: AdminOrderSummary[];
   page: number;
   pageSize: number;
   total: number;

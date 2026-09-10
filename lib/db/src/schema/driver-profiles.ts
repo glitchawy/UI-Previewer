@@ -23,6 +23,7 @@ export const driverProfilesTable = pgTable("driver_profiles", {
   dispatchLat: doublePrecision("dispatch_lat"),
   dispatchLng: doublePrecision("dispatch_lng"),
   dispatchLocationUpdatedAt: timestamp("dispatch_location_updated_at", { withTimezone: true }),
+  dispatchLocationSource: text("dispatch_location_source", { enum: ["foreground_idle", "active_tracking"] }),
   isOnline: boolean("is_online").notNull().default(false),
   isAvailable: boolean("is_available").notNull().default(false),
   lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),

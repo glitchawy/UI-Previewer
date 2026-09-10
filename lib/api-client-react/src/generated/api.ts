@@ -22,8 +22,11 @@ import type {
 import type {
   AddressSearchResult,
   AdminCustomerPage,
+  AdminEligibleDriver,
   AdminMutation,
   AdminObject,
+  AdminOperationsHealth,
+  AdminOrderDetail,
   AdminOrderPage,
   AdminOverview,
   AdminPage,
@@ -55,7 +58,6 @@ import type {
   ExportAdminOrdersCsvParams,
   GeocodeResult,
   GetAdminCoreCustomer200,
-  GetAdminCoreOrder200,
   GetCustomerWalletParams,
   GetDriverAccount200,
   GetDriverEarnings200,
@@ -72,7 +74,6 @@ import type {
   ListDriverDeliveries200,
   ListDriverDeliveriesParams,
   ListDriverDocuments200,
-  ListEligibleOrderDrivers200Item,
   ListNotificationsParams,
   ListPartnerOrdersParams,
   ListPartnerReviews200,
@@ -220,13 +221,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getReadinessCheckUrl = () => {
 
 
@@ -1870,7 +1864,7 @@ export const getUpdateDriverDispatchLocationUrl = () => {
 }
 
 /**
- * Coordinates must have no more than two decimal places. The driver must be approved, online, available, and have no active delivery.
+ * A foreground-only one-shot refresh. The server rounds coordinates to two decimal places. The driver must be approved, online, available, and have no active delivery.
  * @summary Save a coarse foreground-only location for idle dispatch matching
  */
 export const updateDriverDispatchLocation = async (driverDispatchLocationUpdate: DriverDispatchLocationUpdate, options?: Parameters<typeof customFetch>[1]): Promise<DriverDispatchLocationResult> => {
@@ -5116,9 +5110,9 @@ export const getGetAdminCoreOrderUrl = (id: number,) => {
 /**
  * @summary Full platform order context
  */
-export const getAdminCoreOrder = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GetAdminCoreOrder200> => {
+export const getAdminCoreOrder = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AdminOrderDetail> => {
 
-  return customFetch<GetAdminCoreOrder200>(getGetAdminCoreOrderUrl(id),
+  return customFetch<AdminOrderDetail>(getGetAdminCoreOrderUrl(id),
   {
     ...options,
     method: 'GET'
@@ -5193,9 +5187,9 @@ export const getListEligibleOrderDriversUrl = (id: number,) => {
 /**
  * @summary List fresh, online, workload-eligible drivers ordered by distance
  */
-export const listEligibleOrderDrivers = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ListEligibleOrderDrivers200Item[]> => {
+export const listEligibleOrderDrivers = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AdminEligibleDriver[]> => {
 
-  return customFetch<ListEligibleOrderDrivers200Item[]>(getListEligibleOrderDriversUrl(id),
+  return customFetch<AdminEligibleDriver[]>(getListEligibleOrderDriversUrl(id),
   {
     ...options,
     method: 'GET'
@@ -7781,9 +7775,9 @@ export const getGetAdminOperationsHealthUrl = () => {
 /**
  * @summary Read secret-free worker, queue, dispatch, storage, and provider health
  */
-export const getAdminOperationsHealth = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminObject> => {
+export const getAdminOperationsHealth = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminOperationsHealth> => {
 
-  return customFetch<AdminObject>(getGetAdminOperationsHealthUrl(),
+  return customFetch<AdminOperationsHealth>(getGetAdminOperationsHealthUrl(),
   {
     ...options,
     method: 'GET'

@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { and, count, eq, inArray, lt, sql } from "drizzle-orm";
 import {
   db,
+  cashOrderReconciliationsTable,
   notificationDeliveryAttemptsTable,
   operationsAlertConditionsTable,
   operationsAlertDeliveriesTable,
@@ -14,7 +15,7 @@ const ALERT_COOLDOWN_MS = 15 * 60_000;
 
 export async function collectOperationsHealth(now = new Date()) {
   const staleBefore = new Date(now.getTime() - 5 * 60_000);
-  const [heartbeat, [pending], [deadWebhook], [deadNotification], [staleReady]] = await Promise.all([
+  const [heartbeat, [pending], [deadWebhook], [deadNotification], [deadCashReconciliation], [staleReady]] = await Promise.all([
     db.select().from(operationsWorkerHeartbeatTable)
       .where(eq(operationsWorkerHeartbeatTable.workerName, "operations")).limit(1),
     db.select({ value: count() }).from(paymobWebhookInboxTable)
@@ -23,6 +24,8 @@ export async function collectOperationsHealth(now = new Date()) {
       .where(eq(paymobWebhookInboxTable.status, "dead_letter")),
     db.select({ value: count() }).from(notificationDeliveryAttemptsTable)
       .where(eq(notificationDeliveryAttemptsTable.status, "dead_letter")),
+    db.select({ value: count() }).from(cashOrderReconciliationsTable)
+      .where(eq(cashOrderReconciliationsTable.status, "dead_letter")),
     db.select({ value: count() }).from(ordersTable).where(and(
       eq(ordersTable.status, "ready"), lt(ordersTable.updatedAt, staleBefore),
       sql`${ordersTable.driverProfileId} is null`,
@@ -36,6 +39,7 @@ export async function collectOperationsHealth(now = new Date()) {
     pendingWebhookEvents: Number(pending.value),
     deadWebhookEvents: Number(deadWebhook.value),
     notificationDeadLetters: Number(deadNotification.value),
+    cashReconciliationDeadLetters: Number(deadCashReconciliation.value),
     staleReadyOrders: Number(staleReady.value),
   };
   const conditions = [
@@ -47,6 +51,8 @@ export async function collectOperationsHealth(now = new Date()) {
       severity: "critical" as const, value: metrics.deadWebhookEvents },
     { key: "notification_dead_letters", active: metrics.notificationDeadLetters > 0,
       severity: "warning" as const, value: metrics.notificationDeadLetters },
+    { key: "cash_reconciliation_dead_letters", active: metrics.cashReconciliationDeadLetters > 0,
+      severity: "critical" as const, value: metrics.cashReconciliationDeadLetters },
     { key: "stale_ready_orders", active: metrics.staleReadyOrders > 0,
       severity: (metrics.staleReadyOrders >= 10 ? "critical" : "warning") as "critical" | "warning",
       value: metrics.staleReadyOrders },

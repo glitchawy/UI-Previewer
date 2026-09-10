@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getGetAvailableDriverOrderQueryKey,
   useAcceptDriverOrder,
@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { AppBar, Button, Card, EmptyState, Icon, MobileShell } from "@/components/tb/shell";
 import { EGP } from "@/lib/tb/data";
+import { runStickyAction } from "@/lib/tb/single-submission";
 
 export const Route = createFileRoute("/driver/offer")({
   head: () => ({
@@ -28,22 +29,42 @@ function DriverOffer() {
   const reject = useRejectDriverOrder();
   const offer = offerQuery.data;
   const [remaining, setRemaining] = useState(0);
+  const actionLock = useRef(false);
+  const [actionLocked, setActionLocked] = useState(false);
+  const authoritativeOfferKey = offer ? `${offer.id}:${offer.offerId}` : null;
+  const previousOfferKey = useRef(authoritativeOfferKey);
+  useEffect(() => {
+    if (previousOfferKey.current !== authoritativeOfferKey) {
+      previousOfferKey.current = authoritativeOfferKey;
+      actionLock.current = false;
+      setActionLocked(false);
+    }
+  }, [authoritativeOfferKey]);
   useEffect(() => {
     if (!offer) { setRemaining(0); return; }
     const tick = () => setRemaining(Math.max(0, Math.ceil((new Date(offer.expiresAt).getTime() - Date.now()) / 1000)));
     tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
   }, [offer]);
 
-  function acceptOffer() {
+  async function acceptOffer() {
     if (!offer) return;
-    accept.mutate(
-      { id: offer.id },
-      { onSuccess: () => navigate({ to: "/driver/navigate" }), onError: () => offerQuery.refetch() },
-    );
+    await runStickyAction({
+      lock: actionLock,
+      submit: () => accept.mutateAsync({ id: offer.id }),
+      onStart: () => setActionLocked(true),
+      onSuccess: () => navigate({ to: "/driver/navigate" }),
+      onError: () => { setActionLocked(false); void offerQuery.refetch(); },
+    });
   }
-  function rejectOffer() {
+  async function rejectOffer() {
     if (!offer) return;
-    reject.mutate({ id: offer.id }, { onSuccess: () => navigate({ to: "/driver" }), onError: () => offerQuery.refetch() });
+    await runStickyAction({
+      lock: actionLock,
+      submit: () => reject.mutateAsync({ id: offer.id }),
+      onStart: () => setActionLocked(true),
+      onSuccess: () => navigate({ to: "/driver" }),
+      onError: () => { setActionLocked(false); void offerQuery.refetch(); },
+    });
   }
 
   return (
@@ -82,8 +103,8 @@ function DriverOffer() {
 
           {accept.isError ? <p className="rounded-button bg-error-container px-3 py-2 text-label-md text-on-error-container">العرض لم يعد متاحاً أو لديك توصيلة نشطة.</p> : null}
           <div className="grid grid-cols-2 gap-sm">
-            <Button variant="danger" className="w-full" icon="close" disabled={reject.isPending} onClick={rejectOffer}>رفض</Button>
-            <Button className="w-full" icon="check" disabled={accept.isPending || remaining === 0} onClick={acceptOffer}>قبول</Button>
+            <Button type="button" variant="danger" className="w-full" icon="close" disabled={actionLocked || accept.isPending || reject.isPending} onClick={() => void rejectOffer()}>رفض</Button>
+            <Button type="button" className="w-full" icon="check" disabled={actionLocked || accept.isPending || reject.isPending || remaining === 0} onClick={() => void acceptOffer()}>قبول</Button>
           </div>
         </div>
       )}

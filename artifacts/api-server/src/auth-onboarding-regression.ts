@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   adminAccountsTable,
   adminPermissionGroupsTable,
   applicationDecisionsTable,
   applicationDocumentsTable,
   authSessionsTable,
+  branchesTable,
+  branchStaffTable,
   db,
   driverProfilesTable,
   notificationsTable,
+  ordersTable,
+  orderStatusEventsTable,
   pool,
   restaurantsTable,
   usersTable,
@@ -387,6 +391,89 @@ try {
   ));
   assert.equal(decisionRows.length, 2, "only one of two concurrent final decisions may be recorded");
 
+  // A restaurant approval is also the atomic grant of one branch-scoped
+  // fulfillment membership. Retrying the same decision must not duplicate it.
+  assert.equal((await request(baseUrl, `/admin/restaurants/${otherSubmission.body.id}/status`, {
+    method: "PATCH", token: admin.token, body: { status: "UNDER_REVIEW" },
+  })).status, 200);
+  const approvalRequestId = `${prefix}-other-approve`;
+  assert.equal((await request(baseUrl, `/admin/restaurants/${otherSubmission.body.id}/status`, {
+    method: "PATCH", token: admin.token, body: { status: "APPROVED" },
+    headers: { "x-request-id": approvalRequestId },
+  })).status, 200);
+  assert.equal((await request(baseUrl, `/admin/restaurants/${otherSubmission.body.id}/status`, {
+    method: "PATCH", token: admin.token, body: { status: "APPROVED" },
+    headers: { "x-request-id": approvalRequestId },
+  })).body.replayed, true);
+  const approvedMemberships = await db.select({
+    staffId: branchStaffTable.id,
+    branchId: branchStaffTable.branchId,
+  })
+    .from(branchStaffTable)
+    .innerJoin(branchesTable, eq(branchesTable.id, branchStaffTable.branchId))
+    .where(and(
+      eq(branchStaffTable.userId, otherPartner.user.id),
+      eq(branchesTable.restaurantId, otherSubmission.body.id),
+      isNull(branchStaffTable.leftAt),
+    ));
+  assert.equal(approvedMemberships.length, 1, "approval retry must create exactly one active membership");
+  const approvedBranchId = approvedMemberships[0]!.branchId;
+  const [otherBranch] = await db.insert(branchesTable).values({
+    restaurantId: otherSubmission.body.id,
+    name: `${prefix}_unassigned_branch`,
+    address: `${prefix}_other_address`,
+  }).returning();
+  const insertedOrders = await db.insert(ordersTable).values([
+    {
+      customerId: customer.user.id, restaurantId: otherSubmission.body.id,
+      restaurantName: `${prefix}_other_restaurant`, branchId: approvedBranchId,
+      branchName: `${prefix}_approved_branch`, deliveryAddressText: prefix,
+      deliveryLat: 30.04, deliveryLng: 31.23, deliveryFee: "10", subtotal: "100", total: "110",
+      walletAmountUsed: "0", externalAmountDue: "110",
+    },
+    {
+      customerId: customer.user.id, restaurantId: otherSubmission.body.id,
+      restaurantName: `${prefix}_other_restaurant`, branchId: otherBranch.id,
+      branchName: `${prefix}_unassigned_branch`, deliveryAddressText: prefix,
+      deliveryLat: 30.04, deliveryLng: 31.23, deliveryFee: "10", subtotal: "100", total: "110",
+      walletAmountUsed: "0", externalAmountDue: "110",
+    },
+  ]).returning({ id: ordersTable.id });
+  const ownOrderId = insertedOrders[0]!.id;
+  const unassignedOrderId = insertedOrders[1]!.id;
+  const scopedList = await request(baseUrl, "/partner/orders", { token: otherPartner.token });
+  assert.equal(scopedList.status, 200);
+  assert.deepEqual(scopedList.body.map((order: Json) => order.id), [ownOrderId],
+    "partner list must contain only its actively assigned branch");
+  assert.equal((await request(baseUrl, `/partner/orders/${ownOrderId}`, {
+    token: otherPartner.token,
+  })).status, 200);
+  assert.equal((await request(baseUrl, `/partner/orders/${unassignedOrderId}`, {
+    token: otherPartner.token,
+  })).status, 403, "detail scope must agree with list scope");
+  assert.equal((await request(baseUrl, `/partner/orders/${ownOrderId}/status`, {
+    method: "PATCH", token: partner.token, body: { status: "confirmed" },
+  })).status, 403, "an unrelated partner role must not grant order access");
+  assert.equal((await request(baseUrl, `/partner/orders/${ownOrderId}/status`, {
+    method: "PATCH", token: otherPartner.token, body: { status: "confirmed" },
+  })).status, 200);
+  assert.equal((await request(baseUrl, `/partner/orders/${ownOrderId}`, {
+    token: otherPartner.token,
+  })).body.status, "confirmed", "detail reload must agree with the transition");
+
+  assert.equal((await request(baseUrl, `/admin/restaurants/${otherSubmission.body.id}/status`, {
+    method: "PATCH", token: admin.token, body: { status: "SUSPENDED" },
+  })).status, 200);
+  const suspendedToken = (await issueSession(otherPartner.user)).token;
+  assert.equal((await request(baseUrl, "/partner/orders", { token: suspendedToken })).status, 403,
+    "suspension must remove fulfillment access even with a fresh session");
+  assert.equal((await request(baseUrl, `/admin/restaurants/${otherSubmission.body.id}/status`, {
+    method: "PATCH", token: admin.token, body: { status: "REJECTED", reason: "suspended partner rejected" },
+  })).status, 200);
+  assert.equal((await request(baseUrl, `/partner/orders/${ownOrderId}`, {
+    token: suspendedToken,
+  })).status, 403, "rejection must not retain detail access");
+
   const driverPath = `/objects/${prefix}/driver-id.png`;
   const driverSubmission = await request(baseUrl, "/onboard/driver", {
     method: "POST", token: driver.token,
@@ -428,16 +515,22 @@ try {
     method: "POST", token: driver.token, body: { lat: 30.123456, lng: 31.234567 },
   })).status, 409, "idle precise driver location must be rejected");
   assert.equal((await request(baseUrl, "/driver/dispatch-location", {
-    method: "POST", token: driver.token, body: { lat: 30.12, lng: 31.23 },
+    method: "POST", token: driver.token, body: { lat: 30.12, lng: 31.23, capturedAt: new Date().toISOString() },
   })).status, 409, "offline drivers must not update dispatch location");
   assert.equal((await request(baseUrl, "/driver/availability", {
     method: "PUT", token: driver.token, body: { available: true },
   })).status, 200);
   assert.equal((await request(baseUrl, "/driver/dispatch-location", {
-    method: "POST", token: driver.token, body: { lat: 30.123, lng: 31.23 },
-  })).status, 400, "dispatch location must reject coordinates with extra precision");
+    method: "POST", token: driver.token, body: { lat: 30.123, lng: 31.23, capturedAt: new Date().toISOString() },
+  })).status, 200, "server must accept a foreground fix and round it itself");
+  const [roundedProfile] = await db.select().from(driverProfilesTable)
+    .where(eq(driverProfilesTable.id, driverId)).limit(1);
+  assert.equal(roundedProfile.dispatchLat, 30.12, "dispatch latitude must be persisted at two decimals");
+  assert.equal(roundedProfile.dispatchLng, 31.23, "dispatch longitude must be persisted at two decimals");
+  assert.equal(roundedProfile.currentLat, 30.123456, "idle refresh must not alter precise latitude");
+  assert.equal(roundedProfile.currentLng, 31.234567, "idle refresh must not alter precise longitude");
   const coarseUpdate = await request(baseUrl, "/driver/dispatch-location", {
-    method: "POST", token: driver.token, body: { lat: 30.12, lng: 31.23 },
+    method: "POST", token: driver.token, body: { lat: 30.12, lng: 31.23, capturedAt: new Date().toISOString() },
   });
   assert.equal(coarseUpdate.status, 200, "approved online available drivers may update coarse dispatch location");
   assert.equal("lat" in coarseUpdate.body, false, "coarse coordinates must not be echoed");
@@ -446,7 +539,7 @@ try {
     method: "PUT", token: driver.token, body: { available: false },
   });
   assert.equal((await request(baseUrl, "/driver/dispatch-location", {
-    method: "POST", token: driver.token, body: { lat: 30.12, lng: 31.23 },
+    method: "POST", token: driver.token, body: { lat: 30.12, lng: 31.23, capturedAt: new Date().toISOString() },
   })).status, 409, "unavailable drivers must not update dispatch location");
 
   console.log("auth/onboarding/document regression passed");
@@ -457,6 +550,27 @@ try {
     await db.delete(applicationDecisionsTable).where(inArray(applicationDecisionsTable.applicantUserId, createdUserIds));
     await db.delete(applicationDocumentsTable).where(inArray(applicationDocumentsTable.uploaderUserId, createdUserIds));
     await db.delete(driverProfilesTable).where(inArray(driverProfilesTable.userId, createdUserIds));
+    const ownedRestaurants = await db.select({ id: restaurantsTable.id })
+      .from(restaurantsTable).where(inArray(restaurantsTable.ownerUserId, createdUserIds));
+    const ownedRestaurantIds = ownedRestaurants.map((restaurant) => restaurant.id);
+    if (ownedRestaurantIds.length) {
+      const ownedBranches = await db.select({ id: branchesTable.id })
+        .from(branchesTable).where(inArray(branchesTable.restaurantId, ownedRestaurantIds));
+      const ownedBranchIds = ownedBranches.map((branch) => branch.id);
+      const ownedOrders = await db.select({ id: ordersTable.id })
+        .from(ordersTable).where(inArray(ordersTable.restaurantId, ownedRestaurantIds));
+      if (ownedOrders.length) {
+        await db.delete(orderStatusEventsTable).where(inArray(
+          orderStatusEventsTable.orderId,
+          ownedOrders.map((order) => order.id),
+        ));
+        await db.delete(ordersTable).where(inArray(ordersTable.id, ownedOrders.map((order) => order.id)));
+      }
+      if (ownedBranchIds.length) {
+        await db.delete(branchStaffTable).where(inArray(branchStaffTable.branchId, ownedBranchIds));
+        await db.delete(branchesTable).where(inArray(branchesTable.id, ownedBranchIds));
+      }
+    }
     await db.delete(restaurantsTable).where(inArray(restaurantsTable.ownerUserId, createdUserIds));
     await db.delete(adminAccountsTable).where(inArray(adminAccountsTable.userId, createdUserIds));
     await db.delete(authSessionsTable).where(inArray(authSessionsTable.userId, createdUserIds));

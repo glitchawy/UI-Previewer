@@ -36,6 +36,7 @@ import {
 } from "@workspace/db";
 import type { Request, Response } from "express";
 import { lookupAuthorization } from "../lib/session";
+import { evaluateProductAcceptance, evaluateRestaurantAcceptance } from "../lib/restaurant-acceptance";
 
 const router = Router();
 
@@ -128,123 +129,21 @@ async function resolveCustomerCoords(req: Request): Promise<{ lat: number; lng: 
   return null;
 }
 
-function cairoMinutesNow(date = new Date()): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Cairo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  return hour * 60 + minute;
-}
-
-type HoursEntry = { open: string; close: string; closed: boolean };
-type StructuredHours = Partial<Record<"SAT" | "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI", HoursEntry>>;
-const DAYS: (keyof StructuredHours)[] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
-function timeToMinutes(value: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const minutes = Number(match[1]) * 60 + Number(match[2]);
-  return minutes <= 1439 ? minutes : null;
-}
-
-function legacyTimeToMinutes(hourText: string, minuteText: string | undefined, marker: string | undefined): number | null {
-  let hour = Number(hourText);
-  const minute = Number(minuteText ?? 0);
-  if (hour > 23 || minute > 59) return null;
-  const normalizedMarker = marker?.toLowerCase();
-  if (normalizedMarker === "ص" || normalizedMarker === "am") {
-    if (hour === 12) hour = 0;
-  } else if (normalizedMarker === "م" || normalizedMarker === "pm") {
-    if (hour < 12) hour += 12;
-  }
-  return hour * 60 + minute;
-}
-
-function cairoDay(date: Date): keyof StructuredHours {
-  const day = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Cairo", weekday: "short" })
-    .format(date)
-    .toUpperCase()
-    .slice(0, 3);
-  return day as keyof StructuredHours;
-}
-
-/** Evaluate structured partner schedules, with a deliberately tolerant legacy-text fallback. */
-export function isWithinRestaurantHours(hours: string | null, date = new Date()): boolean {
-  if (!hours?.trim()) return true; // No schedule configured: branch operational state decides.
-  try {
-    const parsed: unknown = JSON.parse(hours);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const schedule = parsed as StructuredHours;
-      const day = cairoDay(date);
-      const previousDay = DAYS[(DAYS.indexOf(day) + DAYS.length - 1) % DAYS.length];
-      const now = cairoMinutesNow(date);
-      const current = schedule[day];
-      const previous = schedule[previousDay];
-
-      const parseEntry = (entry: HoursEntry | undefined) => {
-        if (!entry || entry.closed || typeof entry.open !== "string" || typeof entry.close !== "string") return null;
-        const start = timeToMinutes(entry.open);
-        const end = timeToMinutes(entry.close);
-        return start === null || end === null ? null : { start, end };
-      };
-      const today = parseEntry(current);
-      const yesterday = parseEntry(previous);
-
-      // Regular hours are checked on the current Cairo day. Overnight hours
-      // have two portions: today's after opening, and yesterday's until close.
-      const todayOpen = today !== null && (
-        today.start === today.end ||
-        (today.start < today.end && now >= today.start && now < today.end) ||
-        (today.start > today.end && now >= today.start)
-      );
-      const overnightFromYesterday = yesterday !== null &&
-        yesterday.start > yesterday.end && now < yesterday.end;
-      return todayOpen || overnightFromYesterday;
-    }
-  } catch {
-    // Legacy rows predate structured hours and are handled below.
-  }
-
-  const normalized = hours
-    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
-    .toLowerCase();
-  if (/(مغلق|closed|off)/.test(normalized)) return false;
-
-  // Legacy restaurant registration saves display strings such as
-  // "10:00 ص — 2:00 ص". Support Arabic/English AM-PM markers and overnight ranges.
-  const ranges = [...normalized.matchAll(
-    /(\d{1,2})(?::(\d{2}))?\s*(ص|م|am|pm)?\s*[-–—]\s*(\d{1,2})(?::(\d{2}))?\s*(ص|م|am|pm)?/g,
-  )];
-  if (ranges.length === 0) return true; // Preserve availability for legacy free-text schedules.
-  const now = cairoMinutesNow(date);
-  return ranges.some((match) => {
-    const start = legacyTimeToMinutes(match[1], match[2], match[3]);
-    const end = legacyTimeToMinutes(match[4], match[5], match[6]);
-    if (start === null || end === null) return false;
-    return start === end ? true : start < end ? now >= start && now < end : now >= start || now < end;
-  });
-}
-
-/** Open = in restaurant schedule AND (no branches or at least one operational branch). */
 async function computeOpenMap(
-  restaurants: { id: number; hours: string | null }[],
-): Promise<Map<number, boolean>> {
-  const map = new Map<number, boolean>();
+  restaurants: { id: number; hours: string | null; status: string }[],
+): Promise<Map<number, ReturnType<typeof evaluateRestaurantAcceptance>>> {
+  const map = new Map<number, ReturnType<typeof evaluateRestaurantAcceptance>>();
   const restaurantIds = restaurants.map((r) => r.id);
   if (restaurantIds.length === 0) return map;
   const branches = await db
     .select({ restaurantId: branchesTable.restaurantId, isOpen: branchesTable.isOpen })
     .from(branchesTable)
     .where(inArray(branchesTable.restaurantId, restaurantIds));
-  const hasBranches = new Set(branches.map((b) => b.restaurantId));
-  const hasOpen = new Set(branches.filter((b) => b.isOpen).map((b) => b.restaurantId));
   for (const restaurant of restaurants) {
-    const branchOpen = !hasBranches.has(restaurant.id) || hasOpen.has(restaurant.id);
-    map.set(restaurant.id, branchOpen && isWithinRestaurantHours(restaurant.hours));
+    map.set(restaurant.id, evaluateRestaurantAcceptance(
+      restaurant,
+      branches.filter((branch) => branch.restaurantId === restaurant.id),
+    ));
   }
   return map;
 }
@@ -284,7 +183,8 @@ router.get("/restaurants", async (req, res: Response): Promise<void> => {
 
   let result = rows.map((r) => ({
     ...r,
-    isOpen: openMap.get(r.id) ?? true,
+    ...(openMap.get(r.id) ?? evaluateRestaurantAcceptance(r, [])),
+    isOpen: openMap.get(r.id)?.acceptingOrders ?? false,
     distanceKm:
       coords && r.lat != null && r.lng != null
         ? Math.round(haversineKm(coords.lat, coords.lng, r.lat, r.lng) * 10) / 10
@@ -335,8 +235,11 @@ router.get("/products/:id", async (req, res: Response): Promise<void> => {
       .orderBy(asc(productAddonsTable.sortOrder), asc(productAddonsTable.id)),
   ]);
 
+  const branches = await db.select().from(branchesTable).where(eq(branchesTable.restaurantId, row.r.id));
+  const acceptance = evaluateProductAcceptance(evaluateRestaurantAcceptance(row.r, branches), row.p.isAvailable);
   res.json({
     ...row.p,
+    ...acceptance,
     variants: variants.filter((variant) => variant.isAvailable),
     addons: addons.filter((a) => a.isAvailable),
     restaurant: {
@@ -456,7 +359,16 @@ router.get("/restaurants/:id/menu", async (req, res: Response): Promise<void> =>
   }
 
   const menu = await loadMenu(id);
-  res.json({ restaurant: restaurant[0], ...menu });
+  const branches = await db.select().from(branchesTable).where(eq(branchesTable.restaurantId, id));
+  const acceptance = evaluateRestaurantAcceptance(restaurant[0], branches);
+  res.json({
+    restaurant: { ...restaurant[0], ...acceptance, isOpen: acceptance.acceptingOrders },
+    categories: menu.categories,
+    products: menu.products.map((product) => ({
+      ...product,
+      ...evaluateProductAcceptance(acceptance, product.isAvailable),
+    })),
+  });
 });
 
 // ─── Partner (restaurant owner) routes ───────────────────────────────────────

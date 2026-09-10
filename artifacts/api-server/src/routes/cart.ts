@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   cartItemsTable,
+  branchesTable,
   db,
   productAddonsTable,
   productsTable,
@@ -11,6 +12,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { lookupAuthorization } from "../lib/session";
+import { evaluateRestaurantAcceptance } from "../lib/restaurant-acceptance";
 
 const router = Router();
 
@@ -43,11 +45,12 @@ export async function buildCart(userId: number) {
   const productIds = [...new Set(items.map((item) => item.productId))];
   const variantIds = [...new Set(items.flatMap((item) => item.variantId === null ? [] : [item.variantId]))];
   const addonIds = [...new Set(items.flatMap((item) => item.addonIds))];
-  const [restaurants, products, variants, addons] = await Promise.all([
+  const [restaurants, products, variants, addons, branches] = await Promise.all([
     db.select().from(restaurantsTable).where(inArray(restaurantsTable.id, restaurantIds)),
     db.select().from(productsTable).where(inArray(productsTable.id, productIds)),
     variantIds.length ? db.select().from(productVariantsTable).where(inArray(productVariantsTable.id, variantIds)) : [],
     addonIds.length ? db.select().from(productAddonsTable).where(inArray(productAddonsTable.id, addonIds)) : [],
+    db.select().from(branchesTable).where(inArray(branchesTable.restaurantId, restaurantIds)),
   ]);
   const restaurantMap = new Map(restaurants.map((row) => [row.id, row]));
   const productMap = new Map(products.map((row) => [row.id, row]));
@@ -57,6 +60,9 @@ export async function buildCart(userId: number) {
     restaurantId: number;
     restaurantName: string;
     deliveryType: string;
+    acceptingOrders: boolean;
+    acceptanceReason: string;
+    nextOpeningSummary: string | null;
     items: CartLine[];
     subtotal: number;
   }>();
@@ -72,10 +78,15 @@ export async function buildCart(userId: number) {
     const variant = item.variantId === null ? null : variantMap.get(item.variantId);
     const unitPrice = Number(item.unitPrice);
     const subtotal = unitPrice * item.quantity;
+    const acceptance = evaluateRestaurantAcceptance(
+      restaurant,
+      branches.filter((branch) => branch.restaurantId === restaurant.id),
+    );
     const group = groups.get(restaurant.id) ?? {
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
       deliveryType: restaurant.deliveryType,
+      ...acceptance,
       items: [],
       subtotal: 0,
     };
@@ -127,6 +138,18 @@ router.post("/cart/items", async (req, res: Response): Promise<void> => {
     .where(and(eq(productsTable.id, id), eq(productsTable.isAvailable, true), eq(restaurantsTable.status, "ACTIVE")))
     .limit(1);
   if (!productRow) { res.status(404).json({ error: "المنتج غير متاح" }); return; }
+  const productBranches = await db.select().from(branchesTable)
+    .where(eq(branchesTable.restaurantId, productRow.restaurant.id));
+  const acceptance = evaluateRestaurantAcceptance(productRow.restaurant, productBranches);
+  if (!acceptance.acceptingOrders) {
+    res.status(409).json({
+      code: "RESTAURANT_NOT_ACCEPTING",
+      error: acceptance.nextOpeningSummary
+        ? `${acceptance.acceptanceReason} — ${acceptance.nextOpeningSummary}`
+        : acceptance.acceptanceReason,
+    });
+    return;
+  }
   const productVariants = await db.select().from(productVariantsTable).where(eq(productVariantsTable.productId, id));
   if (productVariants.length && selectedVariantId === null) {
     res.status(400).json({ error: "اختيار الحجم مطلوب" }); return;
@@ -152,6 +175,16 @@ router.post("/cart/items", async (req, res: Response): Promise<void> => {
   try {
     await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${user.id})`);
+      const [lockedProduct] = await tx.select().from(productsTable)
+        .where(eq(productsTable.id, id)).limit(1).for("update");
+      const [lockedRestaurant] = await tx.select().from(restaurantsTable)
+        .where(eq(restaurantsTable.id, productRow.restaurant.id)).limit(1).for("update");
+      const lockedBranches = await tx.select().from(branchesTable)
+        .where(eq(branchesTable.restaurantId, productRow.restaurant.id)).for("update");
+      if (!lockedProduct?.isAvailable || !lockedRestaurant ||
+          !evaluateRestaurantAcceptance(lockedRestaurant, lockedBranches).acceptingOrders) {
+        throw new Error("RESTAURANT_NOT_ACCEPTING");
+      }
       const [reservedItem] = await tx.select({ id: cartItemsTable.id }).from(cartItemsTable)
         .where(and(eq(cartItemsTable.userId, user.id), isNotNull(cartItemsTable.paymentSessionId)))
         .limit(1);
@@ -191,6 +224,13 @@ router.post("/cart/items", async (req, res: Response): Promise<void> => {
   } catch (error) {
     if (error instanceof Error && error.message === "CART_PAYMENT_PENDING") {
       res.status(409).json({ error: "لا يمكن تعديل السلة أثناء تأكيد الدفع أونلاين." });
+      return;
+    }
+    if (error instanceof Error && error.message === "RESTAURANT_NOT_ACCEPTING") {
+      res.status(409).json({
+        code: "RESTAURANT_NOT_ACCEPTING",
+        error: "المطعم مغلق أو المنتج غير متاح حالياً. لم تتم إضافة العنصر.",
+      });
       return;
     }
     throw error;

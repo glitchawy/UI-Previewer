@@ -9,6 +9,7 @@ export type CartItem = {
 };
 export type CartGroup = {
   restaurantId: number; restaurantName: string; deliveryType: string;
+  acceptingOrders: boolean; acceptanceReason: string; nextOpeningSummary: string | null;
   items: CartItem[]; subtotal: number;
 };
 export type CartData = {

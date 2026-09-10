@@ -23,10 +23,6 @@ const filters: Array<"all" | OrderStatus> = [
   "all", "pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled",
 ];
 
-function maskPhone(phone: string | null) {
-  return phone ? `${phone.slice(0, 4)} •• ${phone.slice(-4)}` : "—";
-}
-
 function PartnerOrdersRoute() {
   const isList = useRouterState({ select: (state) => state.location.pathname.endsWith("/partner/orders") });
   return isList ? <PartnerOrdersList /> : <Outlet />;
@@ -70,7 +66,7 @@ function PartnerOrdersList() {
               <tr key={order.id} className="transition hover:bg-surface-container-low">
                 <Td>{order.code}</Td>
                 <Td>{formatOrderDate(order.createdAt)}</Td>
-                <Td>{order.customerName || "عميل"}<span className="block font-label-md text-[11px] text-outline">{maskPhone(order.customerPhone)}</span></Td>
+                <Td>{order.customerName || "عميل"}<span className="block font-label-md text-[11px] text-outline">{order.customerPhone || "—"}</span></Td>
                 <Td>{order.branchName || "الفرع الرئيسي"}</Td>
                 <Td>{EGP(order.total)}</Td>
                 <Td>{order.paymentMethod === "cash" ? "كاش" : order.paymentStatus === "paid" ? "أونلاين — مدفوع" : "أونلاين"}</Td>

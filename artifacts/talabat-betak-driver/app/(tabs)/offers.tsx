@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
@@ -24,26 +24,58 @@ export default function OffersScreen() {
 
   const acceptOffer = useAcceptDriverOrder();
   const rejectOffer = useRejectDriverOrder();
+  const actionLock = useRef(false);
+  const [actionLocked, setActionLocked] = useState(false);
+  const authoritativeOfferKey = offer ? `${offer.id}:${offer.offerId}` : null;
+  const previousOfferKey = useRef(authoritativeOfferKey);
+  useEffect(() => {
+    if (previousOfferKey.current !== authoritativeOfferKey) {
+      previousOfferKey.current = authoritativeOfferKey;
+      actionLock.current = false;
+      setActionLocked(false);
+    }
+  }, [authoritativeOfferKey]);
+  const [remaining, setRemaining] = useState(0);
+
+  useEffect(() => {
+    if (!offer) {
+      setRemaining(0);
+      return;
+    }
+    const tick = () => setRemaining(Math.max(0,
+      Math.ceil((new Date(offer.expiresAt).getTime() - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [offer]);
 
   const handleAccept = async () => {
-    if (!offer) return;
+    if (!offer || actionLock.current) return;
+    actionLock.current = true;
+    setActionLocked(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     try {
       await acceptOffer.mutateAsync({ id: offer.id });
       router.push('/(tabs)/delivery');
     } catch (e) {
+      actionLock.current = false;
+      setActionLocked(false);
       console.error(e);
       refetch();
     }
   };
 
   const handleReject = async () => {
-    if (!offer) return;
+    if (!offer || actionLock.current) return;
+    actionLock.current = true;
+    setActionLocked(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await rejectOffer.mutateAsync({ id: offer.id });
-      refetch();
+      await refetch();
     } catch (e) {
+      actionLock.current = false;
+      setActionLocked(false);
       console.error(e);
       refetch();
     }
@@ -97,7 +129,9 @@ export default function OffersScreen() {
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Delivery</Text>
         <View style={[styles.timeBadge, { backgroundColor: colors.destructive }]}>
-          <Text style={[styles.timeText, { color: colors.destructiveForeground }]}>Expiring soon</Text>
+          <Text style={[styles.timeText, { color: colors.destructiveForeground }]}>
+            ينتهي خلال {remaining} ث
+          </Text>
         </View>
       </View>
 
@@ -146,7 +180,7 @@ export default function OffersScreen() {
           <TouchableOpacity
             style={[styles.rejectBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
             onPress={handleReject}
-            disabled={rejectOffer.isPending || acceptOffer.isPending}
+            disabled={actionLocked || rejectOffer.isPending || acceptOffer.isPending}
             testID="reject-offer-button"
           >
             {rejectOffer.isPending ? (
@@ -158,7 +192,7 @@ export default function OffersScreen() {
           <TouchableOpacity
             style={[styles.acceptBtn, { backgroundColor: colors.primary }]}
             onPress={handleAccept}
-            disabled={rejectOffer.isPending || acceptOffer.isPending}
+            disabled={actionLocked || rejectOffer.isPending || acceptOffer.isPending}
             testID="accept-offer-button"
           >
             {acceptOffer.isPending ? (

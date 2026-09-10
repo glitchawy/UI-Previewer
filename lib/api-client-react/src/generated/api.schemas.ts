@@ -70,14 +70,182 @@ export interface AdminOverview {
   monthly: AdminOverviewMonthlyItem[];
 }
 
-export type AdminOrderPageItemsItem = { [key: string]: unknown };
+export type AdminOrderSummaryPaymentMethod = typeof AdminOrderSummaryPaymentMethod[keyof typeof AdminOrderSummaryPaymentMethod];
+
+
+export const AdminOrderSummaryPaymentMethod = {
+  cash: 'cash',
+  card: 'card',
+} as const;
+
+export interface AdminOrderSummary {
+  id: number;
+  code: string;
+  customerId: number;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  customerPhone: string | null;
+  restaurantName: string;
+  status: string;
+  paymentMethod: AdminOrderSummaryPaymentMethod;
+  paymentStatus: string;
+  total: number;
+  walletAmountUsed: number;
+  createdAt: string;
+}
 
 export interface AdminOrderPage {
-  items: AdminOrderPageItemsItem[];
+  items: AdminOrderSummary[];
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
+}
+
+export interface AdminEligibleDriver {
+  id: number;
+  fullName: string;
+  area: string;
+  currentWorkload: number;
+  distanceKm: number;
+  locationUpdatedAt: string;
+}
+
+export type AdminOrderDetailPaymentMethod = typeof AdminOrderDetailPaymentMethod[keyof typeof AdminOrderDetailPaymentMethod];
+
+
+export const AdminOrderDetailPaymentMethod = {
+  cash: 'cash',
+  card: 'card',
+} as const;
+
+export type AdminOrderDetailCustomer = {
+  id: number;
+  /** @nullable */
+  name: string | null;
+  /** @nullable */
+  phone: string | null;
+  walletBalance: number;
+};
+
+export type AdminOrderDetailRestaurant = {
+  id: number;
+  name: string;
+  /** @nullable */
+  status: string | null;
+};
+
+/**
+ * @nullable
+ */
+export type AdminOrderDetailDriver = {
+  id: number;
+  name: string;
+  /** @nullable */
+  phone: string | null;
+  area: string;
+} | null;
+
+export type AdminOrderDetailDispatchStatusState = typeof AdminOrderDetailDispatchStatusState[keyof typeof AdminOrderDetailDispatchStatusState];
+
+
+export const AdminOrderDetailDispatchStatusState = {
+  not_started: 'not_started',
+  actively_offered: 'actively_offered',
+  retry_scheduled: 'retry_scheduled',
+  assigned: 'assigned',
+  terminal: 'terminal',
+} as const;
+
+export type AdminOrderDetailDispatchStatus = {
+  state: AdminOrderDetailDispatchStatusState;
+  /** @nullable */
+  nextRetryAt: string | null;
+  /** @nullable */
+  offerExpiresAt: string | null;
+  /** @nullable */
+  reason: string | null;
+};
+
+export type AdminOrderDetailItemsItem = { [key: string]: unknown };
+
+export type AdminOrderDetailHistoryItem = { [key: string]: unknown };
+
+export type AdminOrderDetailRefundsItem = { [key: string]: unknown };
+
+export type AdminOrderDetailRelatedOrdersItem = { [key: string]: unknown };
+
+export interface AdminOrderDetail {
+  id: number;
+  code: string;
+  status: string;
+  paymentMethod: AdminOrderDetailPaymentMethod;
+  paymentStatus: string;
+  restaurantName: string;
+  /** @nullable */
+  branchName: string | null;
+  deliveryAddressText: string;
+  /** @nullable */
+  notes: string | null;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  walletAmountUsed: number;
+  externalAmountDue: number;
+  createdAt: string;
+  customer: AdminOrderDetailCustomer;
+  restaurant: AdminOrderDetailRestaurant;
+  /** @nullable */
+  driver: AdminOrderDetailDriver;
+  dispatchStatus: AdminOrderDetailDispatchStatus;
+  items: AdminOrderDetailItemsItem[];
+  history: AdminOrderDetailHistoryItem[];
+  refunds: AdminOrderDetailRefundsItem[];
+  relatedOrders: AdminOrderDetailRelatedOrdersItem[];
+}
+
+/**
+ * @nullable
+ */
+export type AdminOperationsHealthWorker = {
+  lastStartedAt: string;
+  /** @nullable */
+  lastSucceededAt: string | null;
+  /** @nullable */
+  lastErrorAt: string | null;
+  /** @nullable */
+  lastHealthEvaluatedAt: string | null;
+  healthy: boolean;
+} | null;
+
+export type AdminOperationsHealthAlerts = {
+  active: number;
+  pending: number;
+  deadLetter: number;
+  /** @nullable */
+  lastEvaluationAt: string | null;
+};
+
+export type AdminOperationsHealthConfiguration = {
+  objectStorageConfigured: boolean;
+  expoProviderSupported: boolean;
+  notificationWebhookConfigured: boolean;
+  operationsAlertWebhookConfigured: boolean;
+  expoPushReady: boolean;
+};
+
+export interface AdminOperationsHealth {
+  /** @nullable */
+  worker: AdminOperationsHealthWorker;
+  pendingWebhookEvents: number;
+  deadWebhookEvents: number;
+  notificationDeadLetters: number;
+  cashReconciliationDeadLetters: number;
+  staleReadyOrders: number;
+  notificationFailures: number;
+  alerts: AdminOperationsHealthAlerts;
+  configuration: AdminOperationsHealthConfiguration;
 }
 
 export type AdminCustomerPageItemsItem = { [key: string]: unknown };
@@ -741,6 +909,7 @@ export interface DriverDispatchLocationUpdate {
      * @maximum 180
      */
   lng: number;
+  capturedAt: string;
 }
 
 export interface DriverDispatchLocationResult {
@@ -788,6 +957,39 @@ export interface PartnerOrderSummary {
   createdAt: string;
 }
 
+export type PartnerOrderDetailDispatchStatusState = typeof PartnerOrderDetailDispatchStatusState[keyof typeof PartnerOrderDetailDispatchStatusState];
+
+
+export const PartnerOrderDetailDispatchStatusState = {
+  not_started: 'not_started',
+  actively_offered: 'actively_offered',
+  retry_scheduled: 'retry_scheduled',
+  assigned: 'assigned',
+  terminal: 'terminal',
+} as const;
+
+/**
+ * @nullable
+ */
+export type PartnerOrderDetailDispatchStatusReason = typeof PartnerOrderDetailDispatchStatusReason[keyof typeof PartnerOrderDetailDispatchStatusReason] | null;
+
+
+export const PartnerOrderDetailDispatchStatusReason = {
+  NO_FRESH_ELIGIBLE_DRIVER: 'NO_FRESH_ELIGIBLE_DRIVER',
+  BRANCH_LOCATION_UNAVAILABLE: 'BRANCH_LOCATION_UNAVAILABLE',
+  OFFER_CONFLICT: 'OFFER_CONFLICT',
+} as const;
+
+export type PartnerOrderDetailDispatchStatus = {
+  state: PartnerOrderDetailDispatchStatusState;
+  /** @nullable */
+  nextRetryAt: string | null;
+  /** @nullable */
+  offerExpiresAt: string | null;
+  /** @nullable */
+  reason: PartnerOrderDetailDispatchStatusReason;
+};
+
 export type PartnerOrderDetail = PartnerOrderSummary & ({
   deliveryAddressText: string;
   subtotal: number;
@@ -796,6 +998,7 @@ export type PartnerOrderDetail = PartnerOrderSummary & ({
   notes: string | null;
   /** @nullable */
   driverName: string | null;
+  dispatchStatus: PartnerOrderDetailDispatchStatus;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });
@@ -818,8 +1021,16 @@ export interface DriverActiveOrder {
   /** @nullable */
   customerPhone: string | null;
   deliveryAddressText: string;
-  deliveryLat: number;
-  deliveryLng: number;
+  /** @nullable */
+  pickupAddressText: string | null;
+  /** @nullable */
+  pickupLat: number | null;
+  /** @nullable */
+  pickupLng: number | null;
+  /** @nullable */
+  deliveryLat: number | null;
+  /** @nullable */
+  deliveryLng: number | null;
   /** @nullable */
   notes: string | null;
   /** @nullable */
@@ -839,8 +1050,16 @@ export interface DriverOrderOffer {
   code: string;
   restaurantName: string;
   deliveryAddressText: string;
-  deliveryLat: number;
-  deliveryLng: number;
+  /** @nullable */
+  pickupAddressText: string | null;
+  /** @nullable */
+  pickupLat: number | null;
+  /** @nullable */
+  pickupLng: number | null;
+  /** @nullable */
+  deliveryLat: number | null;
+  /** @nullable */
+  deliveryLng: number | null;
   deliveryFee: number;
   total: number;
 }
@@ -1097,10 +1316,6 @@ export const ListAdminCoreOrdersPayment = {
   cash: 'cash',
   card: 'card',
 } as const;
-
-export type GetAdminCoreOrder200 = { [key: string]: unknown };
-
-export type ListEligibleOrderDrivers200Item = { [key: string]: unknown };
 
 export type DispatchAdminOrderBodyAction = typeof DispatchAdminOrderBodyAction[keyof typeof DispatchAdminOrderBodyAction];
 

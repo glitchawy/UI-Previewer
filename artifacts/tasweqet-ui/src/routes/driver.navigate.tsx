@@ -9,6 +9,8 @@ import {
 import { AppBar, Badge, Button, Card, EmptyState, Icon, MobileShell } from "@/components/tb/shell";
 import { TrackingMap } from "@/components/tb/tracking-map";
 import { EGP } from "@/lib/tb/data";
+import { selectDriverDestination } from "@/lib/driver-location";
+import { runStickyAction } from "@/lib/tb/single-submission";
 
 const LOCATION_BUFFER_KEY = "driver_location_buffer_v1";
 type BufferedPoint = DriverPoint & { at: number };
@@ -39,13 +41,25 @@ function DriverNavigate() {
   });
   const locationMutation = useUpdateDriverLocation();
   const statusMutation = useUpdateDriverOrderStatus();
+  const statusActionLock = useRef(false);
+  const [statusActionLocked, setStatusActionLocked] = useState(false);
   const locationMutationRef = useRef(locationMutation.mutate);
   locationMutationRef.current = locationMutation.mutate;
   const [position, setPosition] = useState<DriverPoint | null>(null);
   const positionRef = useRef<DriverPoint | null>(null);
   const [geoStatus, setGeoStatus] = useState("جاري تحديد موقعك…");
   const order = activeOrder.data;
+  const destination = order ? selectDriverDestination(order) : null;
   const activeOrderId = order?.id ?? null;
+  const authoritativeStatusKey = order ? `${order.id}:${order.status}` : null;
+  const previousStatusKey = useRef(authoritativeStatusKey);
+  useEffect(() => {
+    if (previousStatusKey.current !== authoritativeStatusKey) {
+      previousStatusKey.current = authoritativeStatusKey;
+      statusActionLock.current = false;
+      setStatusActionLocked(false);
+    }
+  }, [authoritativeStatusKey]);
   const sendPoint = (point: DriverPoint) => {
     locationMutationRef.current({ data: point }, {
       onSuccess: () => { localStorage.removeItem(LOCATION_BUFFER_KEY); setGeoStatus("الموقع مباشر"); },
@@ -123,20 +137,20 @@ function DriverNavigate() {
     };
   }, [activeOrderId]);
 
-  function updateStatus(status: "picked_up" | "delivered") {
+  async function updateStatus(status: "picked_up" | "delivered") {
     if (!order) return;
-    statusMutation.mutate(
-      { id: order.id, data: { status } },
-      {
-        onSuccess: () => {
-          if (status === "delivered") {
-            navigate({ to: "/driver/delivered" });
-          } else {
-            activeOrder.refetch();
-          }
-        },
+    await runStickyAction({
+      lock: statusActionLock,
+      submit: () => statusMutation.mutateAsync({ id: order.id, data: { status } }),
+      onStart: () => setStatusActionLocked(true),
+      onSuccess: () => {
+        void activeOrder.refetch();
+        if (status === "delivered") {
+          navigate({ to: "/driver/delivered" });
+        }
       },
-    );
+      onError: () => setStatusActionLocked(false),
+    });
   }
 
   return (
@@ -150,10 +164,10 @@ function DriverNavigate() {
         <div className="p-md"><EmptyState icon="two_wheeler" title="مفيش توصيلة نشطة" body="هتظهر هنا أول ما يتم إسناد طلب جاهز ليك" /></div>
       ) : (
         <div className="flex flex-col gap-md p-md">
-          {position ? (
+          {position && destination ? (
             <TrackingMap
               driver={position}
-              destination={{ lat: order.deliveryLat, lng: order.deliveryLng }}
+              destination={destination}
               heightClass="h-60"
             />
           ) : (
@@ -192,7 +206,7 @@ function DriverNavigate() {
               <span className="font-label-lg text-label-lg">{order.customerName || "عميل طلبات بيتك"}</span>
               {order.customerPhone ? <a href={`tel:${order.customerPhone}`} className="flex size-9 items-center justify-center rounded-full bg-secondary-container text-secondary" aria-label="اتصال بالعميل"><Icon name="call" /></a> : null}
             </div>
-            <p className="flex items-start gap-2 font-body-md text-body-md text-on-surface-variant"><Icon name="place" className="mt-0.5 text-[18px]" />{order.deliveryAddressText}</p>
+            <p className="flex items-start gap-2 font-body-md text-body-md text-on-surface-variant"><Icon name="place" className="mt-0.5 text-[18px]" />{order.status === "picked_up" ? order.deliveryAddressText : order.pickupAddressText}</p>
             {order.notes ? <p className="mt-2 flex items-start gap-2 font-label-md text-label-md text-on-surface-variant"><Icon name="sticky_note_2" className="mt-0.5 text-[17px]" />{order.notes}</p> : null}
           </Card>
 
@@ -213,11 +227,11 @@ function DriverNavigate() {
 
           {statusMutation.isError ? <p className="rounded-button bg-error-container px-3 py-2 text-label-md text-on-error-container">تعذر تحديث حالة الطلب. حاول مرة أخرى.</p> : null}
           {order.status === "ready" ? (
-            <Button className="w-full" icon="two_wheeler" disabled={statusMutation.isPending} onClick={() => updateStatus("picked_up")}>
+            <Button type="button" className="w-full" icon="two_wheeler" disabled={statusActionLocked || statusMutation.isPending} onClick={() => void updateStatus("picked_up")}>
               استلمت الطلب
             </Button>
           ) : (
-            <Button className="w-full" icon="done_all" disabled={statusMutation.isPending} onClick={() => updateStatus("delivered")}>
+            <Button type="button" className="w-full" icon="done_all" disabled={statusActionLocked || statusMutation.isPending} onClick={() => void updateStatus("delivered")}>
               تم التوصيل
             </Button>
           )}

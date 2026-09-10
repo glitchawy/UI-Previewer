@@ -33,7 +33,7 @@ function errorMessage(error: unknown) {
 function AppCheckout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { cart, isLoading: cartLoading } = useCart();
+  const { cart, isLoading: cartLoading, refresh: refreshCart } = useCart();
   const address = useGetCustomerAddress();
   const wallet = useGetCustomerWallet({ page: 1, pageSize: 1 });
   const paymentCapabilities = useGetPaymentCapabilities();
@@ -69,6 +69,22 @@ function AppCheckout() {
   const amountDue = Math.max(0, grandTotal - walletAmount);
   const cardPaymentsAvailable =
     paymentCapabilities.isSuccess && paymentCapabilities.data.cardPaymentsAvailable === true;
+  const unavailableRestaurants = cart.restaurants.filter((group) => !group.acceptingOrders);
+
+  async function submitOrder() {
+    setSubmitError("");
+    try {
+      const freshCart = await refreshCart();
+      const unavailable = freshCart.restaurants.find((group) => !group.acceptingOrders);
+      if (unavailable) {
+        setSubmitError(`${unavailable.restaurantName}: ${unavailable.acceptanceReason}${unavailable.nextOpeningSummary ? ` — ${unavailable.nextOpeningSummary}` : ""}`);
+        return;
+      }
+      placeOrder.mutate({ data: { paymentMethod, useWalletAmount: walletAmount, ...(notes.trim() ? { notes: notes.trim() } : {}) } });
+    } catch {
+      setSubmitError("تعذر تحديث حالة المطعم. لم نرسل الطلب؛ حاول مرة أخرى.");
+    }
+  }
 
   if (cartLoading || address.isLoading || wallet.isLoading) {
     return <MobileShell tabs={customerTabs}><div className="flex h-screen items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[40px] text-primary" /></div></MobileShell>;
@@ -202,14 +218,19 @@ function AppCheckout() {
             <div className="flex justify-between border-t border-outline-variant pt-2 font-headline-md text-headline-md"><span>المطلوب بعد المحفظة</span><span>{EGP(amountDue)}</span></div>
           </Card>
           <p className="font-label-md text-label-md text-on-surface-variant">يتم مراجعة الأسعار والتوفر مرة أخيرة عند التأكيد.</p>
+          {unavailableRestaurants.map((group) => (
+            <p key={group.restaurantId} className="rounded-button bg-error-container p-3 text-center font-label-md text-error" role="alert">
+              {group.restaurantName}: {group.acceptanceReason}{group.nextOpeningSummary ? ` — ${group.nextOpeningSummary}` : ""}
+            </p>
+          ))}
           {submitError ? <p className="rounded-button bg-error-container p-3 text-center font-label-md text-label-md text-error" role="alert">{submitError}</p> : null}
         </div>
       )}
 
       {cart.itemCount > 0 ? (
         <div className="fixed bottom-[68px] z-20 w-full max-w-[480px] border-t border-outline-variant bg-surface-container-lowest/95 p-md backdrop-blur">
-          <Button className="w-full justify-between" icon="task_alt" disabled={!hasAddress || placeOrder.isPending}
-            onClick={() => { setSubmitError(""); placeOrder.mutate({ data: { paymentMethod, useWalletAmount: walletAmount, ...(notes.trim() ? { notes: notes.trim() } : {}) } }); }}
+          <Button className="w-full justify-between" icon="task_alt" disabled={!hasAddress || placeOrder.isPending || unavailableRestaurants.length > 0}
+            onClick={submitOrder}
             data-testid="button-place-order">
             <span>{placeOrder.isPending ? "جاري تأكيد الطلب..." : amountDue === 0 ? "تأكيد الطلب بالمحفظة" : paymentMethod === "card" ? "المتابعة للدفع الآمن" : "تأكيد الطلب كاش"}</span>
             <span>{EGP(amountDue)}</span>

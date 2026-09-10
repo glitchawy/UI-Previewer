@@ -7,7 +7,7 @@ import {
   operationsAlertDeliveriesTable,
   orderReviewsTable, ordersTable, paymentSessionsTable, platformSettingsTable,
   refundRequestsTable, restaurantCommissionsTable, restaurantsTable,
-  restaurantSettlementsTable, usersTable,
+  restaurantSettlementsTable, platformRevenueAllocationsTable, usersTable,
 } from "@workspace/db";
 import { requireAdminPermission, requireAuth, requireRole } from "../middleware/auth";
 import { recordBusinessAudit, requestIdForAudit } from "../lib/business-audit";
@@ -155,8 +155,20 @@ router.post("/admin/operations/driver-commissions", requireAdminPermission("comm
 
 router.get("/admin/operations/settlements", requireAdminPermission("settlements.read"), async (req, res: Response): Promise<void> => {
   const p = page(req.query); if (!p) { res.status(400).json({ error: "صفحات غير صحيحة" }); return; }
-  const [items, [total]] = await Promise.all([db.select({ settlement: restaurantSettlementsTable, restaurantName: restaurantsTable.name }).from(restaurantSettlementsTable).leftJoin(restaurantsTable, eq(restaurantsTable.id, restaurantSettlementsTable.restaurantId)).orderBy(desc(restaurantSettlementsTable.createdAt)).limit(p.size).offset(p.offset), db.select({ value: count() }).from(restaurantSettlementsTable)]);
-  res.json(paged(items, total.value, p));
+  const [items, [total]] = await Promise.all([db.select({
+    settlement: restaurantSettlementsTable,
+    restaurantName: restaurantsTable.name,
+    platformDeliveryShare: platformRevenueAllocationsTable.amount,
+  }).from(restaurantSettlementsTable)
+    .leftJoin(restaurantsTable, eq(restaurantsTable.id, restaurantSettlementsTable.restaurantId))
+    .leftJoin(platformRevenueAllocationsTable, eq(platformRevenueAllocationsTable.orderId, restaurantSettlementsTable.orderId))
+    .orderBy(desc(restaurantSettlementsTable.createdAt)).limit(p.size).offset(p.offset), db.select({ value: count() }).from(restaurantSettlementsTable)]);
+  res.json(paged(items.map(item => ({
+    ...item,
+    platformDeliveryShare: item.platformDeliveryShare == null
+      ? null
+      : money(item.platformDeliveryShare),
+  })), total.value, p));
 });
 router.post("/admin/operations/settlements/generate", requireAdminPermission("settlements.manage"), async (req, res: Response): Promise<void> => {
   const restaurantId = Number(req.body?.restaurantId), start = str(req.body?.periodStart, 10), end = str(req.body?.periodEnd, 10), reason = str(req.body?.reason);

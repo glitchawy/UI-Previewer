@@ -41,6 +41,7 @@ import {
 } from "../lib/paymob";
 import { cancelPendingPaymentSession, expireLockedPaymentSession } from "../lib/payment-session-lifecycle";
 import { debitWallet, fromCents, toCents } from "../lib/wallet-ledger";
+import { evaluateRestaurantAcceptance } from "../lib/restaurant-acceptance";
 
 const router = Router();
 export const DELIVERY_FEE_PER_RESTAURANT = 25;
@@ -161,6 +162,27 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     const [lockedCustomer] = await tx.select({ walletBalance: usersTable.walletBalance })
       .from(usersTable).where(eq(usersTable.id, customer.id)).limit(1);
     if (!lockedCustomer) throw new Error("CUSTOMER_NOT_FOUND");
+    // Acceptance is checked before any durable checkout work (including payment
+    // expiry repair), so a closed restaurant rejection has no side effects.
+    const acceptanceCart = await tx.select().from(cartItemsTable)
+      .where(eq(cartItemsTable.userId, customer.id));
+    if (!acceptanceCart.length) throw new Error("EMPTY_CART");
+    const acceptanceRestaurantIds = [...new Set(acceptanceCart.map((item) => item.restaurantId))];
+    const acceptanceRestaurants = await tx.select().from(restaurantsTable)
+      .where(inArray(restaurantsTable.id, acceptanceRestaurantIds))
+      .for("update");
+    const acceptanceBranches = await tx.select().from(branchesTable)
+      .where(inArray(branchesTable.restaurantId, acceptanceRestaurantIds))
+      .for("update");
+    if (acceptanceRestaurantIds.some((restaurantId) => {
+      const restaurant = acceptanceRestaurants.find((candidate) => candidate.id === restaurantId);
+      return !restaurant || !evaluateRestaurantAcceptance(
+        restaurant,
+        acceptanceBranches.filter((branch) => branch.restaurantId === restaurantId),
+      ).acceptingOrders;
+    })) {
+      throw new Error("RESTAURANT_NOT_ACCEPTING");
+    }
     const now = new Date();
     const expiredSessions = await tx.select().from(paymentSessionsTable).where(and(
       eq(paymentSessionsTable.customerId, customer.id),
@@ -205,7 +227,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     // node-postgres serializes transaction queries on one client. Keep these
     // reads sequential to avoid overlapping client.query() calls.
     const restaurants = await tx.select().from(restaurantsTable).where(inArray(restaurantsTable.id, restaurantIds));
-    const products = await tx.select().from(productsTable).where(inArray(productsTable.id, productIds));
+    const products = await tx.select().from(productsTable).where(inArray(productsTable.id, productIds)).for("update");
     const variants = await tx.select().from(productVariantsTable).where(inArray(productVariantsTable.productId, productIds));
     const addons = addonIds.length
       ? await tx.select().from(productAddonsTable).where(inArray(productAddonsTable.id, addonIds))
@@ -219,16 +241,27 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     const variantMap = new Map(variants.map((row) => [row.id, row]));
     const addonMap = new Map(addons.map((row) => [row.id, row]));
     const branchMap = new Map<number, typeof branches[number]>();
+    const restaurantsWithBranches = new Set(branches.map((branch) => branch.restaurantId));
     for (const branch of branches) if (branch.isOpen && !branchMap.has(branch.restaurantId)) branchMap.set(branch.restaurantId, branch);
     const deliveryFees = new Map<number, number>();
     for (const restaurantId of restaurantIds) {
       const branch = branchMap.get(restaurantId);
-      if (!branch || branch.lat === null || branch.lng === null) throw new Error("UNAVAILABLE_ITEM");
+      const restaurant = restaurantMap.get(restaurantId);
+      // Legacy restaurants may legitimately have no branch rows. The public
+      // restaurant API treats those restaurants as operational, so checkout
+      // must use their canonical restaurant coordinates too. If branch rows do
+      // exist, however, all of them being closed still means unavailable.
+      if (!restaurant || (!branch && restaurantsWithBranches.has(restaurantId))) {
+        throw new Error("UNAVAILABLE_ITEM");
+      }
       if (!pricingTiers.length) {
         deliveryFees.set(restaurantId, DELIVERY_FEE_PER_RESTAURANT);
         continue;
       }
-      const distance = distanceKm(branch.lat, branch.lng, deliveryLat, deliveryLng);
+      const originLat = branch?.lat ?? restaurant.lat;
+      const originLng = branch?.lng ?? restaurant.lng;
+      if (originLat === null || originLng === null) throw new Error("DELIVERY_UNAVAILABLE");
+      const distance = distanceKm(originLat, originLng, deliveryLat, deliveryLng);
       const tier = pricingTiers.find((candidate) => distance >= Number(candidate.fromKm) && distance < Number(candidate.toKm));
       if (!tier) throw new Error("DELIVERY_UNAVAILABLE");
       deliveryFees.set(restaurantId, Number(tier.price));
@@ -280,7 +313,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     for (const restaurantId of restaurantIds) {
       const restaurant = restaurantMap.get(restaurantId)!;
       const branch = branchMap.get(restaurantId);
-      if (!branch) throw new Error("UNAVAILABLE_ITEM");
+      if (!branch && restaurantsWithBranches.has(restaurantId)) throw new Error("UNAVAILABLE_ITEM");
       const lines = validLines.filter((line) => line.cartItem.restaurantId === restaurantId);
       const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
       const deliveryFee = deliveryFees.get(restaurantId)!;
@@ -293,8 +326,8 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         customerId: customer.id,
         restaurantId,
         restaurantName: restaurant.name,
-        branchId: branch.id,
-        branchName: branch.name,
+        branchId: branch?.id ?? null,
+        branchName: branch?.name ?? null,
         status: "pending",
         paymentMethod,
         paymentStatus: externalAmountCents === 0 ? "paid" : "pending",
@@ -402,6 +435,13 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     }
     if (error instanceof Error && error.message === "UNAVAILABLE_ITEM") {
       res.status(409).json({ error: "أحد عناصر السلة لم يعد متاحاً. راجع السلة وحاول مرة أخرى." });
+      return;
+    }
+    if (error instanceof Error && error.message === "RESTAURANT_NOT_ACCEPTING") {
+      res.status(409).json({
+        code: "RESTAURANT_NOT_ACCEPTING",
+        error: "المطعم مغلق أو لا يستقبل الطلبات حالياً. احتفظنا بعناصر سلتك لتجرب مرة أخرى لاحقاً.",
+      });
       return;
     }
     if (error instanceof Error && error.message === "DELIVERY_UNAVAILABLE") {
