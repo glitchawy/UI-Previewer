@@ -22,6 +22,8 @@ export const restaurantsTable = pgTable("restaurants", {
   coverUrl: text("cover_url"),
   coverUploadedAt: timestamp("cover_uploaded_at", { withTimezone: true }),
   status: text("status", { enum: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "ACTIVE"] }).notNull().default("PENDING"),
+  rejectionReason: text("rejection_reason"),
+  latestDocumentUploadedAt: timestamp("latest_document_uploaded_at", { withTimezone: true }),
   isDevelopmentFixture: boolean("is_development_fixture").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

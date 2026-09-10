@@ -1,74 +1,37 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DashboardShell, Card, SectionTitle, Badge, Icon, Bars } from "@/components/tb/shell";
+import { useState } from "react";
+import { DashboardShell, Card, Badge, Button, Icon } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
-import { reviews } from "@/lib/tb/data";
+import { partnerRequest, usePartnerResource } from "@/lib/partner-api";
 
-export const Route = createFileRoute("/partner/reviews")({
-  head: () => ({
-    meta: [
-      { title: "التقييمات — طلبات بيتك" },
-      { name: "description", content: "متابعة تقييمات العملاء والرد عليها." },
-      { property: "og:title", content: "التقييمات — طلبات بيتك" },
-      { property: "og:description", content: "متابعة تقييمات العملاء والرد عليها." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: PartnerReviews,
-});
-
-function Stars({ n }: { n: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Icon key={i} name="star" filled={i < n} className={`text-[16px] ${i < n ? "text-primary" : "text-outline"}`} />
-      ))}
-    </div>
-  );
-}
+export const Route = createFileRoute("/partner/reviews")({ component: PartnerReviews });
+type ReviewRow = { review: { id: number; rating: number; comment: string | null; createdAt: string }; customerName: string | null; response: string | null };
+type Page = { items: ReviewRow[]; total: number };
 
 function PartnerReviews() {
-  const avg = (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1);
-  const dist = [5, 4, 3, 2, 1].map((n) => reviews.filter((r) => r.rating === n).length);
-  return (
-    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم — برجر هاوس" nav={partnerNav} title="التقييمات">
-      <div className="tb-stagger flex flex-col gap-lg">
-        <div className="grid grid-cols-1 gap-md md:grid-cols-3">
-          <Card className="flex flex-col items-center justify-center p-md">
-            <p className="font-headline-lg text-headline-lg text-on-surface">{avg}</p>
-            <Stars n={Math.round(Number(avg))} />
-            <p className="font-label-md text-label-md text-on-surface-variant">{reviews.length} تقييم</p>
-          </Card>
-          <Card className="p-md md:col-span-2">
-            <SectionTitle title="توزيع التقييمات" icon="bar_chart" />
-            <Bars values={dist} labels={["5", "4", "3", "2", "1"]} />
-          </Card>
-        </div>
-
-        <div className="flex flex-col gap-md">
-          {reviews.map((r) => (
-            <Card key={r.id} className="flex flex-col gap-2 p-md">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-label-lg text-label-lg text-on-surface">{r.customer}</p>
-                  <p className="font-label-md text-label-md text-on-surface-variant">{r.at}</p>
-                </div>
-                <Badge tone="neutral">{r.targetType}: {r.target}</Badge>
-              </div>
-              <Stars n={r.rating} />
-              <p className="font-body-md text-body-md text-on-surface">{r.text}</p>
-              {r.reply ? (
-                <div className="rounded-button bg-secondary-container p-2.5 text-on-secondary-container">
-                  <span className="font-label-md text-label-md">رد المطعم:</span>
-                  <p className="font-body-md text-body-md">{r.reply}</p>
-                </div>
-              ) : (
-                <textarea placeholder="اكتب رد المطعم..." className="min-h-16 rounded-button border border-outline-variant bg-surface-container-lowest p-2.5 font-body-md text-body-md outline-none" />
-              )}
-            </Card>
-          ))}
-        </div>
-      </div>
-    </DashboardShell>
-  );
+  const query = usePartnerResource<Page>("/api/partner/operations/reviews?page=1&pageSize=50");
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  async function save(id: number, existing: string | null) {
+    const response = (drafts[id] ?? existing ?? "").trim();
+    if (response.length < 2) { setError("اكتب رداً من حرفين على الأقل"); return; }
+    setSaving(id); setError("");
+    try { await partnerRequest(`/api/partner/operations/reviews/${id}/response`, { method: "PUT", body: JSON.stringify({ response }) }); await query.reload(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حفظ الرد"); }
+    finally { setSaving(null); }
+  }
+  return <DashboardShell brand="طلبات بيتك" role="صاحب المطعم" nav={partnerNav} title="التقييمات">
+    {query.loading ? <Card className="p-md">جارٍ التحميل...</Card> : query.error ? <Card className="p-md text-error">{query.error}<Button onClick={query.reload}>إعادة المحاولة</Button></Card> :
+      <div className="flex flex-col gap-md">
+        {error ? <p role="alert" className="text-error">{error}</p> : null}
+        {query.data?.items.map(row => <Card key={row.review.id} className="flex flex-col gap-3 p-md">
+          <div className="flex items-center justify-between gap-2"><strong>{row.customerName ?? "عميل"}</strong><Badge tone="warn"><Icon name="star" filled /> {row.review.rating}/5</Badge></div>
+          <p className="break-words text-on-surface-variant">{row.review.comment || "لم يكتب العميل تعليقاً."}</p>
+          <textarea value={drafts[row.review.id] ?? row.response ?? ""} onChange={event => setDrafts(old => ({ ...old, [row.review.id]: event.target.value }))} maxLength={1000} placeholder="رد المطعم" className="min-h-20 rounded-button border border-outline-variant bg-surface p-3 outline-none" />
+          <Button className="w-fit" disabled={saving === row.review.id} onClick={() => save(row.review.id, row.response)}>{saving === row.review.id ? "جارٍ الحفظ..." : row.response ? "تحديث الرد" : "نشر الرد"}</Button>
+        </Card>)}
+        {!query.data?.items.length ? <Card className="p-lg text-center text-on-surface-variant">لا توجد تقييمات ظاهرة لمطعمك حتى الآن.</Card> : null}
+      </div>}
+  </DashboardShell>;
 }

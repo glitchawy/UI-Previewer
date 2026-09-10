@@ -81,10 +81,17 @@ function AuthLogin() {
         body: JSON.stringify({ role: testRole }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { token: string; user: Parameters<typeof saveSession>[0]["user"]; error?: string }
+        | {
+          token?: string;
+          user?: Parameters<typeof saveSession>[0]["user"];
+          error?: string | { message?: string };
+        }
         | null;
       if (!response.ok || !data?.token || !data.user) {
-        throw new Error(data?.error ?? "تعذر بدء جلسة الاختبار");
+        const apiMessage = typeof data?.error === "string"
+          ? data.error
+          : data?.error?.message;
+        throw new Error(apiMessage ?? "تعذر بدء جلسة الاختبار");
       }
       saveSession({ token: data.token, user: data.user, isDevMode: true });
       const validated = await validateWithServer();

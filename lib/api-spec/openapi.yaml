@@ -143,6 +143,78 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Invalidate the current session
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+  /auth/rotate:
+    post:
+      operationId: rotateSession
+      tags: [auth]
+      summary: Rotate the current bearer session
+      description: Atomically revokes the presented session and returns a replacement token.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session rotated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Session is invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/profile:
+    patch:
+      operationId: updateProfile
+      tags: [auth]
+      summary: Update the authenticated user's persisted profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileUpdateResult"
+        "400":
+          description: Invalid profile input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /customer/address:
     get:
       operationId: getCustomerAddress
@@ -596,6 +668,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /driver/dispatch-location:
+    post:
+      operationId: updateDriverDispatchLocation
+      tags: [driver]
+      summary: Save a coarse foreground-only location for idle dispatch matching
+      description: Coordinates must have no more than two decimal places. The driver must be approved, online, available, and have no active delivery.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverDispatchLocationUpdate"
+      responses:
+        "200":
+          description: Coarse dispatch location saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriverDispatchLocationResult"
+        "400":
+          description: Coordinates are invalid or have more than two decimal places
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Driver is not approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Driver is offline, unavailable, or has active work
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /driver/orders/active:
     get:
       operationId: getActiveDriverOrder
@@ -699,6 +817,94 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /driver/availability:
+    put:
+      operationId: updateDriverAvailability
+      tags: [driver]
+      summary: Persist the approved driver's online and offer availability state
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [available]
+              properties:
+                available: { type: boolean }
+      responses:
+        "200":
+          description: Persisted availability
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [isOnline, isAvailable, lastHeartbeatAt]
+                properties:
+                  isOnline: { type: boolean }
+                  isAvailable: { type: boolean }
+                  lastHeartbeatAt: { type: string, format: date-time }
+        "403": { description: Driver is not approved, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+
+  /driver/orders/{id}/reject:
+    post:
+      operationId: rejectDriverOrder
+      tags: [driver]
+      summary: Reject the driver's current unexpired offer
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      responses:
+        "200":
+          description: Offer rejected
+          content: { application/json: { schema: { type: object, additionalProperties: true } } }
+        "409": { description: Offer expired or already processed, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+
+  /driver/account:
+    get:
+      operationId: getDriverAccount
+      tags: [driver]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Driver profile and operational state, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+    patch:
+      operationId: updateDriverAccount
+      tags: [driver]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, additionalProperties: false, properties: { fullName: { type: string }, area: { type: string }, vehicleType: { type: string } } } } }
+      responses:
+        "200": { description: Updated allowed profile fields, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /driver/deliveries:
+    get:
+      operationId: listDriverDeliveries
+      tags: [driver]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        "200": { description: Bounded authenticated delivery history, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /driver/earnings:
+    get:
+      operationId: getDriverEarnings
+      tags: [driver]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Immutable earnings snapshots, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /driver/documents:
+    get:
+      operationId: listDriverDocuments
+      tags: [driver]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Authorized onboarding document history, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
   /partner/orders:
     get:
       operationId: listPartnerOrders
@@ -706,6 +912,10 @@ paths:
       summary: List orders belonging to the authenticated partner restaurant
       security:
         - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: number, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: number, minimum: 1, maximum: 50, default: 20 } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, confirmed, preparing, ready, picked_up, delivered, cancelled] } }
       responses:
         "200":
           description: Restaurant orders
@@ -823,6 +1033,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /partner/operations/analytics:
+    get:
+      operationId: getPartnerAnalytics
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: days, in: query, schema: { type: number, enum: [7, 30, 90], default: 7 } }
+      responses:
+        "200": { description: Restaurant-scoped operational analytics, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /partner/operations/settlements:
+    get:
+      operationId: listPartnerSettlements
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: number, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: number, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        "200": { description: Restaurant-owned settlement snapshots, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /partner/operations/reviews:
+    get:
+      operationId: listPartnerReviews
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: number, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: number, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        "200": { description: Visible restaurant-owned reviews, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /partner/operations/reviews/{id}/response:
+    put:
+      operationId: savePartnerReviewResponse
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [response]
+              properties:
+                response: { type: string, minLength: 2, maxLength: 1000 }
+      responses:
+        "200": { description: Persisted restaurant response, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /partner/operations/inventory:
+    get:
+      operationId: getPartnerInventory
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Restaurant and branch-scoped inventory matrix, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /partner/operations/inventory/{branchId}/{productId}:
+    put:
+      operationId: updatePartnerInventory
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: branchId, in: path, required: true, schema: { type: number } }
+        - { name: productId, in: path, required: true, schema: { type: number } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [quantity, isAvailable]
+              properties:
+                quantity: { type: number, minimum: 0, maximum: 1000000 }
+                isAvailable: { type: boolean }
+      responses:
+        "200": { description: Persisted inventory value, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
 
   /driver/orders/{id}/status:
     patch:
@@ -946,6 +1238,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePartnerDocuments
+      tags: [auth]
+      summary: Append new restaurant document versions
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/PartnerDocumentUpdate" } } }
+      responses:
+        "200": { description: Documents updated, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardResult" } } } }
 
   /onboard/driver:
     post:
@@ -979,6 +1281,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateDriverDocuments
+      tags: [auth]
+      summary: Append new driver document versions
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DriverDocumentUpdate" } } }
+      responses:
+        "200": { description: Documents updated, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardResult" } } } }
+
+  /onboard/status:
+    get:
+      operationId: getOnboardingStatus
+      tags: [auth]
+      summary: Get the applicant-visible current decision and rejection reason
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Current status, content: { application/json: { schema: { $ref: "#/components/schemas/ApplicantOnboardingStatus" } } } }
 
   /storage/uploads:
     post:
@@ -1053,30 +1374,131 @@ paths:
       operationId: listRestaurantApplications
       tags: [auth]
       summary: List submitted restaurant applications
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: reuploaded, in: query, schema: { type: boolean } }
+        - { name: sort, in: query, schema: { type: string, enum: [created, reuploaded] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
         "200":
           description: Applications
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/RestaurantApplication"
+                $ref: "#/components/schemas/RestaurantApplicationList"
 
   /admin/drivers:
     get:
       operationId: listDriverApplications
       tags: [auth]
       summary: List submitted driver applications
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: reuploaded, in: query, schema: { type: boolean } }
+        - { name: sort, in: query, schema: { type: string, enum: [created, reuploaded] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
         "200":
           description: Applications
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DriverApplication"
+                $ref: "#/components/schemas/DriverApplicationList"
+
+  /admin/restaurants/{id}:
+    get:
+      operationId: getRestaurantApplication
+      tags: [admin]
+      summary: Get restaurant application with document and decision history
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Application detail
+          content: { application/json: { schema: { $ref: "#/components/schemas/ApplicationDetail" } } }
+  /admin/drivers/{id}:
+    get:
+      operationId: getDriverApplication
+      tags: [admin]
+      summary: Get driver application with document and decision history
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Application detail
+          content: { application/json: { schema: { $ref: "#/components/schemas/ApplicationDetail" } } }
+
+  /admin/restaurants/{id}/status:
+    patch:
+      operationId: transitionRestaurantApplication
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ApplicationStatusUpdate" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardResult" } } } }
+
+  /admin/drivers/{id}/status:
+    patch:
+      operationId: transitionDriverApplication
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ApplicationStatusUpdate" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/OnboardResult" } } } }
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        "200": { description: Notifications, content: { application/json: { schema: { $ref: "#/components/schemas/NotificationList" } } } }
+
+  /notifications/{id}/read:
+    patch:
+      operationId: readNotification
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Marked read, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /notifications/read-all:
+    patch:
+      operationId: readAllNotifications
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: All unread notifications marked read
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, updatedCount]
+                properties:
+                  success: { type: boolean }
+                  updatedCount: { type: number }
 
   /admin/refunds:
     get:
@@ -1288,12 +1710,474 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/core/overview:
+    get:
+      operationId: getAdminCoreOverview
+      tags: [admin]
+      summary: Database-backed admin overview
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Admin role required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /admin/core/orders:
+    get:
+      operationId: listAdminCoreOrders
+      tags: [admin]
+      summary: Paginated platform orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: number, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: number, minimum: 1, maximum: 50, default: 20 } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: payment, in: query, schema: { type: string, enum: [cash, card] } }
+      responses:
+        "200":
+          description: Orders page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminOrderPage" }
+        "400":
+          description: Invalid filters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /admin/core/orders/{id}:
+    get:
+      operationId: getAdminCoreOrder
+      tags: [admin]
+      summary: Full platform order context
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number, minimum: 1 } }
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /admin/core/orders/{id}/eligible-drivers:
+    get:
+      operationId: listEligibleOrderDrivers
+      tags: [admin]
+      summary: List fresh, online, workload-eligible drivers ordered by distance
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number, minimum: 1 } }
+      responses:
+        "200":
+          description: Eligible drivers without exposing coordinates
+          content:
+            application/json:
+              schema: { type: array, items: { type: object, additionalProperties: true } }
+
+  /admin/core/orders/{id}/dispatch:
+    post:
+      operationId: dispatchAdminOrder
+      tags: [admin]
+      summary: Manually assign, unassign, or re-offer a ready order
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action, reason]
+              properties:
+                action: { type: string, enum: [assign, unassign, reoffer] }
+                driverProfileId: { type: number }
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+      responses:
+        "200": { description: Dispatch state updated atomically, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        "409": { description: Concurrent assignment or ineligible driver, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+
+  /admin/core/customers:
+    get:
+      operationId: listAdminCoreCustomers
+      tags: [admin]
+      summary: Paginated customer summaries
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: number, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: number, minimum: 1, maximum: 50, default: 20 } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+      responses:
+        "200":
+          description: Customers page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminCustomerPage" }
+
+  /admin/core/customers/{id}:
+    get:
+      operationId: getAdminCoreCustomer
+      tags: [admin]
+      summary: Customer wallet, order and refund context
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: number, minimum: 1 } }
+      responses:
+        "200":
+          description: Customer detail
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /admin/access/me:
+    get:
+      operationId: getAdminAccess
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Effective admin access, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/access/groups:
+    get:
+      operationId: listAdminPermissionGroups
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+      responses:
+        "200": { description: Permission groups, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+    post:
+      operationId: createAdminPermissionGroup
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Created group, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/access/groups/{id}:
+    patch:
+      operationId: updateAdminPermissionGroup
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Updated group, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/access/accounts:
+    get:
+      operationId: listAdminAccounts
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+      responses:
+        "200": { description: Admin accounts, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+    post:
+      operationId: createAdminAccount
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Created account, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/access/accounts/{id}:
+    patch:
+      operationId: updateAdminAccount
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Updated account, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/audit-logs:
+    get:
+      operationId: listBusinessAuditLogs
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+      responses:
+        "200": { description: Immutable audit records, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+  /admin/operations/payments:
+    get:
+      operationId: listAdminPayments
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Payment sessions, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+  /admin/operations/settings:
+    get:
+      operationId: getPlatformSettings
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Versioned settings, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+    put:
+      operationId: updatePlatformSettings
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Updated settings, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/pricing:
+    get:
+      operationId: listDeliveryPricing
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Pricing tiers, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminObject" } } } } }
+    post:
+      operationId: createDeliveryPricing
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Created tier, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/pricing/{id}:
+    patch:
+      operationId: updateDeliveryPricing
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Updated tier, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/restaurant-commissions:
+    get:
+      operationId: listRestaurantCommissions
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Restaurant commissions, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+  /admin/operations/restaurant-commissions/{id}:
+    put:
+      operationId: updateRestaurantCommission
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Updated commission, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/driver-commissions:
+    get:
+      operationId: listDriverCommissionRules
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Driver commission rules, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminObject" } } } } }
+    post:
+      operationId: createDriverCommissionRule
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Created rule, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/settlements:
+    get:
+      operationId: listRestaurantSettlements
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Settlement snapshots, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+  /admin/operations/settlements/generate:
+    post:
+      operationId: generateRestaurantSettlement
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Immutable settlement snapshot, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/settlements/{id}/state:
+    post:
+      operationId: transitionRestaurantSettlement
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Transitioned settlement, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/notifications:
+    get:
+      operationId: listNotificationOutbox
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Notification outbox, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+    post:
+      operationId: composeNotification
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Pending outbox event, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/notifications/{id}:
+    get:
+      operationId: getNotificationOutboxEvent
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: Outbox event detail, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+    patch:
+      operationId: markNotificationOutboxState
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Updated outbox event, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/notifications/{id}/replay:
+    post:
+      operationId: replayNotificationOutbox
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: New pending replay event, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/reviews:
+    get:
+      operationId: listAdminReviews
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Reviews, content: { application/json: { schema: { $ref: "#/components/schemas/AdminPage" } } } }
+  /admin/operations/reviews/{id}:
+    patch:
+      operationId: moderateReview
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "200": { description: Moderated review, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /reviews/orders/{id}:
+    get:
+      operationId: getOrderReviewEligibility
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: Eligibility and existing review, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+    post:
+      operationId: createOrderReview
+      tags: [orders]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
+      responses:
+        "201": { description: Created review, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+  /admin/operations/reports/orders.csv:
+    get:
+      operationId: exportAdminOrdersCsv
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: start, in: query, required: true, schema: { type: string, format: date } }
+        - { name: end, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        "200": { description: UTF-8 CSV file, content: { text/csv: { schema: { type: string } } } }
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   schemas:
+    AdminObject:
+      type: object
+      additionalProperties: true
+    AdminMutation:
+      type: object
+      additionalProperties: true
+    AdminPage:
+      type: object
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminObject" } }
+        page: { type: number }
+        pageSize: { type: number }
+        total: { type: number }
+        totalPages: { type: number }
+    AdminOverview:
+      type: object
+      required: [gmv, orders, activeOrders, customers, restaurants, activeRestaurants, activeDrivers, topRestaurants, monthly]
+      properties:
+        gmv: { type: number }
+        orders: { type: number }
+        activeOrders: { type: number }
+        customers: { type: number }
+        restaurants: { type: number }
+        activeRestaurants: { type: number }
+        activeDrivers: { type: number }
+        topRestaurants:
+          type: array
+          items:
+            type: object
+            required: [id, name, orders, gmv]
+            properties:
+              id: { type: number }
+              name: { type: string }
+              orders: { type: number }
+              gmv: { type: number }
+        monthly:
+          type: array
+          items:
+            type: object
+            required: [month, orders, gmv]
+            properties:
+              month: { type: string }
+              orders: { type: number }
+              gmv: { type: number }
+    AdminOrderPage:
+      type: object
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items: { type: array, items: { type: object, additionalProperties: true } }
+        page: { type: number }
+        pageSize: { type: number }
+        total: { type: number }
+        totalPages: { type: number }
+    AdminCustomerPage:
+      type: object
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items: { type: array, items: { type: object, additionalProperties: true } }
+        page: { type: number }
+        pageSize: { type: number }
+        total: { type: number }
+        totalPages: { type: number }
     PartnerOnboard:
       type: object
       required: [name, address]
@@ -1369,6 +2253,28 @@ components:
         status:
           type: string
 
+    PartnerDocumentUpdate:
+      type: object
+      properties:
+        logoUrl: { type: string, minLength: 1 }
+        coverUrl: { type: string, minLength: 1 }
+
+    DriverDocumentUpdate:
+      type: object
+      properties:
+        nationalIdFrontUrl: { type: string, minLength: 1 }
+        nationalIdBackUrl: { type: string, minLength: 1 }
+        criminalRecordUrl: { type: string, minLength: 1 }
+        licenseUrl: { type: string, minLength: 1 }
+
+    ApplicantOnboardingStatus:
+      type: object
+      required: [role, status, rejectionReason]
+      properties:
+        role: { type: string }
+        status: { type: ["string", "null"] }
+        rejectionReason: { type: ["string", "null"] }
+
     RestaurantApplication:
       type: object
       required: [id, name, address, deliveryType, status, ownerUserId]
@@ -1403,6 +2309,10 @@ components:
           type: ["string", "null"]
         status:
           type: string
+        rejectionReason:
+          type: ["string", "null"]
+        latestDocumentUploadedAt:
+          type: ["string", "null"]
         createdAt:
           type: string
 
@@ -1434,8 +2344,95 @@ components:
           type: ["string", "null"]
         status:
           type: string
+        rejectionReason:
+          type: ["string", "null"]
+        latestDocumentUploadedAt:
+          type: ["string", "null"]
         createdAt:
           type: string
+
+    RestaurantApplicationList:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RestaurantApplication" } }
+        page: { type: number }
+        pageSize: { type: number }
+        total: { type: number }
+
+    DriverApplicationList:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/DriverApplication" } }
+        page: { type: number }
+        pageSize: { type: number }
+        total: { type: number }
+
+    ApplicationStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+        reason: { type: string, minLength: 1 }
+
+    ApplicationDocument:
+      type: object
+      required: [id, documentType, objectPath, uploaderUserId, version, uploadedAt, reviewStatus]
+      properties:
+        id: { type: number }
+        documentType: { type: string }
+        objectPath: { type: string, description: Private object reference; access through authorized storage endpoint only }
+        uploaderUserId: { type: number }
+        version: { type: number }
+        uploadedAt: { type: string, format: date-time }
+        reviewStatus: { type: string }
+        reviewedByAdminId: { type: ["number", "null"] }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewReason: { type: ["string", "null"] }
+
+    ApplicationDecision:
+      type: object
+      required: [id, actorAdminId, fromStatus, toStatus, createdAt]
+      properties:
+        id: { type: number }
+        actorAdminId: { type: number }
+        fromStatus: { type: string }
+        toStatus: { type: string }
+        reason: { type: ["string", "null"] }
+        requestId: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    ApplicationDetail:
+      type: object
+      required: [application, documents, decisions]
+      properties:
+        application: { type: object, additionalProperties: true }
+        documents: { type: array, items: { $ref: "#/components/schemas/ApplicationDocument" } }
+        decisions: { type: array, items: { $ref: "#/components/schemas/ApplicationDecision" } }
+
+    Notification:
+      type: object
+      required: [id, eventType, title, body, createdAt]
+      properties:
+        id: { type: number }
+        eventType: { type: string }
+        title: { type: string }
+        body: { type: string }
+        entityType: { type: ["string", "null"] }
+        entityId: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: ["string", "null"], format: date-time }
+
+    NotificationList:
+      type: object
+      required: [items, page, pageSize, total, unreadCount]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Notification" } }
+        page: { type: number }
+        pageSize: { type: number }
+        total: { type: number }
+        unreadCount: { type: number }
 
     UploadFileResponse:
       type: object
@@ -1528,6 +2525,25 @@ components:
           type: number
         lng:
           type: number
+
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+
+    ProfileUpdateResult:
+      type: object
+      required: [success, name]
+      properties:
+        success:
+          type: boolean
+        name:
+          type: string
 
     LocationSaveResult:
       type: object
@@ -1960,6 +2976,31 @@ components:
           type: number
           minimum: -180
           maximum: 180
+        accuracy:
+          type: number
+
+    DriverDispatchLocationUpdate:
+      type: object
+      additionalProperties: false
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+
+    DriverDispatchLocationResult:
+      type: object
+      additionalProperties: false
+      required: [updatedAt]
+      properties:
+        updatedAt:
+          type: string
+          format: date-time
 
     DriverOrderStatusUpdate:
       type: object
@@ -2082,9 +3123,16 @@ components:
 
     DriverOrderOffer:
       type: object
-      required: [id, code, restaurantName, deliveryAddressText, deliveryLat, deliveryLng, deliveryFee, total]
+      required: [id, offerId, expiresAt, distanceKm, code, restaurantName, deliveryAddressText, deliveryLat, deliveryLng, deliveryFee, total]
       properties:
         id:
+          type: number
+        offerId:
+          type: number
+        expiresAt:
+          type: string
+          format: date-time
+        distanceKm:
           type: number
         code:
           type: string

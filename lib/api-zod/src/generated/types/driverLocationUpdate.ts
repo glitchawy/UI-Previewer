@@ -17,4 +17,5 @@ export interface DriverLocationUpdate {
      * @maximum 180
      */
   lng: number;
+  accuracy?: number;
 }

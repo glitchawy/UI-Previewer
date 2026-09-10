@@ -8,6 +8,9 @@
 
 export interface DriverOrderOffer {
   id: number;
+  offerId: number;
+  expiresAt: Date;
+  distanceKm: number;
   code: string;
   restaurantName: string;
   deliveryAddressText: string;

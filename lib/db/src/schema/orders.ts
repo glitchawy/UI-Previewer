@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, timestamp, numeric, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, bigserial, integer, timestamp, numeric, doublePrecision, jsonb, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -86,6 +87,29 @@ export const paymentSessionsTable = pgTable("payment_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const paymobWebhookInboxTable = pgTable("paymob_webhook_inbox", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  providerEventKey: text("provider_event_key").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status", { enum: ["pending", "processing", "retry", "processed", "dead_letter"] }).notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  leaseOwner: text("lease_owner"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true }),
+  paymentSessionId: integer("payment_session_id"),
+  orderIds: integer("order_ids").array(),
+  lastError: text("last_error"),
+}, (table) => [
+  uniqueIndex("paymob_webhook_inbox_provider_event_uidx").on(table.providerEventKey),
+  uniqueIndex("paymob_webhook_inbox_payload_hash_uidx").on(table.payloadHash),
+  index("paymob_webhook_inbox_claim_idx").on(table.status, table.nextAttemptAt, table.leaseExpiresAt),
+  check("paymob_webhook_inbox_error_length", sql`${table.lastError} IS NULL OR length(${table.lastError}) <= 2000`),
+]);
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertOrder = z.infer<typeof insertOrderSchema>;

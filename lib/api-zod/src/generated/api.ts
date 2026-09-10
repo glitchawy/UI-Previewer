@@ -84,6 +84,51 @@ export const UpdateLocationResponse = zod.object({
 
 
 /**
+ * @summary Invalidate the current session
+ */
+export const LogoutResponse = zod.object({
+  "success": zod.boolean().optional()
+})
+
+
+/**
+ * Atomically revokes the presented session and returns a replacement token.
+ * @summary Rotate the current bearer session
+ */
+export const RotateSessionResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "role": zod.string(),
+  "name": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "addressText": zod.string().nullish(),
+  "addressDetails": zod.string().nullish()
+})
+})
+
+
+/**
+ * @summary Update the authenticated user's persisted profile
+ */
+export const updateProfileBodyNameMin = 2;
+export const updateProfileBodyNameMax = 80;
+
+
+
+export const UpdateProfileBody = zod.object({
+  "name": zod.string().min(updateProfileBodyNameMin).max(updateProfileBodyNameMax)
+})
+
+export const UpdateProfileResponse = zod.object({
+  "success": zod.boolean(),
+  "name": zod.string()
+})
+
+
+/**
  * @summary Get the customer's saved delivery address
  */
 export const GetCustomerAddressResponse = zod.object({
@@ -359,13 +404,36 @@ export const updateDriverLocationBodyLngMax = 180;
 
 export const UpdateDriverLocationBody = zod.object({
   "lat": zod.number().min(updateDriverLocationBodyLatMin).max(updateDriverLocationBodyLatMax),
-  "lng": zod.number().min(updateDriverLocationBodyLngMin).max(updateDriverLocationBodyLngMax)
+  "lng": zod.number().min(updateDriverLocationBodyLngMin).max(updateDriverLocationBodyLngMax),
+  "accuracy": zod.number().optional()
 })
 
 export const UpdateDriverLocationResponse = zod.object({
   "lat": zod.number().nullable(),
   "lng": zod.number().nullable(),
   "updatedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * Coordinates must have no more than two decimal places. The driver must be approved, online, available, and have no active delivery.
+ * @summary Save a coarse foreground-only location for idle dispatch matching
+ */
+export const updateDriverDispatchLocationBodyLatMin = -90;
+export const updateDriverDispatchLocationBodyLatMax = 90;
+
+export const updateDriverDispatchLocationBodyLngMin = -180;
+export const updateDriverDispatchLocationBodyLngMax = 180;
+
+
+
+export const UpdateDriverDispatchLocationBody = zod.object({
+  "lat": zod.number().min(updateDriverDispatchLocationBodyLatMin).max(updateDriverDispatchLocationBodyLatMax),
+  "lng": zod.number().min(updateDriverDispatchLocationBodyLngMin).max(updateDriverDispatchLocationBodyLngMax)
+})
+
+export const UpdateDriverDispatchLocationResponse = zod.object({
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -409,6 +477,9 @@ export const GetActiveDriverOrderResponse = zod.union([zod.object({
  */
 export const GetAvailableDriverOrderResponse = zod.union([zod.object({
   "id": zod.number(),
+  "offerId": zod.number(),
+  "expiresAt": zod.coerce.date(),
+  "distanceKm": zod.number(),
   "code": zod.string(),
   "restaurantName": zod.string(),
   "deliveryAddressText": zod.string(),
@@ -434,8 +505,78 @@ export const AcceptDriverOrderResponse = zod.object({
 
 
 /**
+ * @summary Persist the approved driver's online and offer availability state
+ */
+export const UpdateDriverAvailabilityBody = zod.object({
+  "available": zod.boolean()
+})
+
+export const UpdateDriverAvailabilityResponse = zod.object({
+  "isOnline": zod.boolean(),
+  "isAvailable": zod.boolean(),
+  "lastHeartbeatAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject the driver's current unexpired offer
+ */
+export const RejectDriverOrderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectDriverOrderResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetDriverAccountResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdateDriverAccountBody = zod.object({
+  "fullName": zod.string().optional(),
+  "area": zod.string().optional(),
+  "vehicleType": zod.string().optional()
+})
+
+export const UpdateDriverAccountResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const listDriverDeliveriesQueryPageDefault = 1;
+
+export const listDriverDeliveriesQueryPageSizeDefault = 20;
+export const listDriverDeliveriesQueryPageSizeMax = 50;
+
+
+
+export const ListDriverDeliveriesQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listDriverDeliveriesQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(listDriverDeliveriesQueryPageSizeMax).default(listDriverDeliveriesQueryPageSizeDefault)
+})
+
+export const ListDriverDeliveriesResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetDriverEarningsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListDriverDocumentsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
  * @summary List orders belonging to the authenticated partner restaurant
  */
+export const listPartnerOrdersQueryPageDefault = 1;
+
+export const listPartnerOrdersQueryPageSizeDefault = 20;
+export const listPartnerOrdersQueryPageSizeMax = 50;
+
+
+
+export const ListPartnerOrdersQueryParams = zod.object({
+  "page": zod.coerce.number().min(1).default(listPartnerOrdersQueryPageDefault),
+  "pageSize": zod.coerce.number().min(1).max(listPartnerOrdersQueryPageSizeMax).default(listPartnerOrdersQueryPageSizeDefault),
+  "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']).optional()
+})
+
 export const ListPartnerOrdersResponseItem = zod.object({
   "id": zod.number(),
   "code": zod.string(),
@@ -514,6 +655,82 @@ export const UpdatePartnerOrderStatusResponse = zod.object({
 })
 
 
+export const getPartnerAnalyticsQueryDaysDefault = 7;
+
+export const GetPartnerAnalyticsQueryParams = zod.object({
+  "days": zod.union([zod.literal(7),zod.literal(30),zod.literal(90)]).default(getPartnerAnalyticsQueryDaysDefault)
+})
+
+export const GetPartnerAnalyticsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const listPartnerSettlementsQueryPageDefault = 1;
+
+export const listPartnerSettlementsQueryPageSizeDefault = 20;
+export const listPartnerSettlementsQueryPageSizeMax = 50;
+
+
+
+export const ListPartnerSettlementsQueryParams = zod.object({
+  "page": zod.coerce.number().min(1).default(listPartnerSettlementsQueryPageDefault),
+  "pageSize": zod.coerce.number().min(1).max(listPartnerSettlementsQueryPageSizeMax).default(listPartnerSettlementsQueryPageSizeDefault)
+})
+
+export const ListPartnerSettlementsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const listPartnerReviewsQueryPageDefault = 1;
+
+export const listPartnerReviewsQueryPageSizeDefault = 20;
+export const listPartnerReviewsQueryPageSizeMax = 50;
+
+
+
+export const ListPartnerReviewsQueryParams = zod.object({
+  "page": zod.coerce.number().min(1).default(listPartnerReviewsQueryPageDefault),
+  "pageSize": zod.coerce.number().min(1).max(listPartnerReviewsQueryPageSizeMax).default(listPartnerReviewsQueryPageSizeDefault)
+})
+
+export const ListPartnerReviewsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const SavePartnerReviewResponseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const savePartnerReviewResponseBodyResponseMin = 2;
+export const savePartnerReviewResponseBodyResponseMax = 1000;
+
+
+
+export const SavePartnerReviewResponseBody = zod.object({
+  "response": zod.string().min(savePartnerReviewResponseBodyResponseMin).max(savePartnerReviewResponseBodyResponseMax)
+})
+
+export const SavePartnerReviewResponseResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetPartnerInventoryResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdatePartnerInventoryParams = zod.object({
+  "branchId": zod.coerce.number(),
+  "productId": zod.coerce.number()
+})
+
+export const updatePartnerInventoryBodyQuantityMin = 0;
+export const updatePartnerInventoryBodyQuantityMax = 1000000;
+
+
+
+export const UpdatePartnerInventoryBody = zod.object({
+  "quantity": zod.number().min(updatePartnerInventoryBodyQuantityMin).max(updatePartnerInventoryBodyQuantityMax),
+  "isAvailable": zod.boolean()
+})
+
+export const UpdatePartnerInventoryResponse = zod.record(zod.string(), zod.unknown())
+
+
 /**
  * @summary Advance an assigned order to picked up or delivered
  */
@@ -579,6 +796,25 @@ export const OnboardPartnerResponse = zod.object({
 
 
 /**
+ * @summary Append new restaurant document versions
+ */
+
+
+
+
+export const UpdatePartnerDocumentsBody = zod.object({
+  "logoUrl": zod.string().min(1).optional(),
+  "coverUrl": zod.string().min(1).optional()
+})
+
+export const UpdatePartnerDocumentsResponse = zod.object({
+  "success": zod.boolean(),
+  "id": zod.number(),
+  "status": zod.string()
+})
+
+
+/**
  * @summary Submit driver onboarding application
  */
 
@@ -605,6 +841,39 @@ export const OnboardDriverResponse = zod.object({
 
 
 /**
+ * @summary Append new driver document versions
+ */
+
+
+
+
+
+
+export const UpdateDriverDocumentsBody = zod.object({
+  "nationalIdFrontUrl": zod.string().min(1).optional(),
+  "nationalIdBackUrl": zod.string().min(1).optional(),
+  "criminalRecordUrl": zod.string().min(1).optional(),
+  "licenseUrl": zod.string().min(1).optional()
+})
+
+export const UpdateDriverDocumentsResponse = zod.object({
+  "success": zod.boolean(),
+  "id": zod.number(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Get the applicant-visible current decision and rejection reason
+ */
+export const GetOnboardingStatusResponse = zod.object({
+  "role": zod.string(),
+  "status": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable()
+})
+
+
+/**
  * Send raw file bytes as the request body. The Content-Type header must be
  * an image type or application/pdf, but the server validates the actual bytes
  * via magic-byte detection and rejects mismatches. Maximum body size is 10 MB.
@@ -618,7 +887,24 @@ export const UploadFileResponse = zod.object({
 /**
  * @summary List submitted restaurant applications
  */
-export const ListRestaurantApplicationsResponseItem = zod.object({
+export const listRestaurantApplicationsQueryPageDefault = 1;
+
+export const listRestaurantApplicationsQueryPageSizeDefault = 20;
+export const listRestaurantApplicationsQueryPageSizeMax = 100;
+
+
+
+export const ListRestaurantApplicationsQueryParams = zod.object({
+  "q": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "reuploaded": zod.coerce.boolean().optional(),
+  "sort": zod.enum(['created', 'reuploaded']).optional(),
+  "page": zod.coerce.number().int().min(1).default(listRestaurantApplicationsQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(listRestaurantApplicationsQueryPageSizeMax).default(listRestaurantApplicationsQueryPageSizeDefault)
+})
+
+export const ListRestaurantApplicationsResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "ownerUserId": zod.number(),
   "ownerName": zod.string().nullish(),
@@ -634,15 +920,37 @@ export const ListRestaurantApplicationsResponseItem = zod.object({
   "logoUrl": zod.string().nullish(),
   "coverUrl": zod.string().nullish(),
   "status": zod.string(),
+  "rejectionReason": zod.string().nullish(),
+  "latestDocumentUploadedAt": zod.string().nullish(),
   "createdAt": zod.string().optional()
+})),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number()
 })
-export const ListRestaurantApplicationsResponse = zod.array(ListRestaurantApplicationsResponseItem)
 
 
 /**
  * @summary List submitted driver applications
  */
-export const ListDriverApplicationsResponseItem = zod.object({
+export const listDriverApplicationsQueryPageDefault = 1;
+
+export const listDriverApplicationsQueryPageSizeDefault = 20;
+export const listDriverApplicationsQueryPageSizeMax = 100;
+
+
+
+export const ListDriverApplicationsQueryParams = zod.object({
+  "q": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional(),
+  "reuploaded": zod.coerce.boolean().optional(),
+  "sort": zod.enum(['created', 'reuploaded']).optional(),
+  "page": zod.coerce.number().int().min(1).default(listDriverApplicationsQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(listDriverApplicationsQueryPageSizeMax).default(listDriverApplicationsQueryPageSizeDefault)
+})
+
+export const ListDriverApplicationsResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.number(),
   "fullName": zod.string(),
@@ -655,9 +963,161 @@ export const ListDriverApplicationsResponseItem = zod.object({
   "licenseUrl": zod.string().nullish(),
   "phone": zod.string().nullish(),
   "status": zod.string(),
+  "rejectionReason": zod.string().nullish(),
+  "latestDocumentUploadedAt": zod.string().nullish(),
   "createdAt": zod.string().optional()
+})),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number()
 })
-export const ListDriverApplicationsResponse = zod.array(ListDriverApplicationsResponseItem)
+
+
+/**
+ * @summary Get restaurant application with document and decision history
+ */
+export const GetRestaurantApplicationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetRestaurantApplicationResponse = zod.object({
+  "application": zod.record(zod.string(), zod.unknown()),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "objectPath": zod.string().describe('Private object reference; access through authorized storage endpoint only'),
+  "uploaderUserId": zod.number(),
+  "version": zod.number(),
+  "uploadedAt": zod.coerce.date(),
+  "reviewStatus": zod.string(),
+  "reviewedByAdminId": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewReason": zod.string().nullish()
+})),
+  "decisions": zod.array(zod.object({
+  "id": zod.number(),
+  "actorAdminId": zod.number(),
+  "fromStatus": zod.string(),
+  "toStatus": zod.string(),
+  "reason": zod.string().nullish(),
+  "requestId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Get driver application with document and decision history
+ */
+export const GetDriverApplicationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetDriverApplicationResponse = zod.object({
+  "application": zod.record(zod.string(), zod.unknown()),
+  "documents": zod.array(zod.object({
+  "id": zod.number(),
+  "documentType": zod.string(),
+  "objectPath": zod.string().describe('Private object reference; access through authorized storage endpoint only'),
+  "uploaderUserId": zod.number(),
+  "version": zod.number(),
+  "uploadedAt": zod.coerce.date(),
+  "reviewStatus": zod.string(),
+  "reviewedByAdminId": zod.number().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewReason": zod.string().nullish()
+})),
+  "decisions": zod.array(zod.object({
+  "id": zod.number(),
+  "actorAdminId": zod.number(),
+  "fromStatus": zod.string(),
+  "toStatus": zod.string(),
+  "reason": zod.string().nullish(),
+  "requestId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+export const TransitionRestaurantApplicationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const TransitionRestaurantApplicationBody = zod.object({
+  "status": zod.string(),
+  "reason": zod.string().min(1).optional()
+})
+
+export const TransitionRestaurantApplicationResponse = zod.object({
+  "success": zod.boolean(),
+  "id": zod.number(),
+  "status": zod.string()
+})
+
+
+export const TransitionDriverApplicationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const TransitionDriverApplicationBody = zod.object({
+  "status": zod.string(),
+  "reason": zod.string().min(1).optional()
+})
+
+export const TransitionDriverApplicationResponse = zod.object({
+  "success": zod.boolean(),
+  "id": zod.number(),
+  "status": zod.string()
+})
+
+
+export const listNotificationsQueryPageDefault = 1;
+
+export const listNotificationsQueryPageSizeDefault = 20;
+export const listNotificationsQueryPageSizeMax = 50;
+
+
+
+export const ListNotificationsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listNotificationsQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(listNotificationsQueryPageSizeMax).default(listNotificationsQueryPageSizeDefault)
+})
+
+export const ListNotificationsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "entityType": zod.string().nullish(),
+  "entityId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "readAt": zod.coerce.date().nullish()
+})),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "unreadCount": zod.number()
+})
+
+
+export const ReadNotificationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReadNotificationResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ReadAllNotificationsResponse = zod.object({
+  "success": zod.boolean(),
+  "updatedCount": zod.number()
+})
 
 
 /**
@@ -782,5 +1242,407 @@ export const ResolveAdminPaymentRefundResponse = zod.object({
   "status": zod.enum(['processing', 'succeeded', 'ambiguous', 'failed']),
   "createdAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary Database-backed admin overview
+ */
+export const GetAdminCoreOverviewResponse = zod.object({
+  "gmv": zod.number(),
+  "orders": zod.number(),
+  "activeOrders": zod.number(),
+  "customers": zod.number(),
+  "restaurants": zod.number(),
+  "activeRestaurants": zod.number(),
+  "activeDrivers": zod.number(),
+  "topRestaurants": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "orders": zod.number(),
+  "gmv": zod.number()
+})),
+  "monthly": zod.array(zod.object({
+  "month": zod.string(),
+  "orders": zod.number(),
+  "gmv": zod.number()
+}))
+})
+
+
+/**
+ * @summary Paginated platform orders
+ */
+export const listAdminCoreOrdersQueryPageDefault = 1;
+
+export const listAdminCoreOrdersQueryPageSizeDefault = 20;
+export const listAdminCoreOrdersQueryPageSizeMax = 50;
+
+export const listAdminCoreOrdersQueryQMax = 100;
+
+
+
+export const ListAdminCoreOrdersQueryParams = zod.object({
+  "page": zod.coerce.number().min(1).default(listAdminCoreOrdersQueryPageDefault),
+  "pageSize": zod.coerce.number().min(1).max(listAdminCoreOrdersQueryPageSizeMax).default(listAdminCoreOrdersQueryPageSizeDefault),
+  "q": zod.coerce.string().max(listAdminCoreOrdersQueryQMax).optional(),
+  "status": zod.coerce.string().optional(),
+  "payment": zod.enum(['cash', 'card']).optional()
+})
+
+export const ListAdminCoreOrdersResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+/**
+ * @summary Full platform order context
+ */
+
+
+
+export const GetAdminCoreOrderParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const GetAdminCoreOrderResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary List fresh, online, workload-eligible drivers ordered by distance
+ */
+
+
+
+export const ListEligibleOrderDriversParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const ListEligibleOrderDriversResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListEligibleOrderDriversResponse = zod.array(ListEligibleOrderDriversResponseItem)
+
+
+/**
+ * @summary Manually assign, unassign, or re-offer a ready order
+ */
+
+
+
+export const DispatchAdminOrderParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const dispatchAdminOrderBodyReasonMin = 3;
+export const dispatchAdminOrderBodyReasonMax = 1000;
+
+
+
+export const DispatchAdminOrderBody = zod.object({
+  "action": zod.enum(['assign', 'unassign', 'reoffer']),
+  "driverProfileId": zod.number().optional(),
+  "reason": zod.string().min(dispatchAdminOrderBodyReasonMin).max(dispatchAdminOrderBodyReasonMax)
+})
+
+export const DispatchAdminOrderResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Paginated customer summaries
+ */
+export const listAdminCoreCustomersQueryPageDefault = 1;
+
+export const listAdminCoreCustomersQueryPageSizeDefault = 20;
+export const listAdminCoreCustomersQueryPageSizeMax = 50;
+
+export const listAdminCoreCustomersQueryQMax = 100;
+
+
+
+export const ListAdminCoreCustomersQueryParams = zod.object({
+  "page": zod.coerce.number().min(1).default(listAdminCoreCustomersQueryPageDefault),
+  "pageSize": zod.coerce.number().min(1).max(listAdminCoreCustomersQueryPageSizeMax).default(listAdminCoreCustomersQueryPageSizeDefault),
+  "q": zod.coerce.string().max(listAdminCoreCustomersQueryQMax).optional()
+})
+
+export const ListAdminCoreCustomersResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+/**
+ * @summary Customer wallet, order and refund context
+ */
+
+
+
+export const GetAdminCoreCustomerParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const GetAdminCoreCustomerResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetAdminAccessResponse = zod.record(zod.string(), zod.unknown())
+
+
+
+export const listAdminPermissionGroupsQueryPageSizeMax = 50;
+
+
+
+export const ListAdminPermissionGroupsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).optional(),
+  "pageSize": zod.coerce.number().int().min(1).max(listAdminPermissionGroupsQueryPageSizeMax).optional()
+})
+
+export const ListAdminPermissionGroupsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const CreateAdminPermissionGroupBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateAdminPermissionGroupResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdateAdminPermissionGroupParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateAdminPermissionGroupBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateAdminPermissionGroupResponse = zod.record(zod.string(), zod.unknown())
+
+
+
+export const listAdminAccountsQueryPageSizeMax = 50;
+
+
+
+export const ListAdminAccountsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).optional(),
+  "pageSize": zod.coerce.number().int().min(1).max(listAdminAccountsQueryPageSizeMax).optional()
+})
+
+export const ListAdminAccountsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const CreateAdminAccountBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateAdminAccountResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdateAdminAccountParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateAdminAccountBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateAdminAccountResponse = zod.record(zod.string(), zod.unknown())
+
+
+
+export const listBusinessAuditLogsQueryPageSizeMax = 50;
+
+export const listBusinessAuditLogsQueryQMax = 100;
+
+
+
+export const ListBusinessAuditLogsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).optional(),
+  "pageSize": zod.coerce.number().int().min(1).max(listBusinessAuditLogsQueryPageSizeMax).optional(),
+  "q": zod.coerce.string().max(listBusinessAuditLogsQueryQMax).optional()
+})
+
+export const ListBusinessAuditLogsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const ListAdminPaymentsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const GetPlatformSettingsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdatePlatformSettingsBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdatePlatformSettingsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListDeliveryPricingResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListDeliveryPricingResponse = zod.array(ListDeliveryPricingResponseItem)
+
+
+export const CreateDeliveryPricingBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateDeliveryPricingResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const UpdateDeliveryPricingParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateDeliveryPricingBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateDeliveryPricingResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListRestaurantCommissionsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const UpdateRestaurantCommissionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateRestaurantCommissionBody = zod.record(zod.string(), zod.unknown())
+
+export const UpdateRestaurantCommissionResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListDriverCommissionRulesResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListDriverCommissionRulesResponse = zod.array(ListDriverCommissionRulesResponseItem)
+
+
+export const CreateDriverCommissionRuleBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateDriverCommissionRuleResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListRestaurantSettlementsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const GenerateRestaurantSettlementBody = zod.record(zod.string(), zod.unknown())
+
+export const GenerateRestaurantSettlementResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const TransitionRestaurantSettlementParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const TransitionRestaurantSettlementBody = zod.record(zod.string(), zod.unknown())
+
+export const TransitionRestaurantSettlementResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListNotificationOutboxResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const ComposeNotificationBody = zod.record(zod.string(), zod.unknown())
+
+export const ComposeNotificationResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetNotificationOutboxEventParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetNotificationOutboxEventResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const MarkNotificationOutboxStateParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const MarkNotificationOutboxStateBody = zod.record(zod.string(), zod.unknown())
+
+export const MarkNotificationOutboxStateResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ReplayNotificationOutboxParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReplayNotificationOutboxBody = zod.record(zod.string(), zod.unknown())
+
+export const ReplayNotificationOutboxResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListAdminReviewsResponse = zod.object({
+  "items": zod.array(zod.record(zod.string(), zod.unknown())),
+  "page": zod.number(),
+  "pageSize": zod.number(),
+  "total": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+export const ModerateReviewParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ModerateReviewBody = zod.record(zod.string(), zod.unknown())
+
+export const ModerateReviewResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetOrderReviewEligibilityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetOrderReviewEligibilityResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const CreateOrderReviewParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CreateOrderReviewBody = zod.record(zod.string(), zod.unknown())
+
+export const CreateOrderReviewResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ExportAdminOrdersCsvQueryParams = zod.object({
+  "start": zod.date(),
+  "end": zod.date()
+})
+
+export const ExportAdminOrdersCsvResponse = zod.unknown()
 
 

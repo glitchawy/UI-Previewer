@@ -15,6 +15,7 @@
 import { eq, and, isNull } from "drizzle-orm";
 import { db, usersTable, branchesTable, branchStaffTable } from "@workspace/db";
 import type { Request, Response } from "express";
+import { lookupAuthorization } from "./session";
 
 export type BranchAccessContext = {
   user: typeof usersTable.$inferSelect;
@@ -34,9 +35,8 @@ export async function requireBranchAccess(
     return null;
   }
 
-  const token = auth.slice(7);
-  const userRows = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
-  const user = userRows[0];
+  const session = await lookupAuthorization(auth);
+  const user = session?.user;
   if (!user) {
     res.status(401).json({ error: "جلسة غير صالحة" });
     return null;

@@ -1,106 +1,43 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { Badge, Button, Card, DashboardShell, Field, StatusBadge, Table, Td } from "@/components/tb/shell";
+import { useEffect, useState } from "react";
+import { Button, Card, DashboardShell, EmptyState, StatusBadge, Table, Td } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
-import { EGP, ORDER_STATES, orders, stateLabels } from "@/lib/tb/data";
+import { EGP } from "@/lib/tb/data";
+import { adminApi, type AdminOrder, type Page } from "@/lib/admin-api";
 
-export const Route = createFileRoute("/admin/orders")({
-  head: () => ({
-    meta: [
-      { title: "الطلبات | لوحة سوبر أدمن - طلبات بيتك" },
-      { name: "description", content: "متابعة كل طلبات المنصة عبر المطاعم والمندوبين وحالات الدفع." },
-      { property: "og:title", content: "الطلبات | طلبات بيتك" },
-      { property: "og:description", content: "متابعة كل طلبات المنصة." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: AdminOrders,
-});
-
-const statusFilters = ["الكل", ...ORDER_STATES, "CANCELLED"];
-const paymentFilters = ["الكل", "CASH", "CARD", "WALLET"] as const;
-const paymentLabels: Record<string, string> = { CASH: "كاش", CARD: "بطاقة", WALLET: "محفظة" };
+export const Route = createFileRoute("/admin/orders")({ component: AdminOrders });
+const statuses = ["", "pending", "confirmed", "preparing", "ready", "picked_up", "delivered", "cancelled"];
+const labels: Record<string, string> = { "": "الكل", pending: "جديد", confirmed: "مؤكد", preparing: "قيد التحضير", ready: "جاهز", picked_up: "خرج للتوصيل", delivered: "تم التوصيل", cancelled: "ملغي" };
 
 function AdminOrders() {
-  const [status, setStatus] = useState("الكل");
-  const [payment, setPayment] = useState<(typeof paymentFilters)[number]>("الكل");
-
-  const rows = orders.filter(
-    (o) => (status === "الكل" || o.status === status) && (payment === "الكل" || o.payment === payment),
-  );
-
-  return (
-    <DashboardShell
-      brand="طلبات بيتك"
-      role="سوبر أدمن"
-      nav={adminNav}
-      title="الطلبات"
-      actions={<Button icon="download" variant="outline">تصدير</Button>}
-    >
-      <div className="tb-stagger flex flex-col gap-md">
-        <Card className="flex flex-col gap-sm p-md">
-          <Field label="بحث" icon="search" placeholder="ابحث برقم الطلب أو اسم العميل" />
-          <div className="flex flex-wrap gap-2">
-            {statusFilters.map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatus(s)}
-                className={`rounded-full px-3 py-1.5 font-label-md text-label-md transition ${
-                  status === s ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant"
-                }`}
-              >
-                {s === "الكل" ? "الكل" : stateLabels[s]}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {paymentFilters.map((p) => (
-              <button
-                key={p}
-                onClick={() => setPayment(p)}
-                className={`rounded-full px-3 py-1.5 font-label-md text-label-md transition ${
-                  payment === p ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container text-on-surface-variant"
-                }`}
-              >
-                {p === "الكل" ? "كل طرق الدفع" : paymentLabels[p]}
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <Table head={["الكود", "الوقت", "العميل", "المطاعم", "الإجمالي", "العمولة", "الدفع", "حالة الطلب"]}>
-          {rows.map((o) => (
-            <tr key={o.id} className="transition hover:bg-surface-container-low">
-              <Td>
-                <Link to="/admin/orders/$id" params={{ id: o.id }} className="font-label-lg text-label-lg text-secondary">
-                  {o.code}
-                </Link>
-              </Td>
-              <Td className="text-on-surface-variant">{o.placedAt}</Td>
-              <Td>{o.customer}</Td>
-              <Td>
-                <div className="flex flex-wrap gap-1">
-                  {o.subOrders.map((s) => (
-                    <Badge key={s.id} tone="neutral">{s.restaurantName}</Badge>
-                  ))}
-                </div>
-              </Td>
-              <Td>{EGP(o.total)}</Td>
-              <Td>{EGP(o.commission)}</Td>
-              <Td>
-                <div className="flex items-center gap-1">
-                  {paymentLabels[o.payment]}
-                  <StatusBadge status={o.paymentStatus} label={o.paymentStatus === "SUCCESS" ? "ناجح" : o.paymentStatus === "PENDING" ? "معلّق" : o.paymentStatus === "FAILED" ? "فشل" : "مسترد"} />
-                </div>
-              </Td>
-              <Td>
-                <StatusBadge status={o.status} label={stateLabels[o.status]} />
-              </Td>
-            </tr>
-          ))}
-        </Table>
-      </div>
-    </DashboardShell>
-  );
+  const [page, setPage] = useState(1), [q, setQ] = useState(""), [status, setStatus] = useState(""), [payment, setPayment] = useState("");
+  const [data, setData] = useState<Page<AdminOrder>>(), [error, setError] = useState(""), [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController(); setError(""); setData(undefined);
+    const params = new URLSearchParams({ page: String(page), pageSize: "20" });
+    if (q.trim()) params.set("q", q.trim()); if (status) params.set("status", status); if (payment) params.set("payment", payment);
+    adminApi<Page<AdminOrder>>(`/orders?${params}`, controller.signal).then(setData).catch((e) => {
+      if (e instanceof Error && e.name !== "AbortError") setError(e.message);
+    });
+    return () => controller.abort();
+  }, [page, q, status, payment, retry]);
+  return <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title="الطلبات">
+    <div className="flex flex-col gap-md">
+      <Card className="flex flex-col gap-sm p-md">
+        <label className="font-label-lg text-on-surface-variant">بحث
+          <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="رقم الطلب، العميل، الهاتف أو المطعم" className="mt-1 w-full rounded-button border border-outline-variant bg-transparent px-3 py-2" />
+        </label>
+        <div className="flex flex-wrap gap-2">{statuses.map((s) => <button key={s} onClick={() => { setStatus(s); setPage(1); }} className={`rounded-full px-3 py-1.5 ${status === s ? "bg-primary-container" : "bg-surface-container"}`}>{labels[s]}</button>)}</div>
+        <div className="flex gap-2">{[["", "كل طرق الدفع"], ["cash", "كاش"], ["card", "بطاقة"]].map(([v,l]) => <button key={v} onClick={() => { setPayment(v); setPage(1); }} className={`rounded-full px-3 py-1.5 ${payment === v ? "bg-secondary-container" : "bg-surface-container"}`}>{l}</button>)}</div>
+      </Card>
+      {error ? <Card className="p-md text-center text-error"><p>{error}</p><Button className="mt-sm" onClick={() => setRetry((x) => x + 1)}>إعادة المحاولة</Button></Card> : !data ? <Card className="p-lg text-center">جاري تحميل الطلبات…</Card> :
+      !data.items.length ? <Card><EmptyState icon="receipt_long" title="لا توجد طلبات" body="لا توجد نتائج مطابقة للفلاتر الحالية." /></Card> :
+      <Table mobile="scroll" head={["الكود", "الوقت", "العميل", "المطعم", "الإجمالي", "الدفع", "الحالة"]}>{data.items.map((o) => <tr key={o.id}>
+        <Td><Link to="/admin/orders/$id" params={{ id: String(o.id) }} className="text-secondary">{o.code}</Link></Td>
+        <Td>{new Date(o.createdAt).toLocaleString("ar-EG")}</Td><Td>{o.customerName || o.customerPhone || "—"}</Td><Td>{o.restaurantName}</Td><Td>{EGP(o.total)}</Td>
+        <Td>{o.paymentMethod === "cash" ? "كاش" : "بطاقة"} · {o.paymentStatus}</Td><Td><StatusBadge status={o.status.toUpperCase()} label={labels[o.status]} /></Td>
+      </tr>)}</Table>}
+      {data ? <div className="flex items-center justify-between"><Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</Button><span>صفحة {page.toLocaleString("ar-EG")} من {data.totalPages.toLocaleString("ar-EG")}</span><Button variant="outline" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>التالي</Button></div> : null}
+    </div>
+  </DashboardShell>;
 }

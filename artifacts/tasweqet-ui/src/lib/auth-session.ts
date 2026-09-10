@@ -70,7 +70,7 @@ export function getRoleDashboard(role: string): string {
  * Returns the session if valid, null if expired/invalid (and clears local storage).
  * Falls back to the cached session on network error.
  */
-export async function validateWithServer(): Promise<AuthSession | null> {
+export async function validateWithServer(options?: { allowCachedOnNetworkError?: boolean }): Promise<AuthSession | null> {
   const session = getSession();
   if (!session) return null;
   try {
@@ -86,6 +86,7 @@ export async function validateWithServer(): Promise<AuthSession | null> {
     saveSession(updated);
     return updated;
   } catch {
-    return session; // offline / server down → trust cache
+    if (options?.allowCachedOnNetworkError === false) return null;
+    return session; // non-admin offline experience may trust cache
   }
 }

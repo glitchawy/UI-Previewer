@@ -1,109 +1,41 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { DashboardShell, Card, SectionTitle, Bars, Table, Td, Button } from "@/components/tb/shell";
+import { DashboardShell, Card, SectionTitle, Stat, Table, Td, Button } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
-import { EGP, restaurantStats } from "@/lib/tb/data";
+import { usePartnerResource } from "@/lib/partner-api";
 
-export const Route = createFileRoute("/partner/analytics")({
-  head: () => ({
-    meta: [
-      { title: "التحليلات — طلبات بيتك" },
-      { name: "description", content: "تحليلات معمقة لأداء المطعم والفروع." },
-      { property: "og:title", content: "التحليلات — طلبات بيتك" },
-      { property: "og:description", content: "تحليلات معمقة لأداء المطعم والفروع." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: PartnerAnalytics,
-});
+export const Route = createFileRoute("/partner/analytics")({ component: PartnerAnalytics });
+type Analytics = {
+  summary: { orders: number; revenue: number; cancelled: number; averageOrderValue: number };
+  customers: { unique: number; repeat: number };
+  series: { date: string; orders: number; revenue: number }[];
+  bestProducts: { name: string; orders: number; revenue: number }[];
+  worstProducts: { name: string; orders: number; revenue: number }[];
+  branches: { branchId: number; name: string; orders: number; revenue: number }[];
+};
+const egp = (n: number) => `${n.toLocaleString("ar-EG", { maximumFractionDigits: 2 })} ج.م`;
 
 function PartnerAnalytics() {
-  const [range, setRange] = useState("week");
-  return (
-    <DashboardShell
-      brand="طلبات بيتك"
-      role="صاحب مطعم — برجر هاوس"
-      nav={partnerNav}
-      title="التحليلات"
-      actions={<Button variant="outline" icon="download">تصدير Excel</Button>}
-    >
-      <div className="tb-stagger flex flex-col gap-lg">
-        <div className="flex gap-2">
-          {[{ id: "week", label: "أسبوع" }, { id: "month", label: "شهر" }, { id: "custom", label: "مخصص" }].map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`rounded-full px-3 py-1.5 font-label-md text-label-md transition ${
-                range === r.id ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+  const [days, setDays] = useState(30);
+  const query = usePartnerResource<Analytics>(`/api/partner/operations/analytics?days=${days}`);
+  const data = query.data;
+  return <DashboardShell brand="طلبات بيتك" role="صاحب المطعم" nav={partnerNav} title="التحليلات">
+    <div className="flex flex-col gap-lg">
+      <div className="flex gap-2">{[7, 30, 90].map(value => <Button key={value} variant={days === value ? "primary" : "outline"} onClick={() => setDays(value)}>{value} يوم</Button>)}</div>
+      {query.loading ? <Card className="p-md">جارٍ التحميل...</Card> : query.error ? <Card className="p-md text-error">{query.error}<Button className="mt-2" onClick={query.reload}>إعادة المحاولة</Button></Card> : data ? <>
+        <div className="grid grid-cols-2 gap-sm lg:grid-cols-4">
+          <Stat label="الإيرادات المسلّمة" value={egp(data.summary.revenue)} icon="payments" tone="success" />
+          <Stat label="الطلبات" value={String(data.summary.orders)} icon="receipt_long" tone="info" />
+          <Stat label="متوسط الطلب" value={egp(data.summary.averageOrderValue)} icon="shopping_basket" />
+          <Stat label="عملاء متكررون" value={`${data.customers.repeat} / ${data.customers.unique}`} icon="repeat" />
         </div>
-
-        <Card className="p-md">
-          <SectionTitle title="الطلبات عبر الوقت" icon="show_chart" />
-          <Bars values={restaurantStats.series} labels={restaurantStats.days} />
+        <Card className="p-md"><SectionTitle title="الأداء اليومي" icon="calendar_month" />
+          {data.series.length ? <Table head={["اليوم", "الطلبات المسلّمة", "الإيراد"]}>{data.series.map(row => <tr key={row.date}><Td>{row.date}</Td><Td>{row.orders}</Td><Td>{egp(row.revenue)}</Td></tr>)}</Table> : <p>لا توجد بيانات في الفترة.</p>}
         </Card>
-
-        <div className="grid grid-cols-1 gap-md md:grid-cols-3">
-          <Card className="p-md">
-            <SectionTitle title="متوسط قيمة الطلب" icon="payments" />
-            <p className="font-headline-md text-headline-md text-on-surface">{EGP(restaurantStats.aov)}</p>
-          </Card>
-          <Card className="p-md">
-            <SectionTitle title="نسبة الطلبات الملغية" icon="cancel" />
-            <p className="font-headline-md text-headline-md text-on-surface">{((restaurantStats.cancelled / restaurantStats.orders) * 100).toFixed(1)}%</p>
-          </Card>
-          <Card className="p-md">
-            <SectionTitle title="العملاء المتكررين" icon="repeat" />
-            <p className="font-headline-md text-headline-md text-on-surface">{restaurantStats.repeatRate}%</p>
-          </Card>
-        </div>
-
-        <div>
-          <SectionTitle title="مقارنة الفروع" icon="store" />
-          <Table head={["الفرع", "الطلبات", "الإيرادات", "التقييم"]}>
-            {restaurantStats.branchPerf.map((b) => (
-              <tr key={b.name}>
-                <Td>{b.name}</Td>
-                <Td>{b.orders}</Td>
-                <Td>{EGP(b.revenue)}</Td>
-                <Td>{b.rating}</Td>
-              </tr>
-            ))}
-          </Table>
-        </div>
-
-        <div className="grid grid-cols-1 gap-md md:grid-cols-2">
-          <div>
-            <SectionTitle title="أفضل المنتجات" icon="trending_up" />
-            <Table head={["المنتج", "الطلبات", "الإيرادات"]}>
-              {restaurantStats.best.map((p) => (
-                <tr key={p.name}>
-                  <Td>{p.name}</Td>
-                  <Td>{p.orders}</Td>
-                  <Td>{EGP(p.revenue)}</Td>
-                </tr>
-              ))}
-            </Table>
-          </div>
-          <div>
-            <SectionTitle title="أقل المنتجات" icon="trending_down" />
-            <Table head={["المنتج", "الطلبات", "الإيرادات"]}>
-              {restaurantStats.worst.map((p) => (
-                <tr key={p.name}>
-                  <Td>{p.name}</Td>
-                  <Td>{p.orders}</Td>
-                  <Td>{EGP(p.revenue)}</Td>
-                </tr>
-              ))}
-            </Table>
-          </div>
-        </div>
-      </div>
-    </DashboardShell>
-  );
+        <Card className="p-md"><SectionTitle title="مقارنة الفروع" icon="store" />
+          {data.branches.length ? <Table head={["الفرع", "الطلبات", "الإيراد"]}>{data.branches.map(row => <tr key={row.branchId}><Td>{row.name}</Td><Td>{row.orders}</Td><Td>{egp(row.revenue)}</Td></tr>)}</Table> : <p>لا توجد فروع.</p>}
+        </Card>
+      </> : null}
+    </div>
+  </DashboardShell>;
 }

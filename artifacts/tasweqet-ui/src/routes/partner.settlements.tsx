@@ -1,62 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DashboardShell, Card, SectionTitle, Stat, Table, Td, StatusBadge, Badge, Icon } from "@/components/tb/shell";
+import { DashboardShell, Card, Badge, Table, Td, Button } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
-import { EGP, settlements } from "@/lib/tb/data";
+import { usePartnerResource } from "@/lib/partner-api";
 
-export const Route = createFileRoute("/partner/settlements")({
-  head: () => ({
-    meta: [
-      { title: "التسويات — طلبات بيتك" },
-      { name: "description", content: "متابعة التسويات المالية الأسبوعية لمطعمك." },
-      { property: "og:title", content: "التسويات — طلبات بيتك" },
-      { property: "og:description", content: "متابعة التسويات المالية الأسبوعية لمطعمك." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: PartnerSettlements,
-});
+export const Route = createFileRoute("/partner/settlements")({ component: PartnerSettlements });
+type Settlement = { id: number; periodStart: string; periodEnd: string; orderCount: number; grossAmount: string; commissionAmount: string; refundAmount: string; netAmount: string; status: "pending" | "approved" | "paid"; paidAt: string | null };
+type Page = { items: Settlement[]; total: number };
+const egp = (value: string) => `${Number(value).toLocaleString("ar-EG")} ج.م`;
 
 function PartnerSettlements() {
-  const mine = settlements.filter((s) => s.party === "برجر هاوس");
-  const current = mine[0] ?? settlements[0]!;
-  return (
-    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم — برجر هاوس" nav={partnerNav} title="التسويات">
-      <div className="tb-stagger flex flex-col gap-lg">
-        <Badge tone="info" className="w-fit">
-          <Icon name="info" className="text-[16px]" />
-          التسوية أسبوعية ويتم صرفها من الإدارة
-        </Badge>
-
-        <Card className="p-md">
-          <SectionTitle title={`التسوية الحالية — ${current.period}`} icon="account_balance" action={<StatusBadge status={current.status} />} />
-          <div className="grid grid-cols-2 gap-sm md:grid-cols-4">
-            <Stat label="الطلبات" value={String(current.orders)} icon="receipt_long" tone="info" />
-            <Stat label="الإجمالي" value={EGP(current.gross)} icon="payments" tone="neutral" />
-            <Stat label="العمولة" value={EGP(current.commission)} icon="percent" tone="warn" />
-            <Stat label="التوصيل" value={EGP(current.delivery)} icon="delivery_dining" tone="neutral" />
-            <Stat label="التسويات" value={EGP(current.adjustments)} icon="tune" tone="neutral" />
-            <Stat label="المرتجعات" value={EGP(current.refunds)} icon="undo" tone="danger" />
-            <Stat label="الصافي المستحق" value={EGP(current.net)} icon="account_balance_wallet" tone="success" />
-          </div>
-        </Card>
-
-        <div>
-          <SectionTitle title="سجل التسويات" icon="history" />
-          <Table head={["الكود", "الفترة", "الطلبات", "الإجمالي", "الصافي", "الحالة"]}>
-            {settlements.map((s) => (
-              <tr key={s.id} className="transition hover:bg-surface-container-low">
-                <Td>{s.id}</Td>
-                <Td>{s.period}</Td>
-                <Td>{s.orders}</Td>
-                <Td>{EGP(s.gross)}</Td>
-                <Td>{EGP(s.net)}</Td>
-                <Td><StatusBadge status={s.status} /></Td>
-              </tr>
-            ))}
-          </Table>
-        </div>
-      </div>
-    </DashboardShell>
-  );
+  const query = usePartnerResource<Page>("/api/partner/operations/settlements?page=1&pageSize=50");
+  return <DashboardShell brand="طلبات بيتك" role="صاحب المطعم" nav={partnerNav} title="التسويات">
+    {query.loading ? <Card className="p-md">جارٍ التحميل...</Card> : query.error ? <Card className="p-md text-error">{query.error}<Button className="mt-2" onClick={query.reload}>إعادة المحاولة</Button></Card> :
+      query.data?.items.length ? <div className="overflow-x-auto"><Table head={["الفترة", "الطلبات", "الإجمالي", "العمولة", "المرتجعات", "الصافي", "الحالة"]}>{query.data.items.map(item =>
+        <tr key={item.id}><Td>{item.periodStart} — {item.periodEnd}</Td><Td>{item.orderCount}</Td><Td>{egp(item.grossAmount)}</Td><Td>{egp(item.commissionAmount)}</Td><Td>{egp(item.refundAmount)}</Td><Td>{egp(item.netAmount)}</Td><Td><Badge tone={item.status === "paid" ? "success" : item.status === "approved" ? "info" : "warn"}>{item.status === "paid" ? "مدفوعة" : item.status === "approved" ? "معتمدة" : "قيد المراجعة"}</Badge></Td></tr>)}</Table></div> :
+      <Card className="p-lg text-center text-on-surface-variant">لا توجد تسويات صادرة لمطعمك حتى الآن. تظهر هنا فور إصدارها من الإدارة.</Card>}
+  </DashboardShell>;
 }

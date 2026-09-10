@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   db,
+  adminAccountsTable,
+  adminPermissionGroupsTable,
   ordersTable,
   paymentRefundClaimsTable,
   refundRequestsTable,
@@ -26,6 +28,7 @@ import {
   resolveProviderRefundAsNotRefunded,
 } from "../lib/provider-refunds";
 import { creditWallet, toCents } from "../lib/wallet-ledger";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
@@ -33,12 +36,21 @@ function orderCode(id: number) {
   return `TB-${String(id).padStart(6, "0")}`;
 }
 
-async function requireAdmin(req: Request, res: Response) {
-  const token = req.headers.authorization?.replace(/^Bearer\s+/i, "").trim();
-  if (!token) { res.status(401).json({ error: "غير مصرح" }); return null; }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
+async function requireAdmin(req: Request, res: Response, permission: "refunds.read" | "refunds.manage") {
+  const user = (await lookupAuthorization(req.headers.authorization))?.user;
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return null; }
   if (user.role !== "admin") { res.status(403).json({ error: "هذه العملية متاحة للأدمن فقط" }); return null; }
+  const [access] = await db.select({
+    isActive: adminAccountsTable.isActive,
+    isSuperAdmin: adminAccountsTable.isSuperAdmin,
+    permissions: adminPermissionGroupsTable.permissions,
+  }).from(adminAccountsTable)
+    .leftJoin(adminPermissionGroupsTable, eq(adminPermissionGroupsTable.id, adminAccountsTable.permissionGroupId))
+    .where(eq(adminAccountsTable.userId, user.id)).limit(1);
+  if (!access?.isActive || (!access.isSuperAdmin && !(access.permissions ?? []).includes(permission))) {
+    res.status(403).json({ error: "ليس لديك الصلاحية المطلوبة", code: "FORBIDDEN" });
+    return null;
+  }
   return user;
 }
 
@@ -85,7 +97,7 @@ async function serializePaymentRefundClaim(id: number) {
 }
 
 router.get("/admin/refunds", async (req, res: Response): Promise<void> => {
-  if (!await requireAdmin(req, res)) return;
+  if (!await requireAdmin(req, res, "refunds.read")) return;
   const rows = await db.select({ id: refundRequestsTable.id }).from(refundRequestsTable)
     .where(eq(refundRequestsTable.source, "customer_request"))
     .orderBy(desc(refundRequestsTable.createdAt), desc(refundRequestsTable.id));
@@ -95,7 +107,7 @@ router.get("/admin/refunds", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/admin/refunds/:id/approve", async (req, res: Response): Promise<void> => {
-  const admin = await requireAdmin(req, res);
+  const admin = await requireAdmin(req, res, "refunds.manage");
   if (!admin) return;
   const params = ApproveAdminRefundParams.safeParse(req.params);
   const body = ApproveAdminRefundBody.safeParse(req.body ?? {});
@@ -145,7 +157,7 @@ router.post("/admin/refunds/:id/approve", async (req, res: Response): Promise<vo
 });
 
 router.post("/admin/refunds/:id/reject", async (req, res: Response): Promise<void> => {
-  const admin = await requireAdmin(req, res);
+  const admin = await requireAdmin(req, res, "refunds.manage");
   if (!admin) return;
   const params = RejectAdminRefundParams.safeParse(req.params);
   const body = RejectAdminRefundBody.safeParse(req.body);
@@ -186,7 +198,7 @@ router.post("/admin/refunds/:id/reject", async (req, res: Response): Promise<voi
 });
 
 router.get("/admin/payment-refunds", async (req, res: Response): Promise<void> => {
-  if (!await requireAdmin(req, res)) return;
+  if (!await requireAdmin(req, res, "refunds.read")) return;
   const claims = await db.select({ id: paymentRefundClaimsTable.id }).from(paymentRefundClaimsTable)
     .where(and(
       inArray(paymentRefundClaimsTable.status, ["ambiguous", "failed"]),
@@ -199,7 +211,7 @@ router.get("/admin/payment-refunds", async (req, res: Response): Promise<void> =
 });
 
 router.post("/admin/payment-refunds/:id/resolve", async (req, res: Response): Promise<void> => {
-  const admin = await requireAdmin(req, res);
+  const admin = await requireAdmin(req, res, "refunds.manage");
   if (!admin) return;
   const params = ResolveAdminPaymentRefundParams.safeParse(req.params);
   const body = ResolveAdminPaymentRefundBody.safeParse(req.body);

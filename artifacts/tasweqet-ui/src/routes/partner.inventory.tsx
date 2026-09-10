@@ -1,67 +1,44 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DashboardShell, Card, Badge, Icon } from "@/components/tb/shell";
+import { useState } from "react";
+import { DashboardShell, Card, Badge, Button } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
-import { products, branches } from "@/lib/tb/data";
+import { partnerRequest, usePartnerResource } from "@/lib/partner-api";
 
-export const Route = createFileRoute("/partner/inventory")({
-  head: () => ({
-    meta: [
-      { title: "مخزون الفروع — طلبات بيتك" },
-      { name: "description", content: "متابعة مخزون المنتجات في كل فرع." },
-      { property: "og:title", content: "مخزون الفروع — طلبات بيتك" },
-      { property: "og:description", content: "متابعة مخزون المنتجات في كل فرع." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: PartnerInventory,
-});
-
-function stockFor(seed: number, i: number) {
-  return ((seed * 7 + i * 13) % 40) + (i % 2 === 0 ? 0 : -5);
-}
+export const Route = createFileRoute("/partner/inventory")({ component: PartnerInventory });
+type Inventory = { branches: { id: number; name: string }[]; products: { id: number; name: string; globallyAvailable: boolean; branches: { branchId: number; quantity: number; isAvailable: boolean }[] }[] };
 
 function PartnerInventory() {
-  const list = products.filter((p) => p["restaurantId"] === "burger-house");
-  return (
-    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم — برجر هاوس" nav={partnerNav} title="مخزون الفروع">
-      <div className="tb-stagger flex flex-col gap-md">
-        <Badge tone="info" className="w-fit">
-          <Icon name="info" className="text-[16px]" />
-          الأسعار موحدة بين الفروع والمخزون لكل فرع
-        </Badge>
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-right">
-              <thead className="bg-table-header">
-                <tr>
-                  <th className="whitespace-nowrap px-md py-3 font-label-md text-label-md text-on-surface-variant">المنتج</th>
-                  {branches.map((b) => (
-                    <th key={b.id} className="whitespace-nowrap px-md py-3 font-label-md text-label-md text-on-surface-variant">{b.name}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant">
-                {list.map((p, i) => (
-                  <tr key={p.id} className="transition hover:bg-surface-container-low">
-                    <td className="whitespace-nowrap px-md py-3 font-body-md text-body-md text-on-surface">{p.name}</td>
-                    {branches.map((b, bi) => {
-                      const stock = Math.max(0, stockFor(i + 1, bi));
-                      const low = stock < 10;
-                      return (
-                        <td key={b.id} className="whitespace-nowrap px-md py-3">
-                          <span className={`font-label-lg text-label-lg ${low ? "text-error" : "text-on-surface"}`}>{stock}</span>
-                          {low ? <Badge tone="danger" className="mr-2">منخفض</Badge> : null}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-    </DashboardShell>
-  );
+  const query = usePartnerResource<Inventory>("/api/partner/operations/inventory");
+  const [saving, setSaving] = useState("");
+  const [error, setError] = useState("");
+  async function update(branchId: number, productId: number, quantity: number, isAvailable: boolean) {
+    const key = `${branchId}:${productId}`; setSaving(key); setError("");
+    try { await partnerRequest(`/api/partner/operations/inventory/${branchId}/${productId}`, { method: "PUT", body: JSON.stringify({ quantity, isAvailable }) }); await query.reload(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحديث المخزون"); }
+    finally { setSaving(""); }
+  }
+  return <DashboardShell brand="طلبات بيتك" role="صاحب المطعم" nav={partnerNav} title="مخزون الفروع">
+    {query.loading ? <Card className="p-md">جارٍ التحميل...</Card> : query.error ? <Card className="p-md text-error">{query.error}<Button onClick={query.reload}>إعادة المحاولة</Button></Card> :
+      <div className="flex flex-col gap-md">
+        <Card className="p-3 text-on-surface-variant">الكميات هنا سجل تشغيلي لكل فرع. إتاحة المنتج للعملاء تُدار من صفحة المنتجات، ولا تخصم الكمية تلقائياً قبل اكتمال دورة حجز مخزون آمنة.</Card>
+        {error ? <p role="alert" className="text-error">{error}</p> : null}
+        {!query.data?.branches.length ? <Card className="p-lg text-center">أضف فرعاً أولاً لإدارة مخزونه.</Card> : null}
+        {query.data?.products.map(product => <Card key={product.id} className="p-md">
+          <div className="mb-3 flex items-center justify-between gap-2"><strong>{product.name}</strong>{!product.globallyAvailable ? <Badge tone="danger">المنتج معطّل من القائمة</Badge> : null}</div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">{product.branches.map(value => {
+            const branch = query.data?.branches.find(item => item.id === value.branchId);
+            const key = `${value.branchId}:${product.id}`;
+            return <div key={value.branchId} className="flex flex-wrap items-center justify-between gap-2 rounded-button border border-outline-variant p-2">
+              <span>{branch?.name}</span>
+              <input aria-label={`كمية ${product.name} في ${branch?.name}`} type="number" min={0} max={1000000} defaultValue={value.quantity} id={`qty-${key}`} className="w-24 rounded-button border border-outline-variant p-2" />
+              <Button disabled={saving === key} onClick={() => {
+                const quantity = Number((document.getElementById(`qty-${key}`) as HTMLInputElement).value);
+                void update(value.branchId, product.id, quantity, value.isAvailable);
+              }}>{saving === key ? "..." : "حفظ"}</Button>
+            </div>;
+          })}</div>
+        </Card>)}
+        {query.data?.branches.length && !query.data.products.length ? <Card className="p-lg text-center">لا توجد منتجات في القائمة.</Card> : null}
+      </div>}
+  </DashboardShell>;
 }

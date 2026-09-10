@@ -100,21 +100,23 @@ function PartnerBranches() {
 
   async function handleToggleOpen(b: Branch) {
     setToggling(b.id);
+    setError("");
     try {
       const r = await fetch(`/api/partner/branches/${b.id}/open`, { method: "PATCH", headers: authHeaders() });
-      if (!r.ok) throw new Error();
+      if (!r.ok) { const data = await r.json().catch(() => null) as { error?: string } | null; throw new Error(data?.error ?? "تعذر تحديث حالة الفرع"); }
       setBranches((prev) => prev.map((x) => x.id === b.id ? { ...x, isOpen: !x.isOpen } : x));
-    } catch { /* silently ignore */ }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحديث حالة الفرع"); }
     finally { setToggling(null); }
   }
 
   async function handleDelete(b: Branch) {
     if (!confirm(`حذف فرع "${b.name}"؟`)) return;
+    setError("");
     try {
       const r = await fetch(`/api/partner/branches/${b.id}`, { method: "DELETE", headers: authHeaders() });
-      if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; alert(d?.error ?? "خطأ"); return; }
+      if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? "تعذر حذف الفرع"); }
       setBranches((prev) => prev.filter((x) => x.id !== b.id));
-    } catch { /* silently ignore */ }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حذف الفرع"); }
   }
 
   if (loading) return (
@@ -180,7 +182,6 @@ function PartnerBranches() {
               )}
 
               <div className="flex flex-wrap items-center gap-1.5">
-                <Badge tone="neutral"><Icon name="group" className="text-[14px]" />{b.activeStaff} موظف</Badge>
                 <Badge tone={b.isOpen ? "success" : "danger"}>{b.isOpen ? "مفتوح" : "مغلق"}</Badge>
               </div>
 

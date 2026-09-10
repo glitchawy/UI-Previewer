@@ -35,6 +35,7 @@ import {
   branchesTable,
 } from "@workspace/db";
 import type { Request, Response } from "express";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
@@ -43,13 +44,7 @@ const router = Router();
 async function getPartner(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.sessionToken, token))
-    .limit(1);
-  const user = rows[0];
+  const user = (await lookupAuthorization(auth))?.user;
   if (!user || user.role !== "partner") return null;
   return user;
 }
@@ -65,37 +60,42 @@ async function getPartnerRestaurant(userId: number) {
 
 /** Load a full menu (categories + products + variants + addons) for a restaurant */
 async function loadMenu(restaurantId: number) {
-  const [cats, prods, variants, addons] = await Promise.all([
+  const [cats, prods] = await Promise.all([
     db
       .select()
       .from(categoriesTable)
       .where(eq(categoriesTable.restaurantId, restaurantId))
-      .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id)),
+      .orderBy(asc(categoriesTable.sortOrder), asc(categoriesTable.id))
+      .limit(100),
     db
       .select()
       .from(productsTable)
       .where(eq(productsTable.restaurantId, restaurantId))
-      .orderBy(asc(productsTable.sortOrder), asc(productsTable.id)),
+      .orderBy(asc(productsTable.sortOrder), asc(productsTable.id))
+      .limit(500),
+  ]);
+  const productIds = prods.map(product => product.id);
+  const [variants, addons] = productIds.length ? await Promise.all([
     db
       .select()
       .from(productVariantsTable)
-      .orderBy(asc(productVariantsTable.sortOrder), asc(productVariantsTable.id)),
+      .where(inArray(productVariantsTable.productId, productIds))
+      .orderBy(asc(productVariantsTable.sortOrder), asc(productVariantsTable.id))
+      .limit(5000),
     db
       .select()
       .from(productAddonsTable)
-      .orderBy(asc(productAddonsTable.sortOrder), asc(productAddonsTable.id)),
-  ]);
-
-  const productIds = new Set(prods.map((p) => p.id));
-  const filteredVariants = variants.filter((v) => productIds.has(v.productId));
-  const filteredAddons = addons.filter((a) => productIds.has(a.productId));
+      .where(inArray(productAddonsTable.productId, productIds))
+      .orderBy(asc(productAddonsTable.sortOrder), asc(productAddonsTable.id))
+      .limit(5000),
+  ]) : [[], []];
 
   return {
     categories: cats,
     products: prods.map((p) => ({
       ...p,
-      variants: filteredVariants.filter((v) => v.productId === p.id),
-      addons: filteredAddons.filter((a) => a.productId === p.id),
+      variants: variants.filter((v) => v.productId === p.id),
+      addons: addons.filter((a) => a.productId === p.id),
     })),
   };
 }
@@ -123,12 +123,7 @@ async function resolveCustomerCoords(req: Request): Promise<{ lat: number; lng: 
 
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const rows = await db
-    .select({ lat: usersTable.lat, lng: usersTable.lng })
-    .from(usersTable)
-    .where(eq(usersTable.sessionToken, auth.slice(7)))
-    .limit(1);
-  const u = rows[0];
+  const u = (await lookupAuthorization(auth))?.user;
   if (u && u.lat != null && u.lng != null) return { lat: u.lat, lng: u.lng };
   return null;
 }

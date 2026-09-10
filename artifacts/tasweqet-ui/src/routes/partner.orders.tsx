@@ -34,8 +34,9 @@ function PartnerOrdersRoute() {
 
 function PartnerOrdersList() {
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
-  const query = useListPartnerOrders({
-    query: { queryKey: getListPartnerOrdersQueryKey(), refetchInterval: 15_000 },
+  const params = { page: 1, pageSize: 50 };
+  const query = useListPartnerOrders(params, {
+    query: { queryKey: getListPartnerOrdersQueryKey(params), refetchInterval: 15_000 },
   });
   const list = (query.data ?? []).filter((order) => filter === "all" || order.status === filter);
 

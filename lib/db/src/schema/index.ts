@@ -18,6 +18,7 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./users";
+export * from "./auth-sessions";
 export * from "./restaurants";
 export * from "./driver-profiles";
 export * from "./otp-codes";
@@ -28,3 +29,8 @@ export * from "./customer-favorites";
 export * from "./cart-items";
 export * from "./orders";
 export * from "./wallets";
+export * from "./onboarding";
+export * from "./admin-access";
+export * from "./admin-operations";
+export * from "./partner-operations";
+export * from "./driver-dispatch";

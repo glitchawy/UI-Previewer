@@ -6,7 +6,6 @@ import storageRouter from "./storage";
 import menuRouter from "./menu";
 import branchesRouter from "./branches";
 import restaurantRouter from "./restaurant";
-import staffRouter from "./staff";
 import customerRouter from "./customer";
 import cartRouter from "./cart";
 import ordersRouter from "./orders";
@@ -14,6 +13,11 @@ import paymentsRouter from "./payments";
 import driverOrdersRouter from "./driver-orders";
 import customerWalletRouter from "./customer-wallet";
 import adminRefundsRouter from "./admin-refunds";
+import adminCoreRouter from "./admin-core";
+import adminAccessRouter from "./admin-access";
+import adminOperationsRouter from "./admin-operations";
+import partnerOperationsRouter from "./partner-operations";
+import driverAccountRouter from "./driver-account";
 
 const router: IRouter = Router();
 
@@ -24,7 +28,6 @@ router.use(storageRouter);
 router.use(menuRouter);
 router.use(branchesRouter);
 router.use(restaurantRouter);
-router.use(staffRouter);
 router.use(customerRouter);
 router.use(cartRouter);
 router.use(ordersRouter);
@@ -32,5 +35,10 @@ router.use(paymentsRouter);
 router.use(driverOrdersRouter);
 router.use(customerWalletRouter);
 router.use(adminRefundsRouter);
+router.use(adminCoreRouter);
+router.use(adminAccessRouter);
+router.use(adminOperationsRouter);
+router.use(partnerOperationsRouter);
+router.use(driverAccountRouter);
 
 export default router;

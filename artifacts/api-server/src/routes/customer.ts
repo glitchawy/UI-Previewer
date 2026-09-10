@@ -21,15 +21,14 @@ import {
 import { SaveCustomerAddressBody, ReverseGeocodeBody } from "@workspace/api-zod";
 import type { Request, Response } from "express";
 import { reverseGeocode, searchPlaces } from "../lib/geocode";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
 async function getCustomer(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const rows = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
-  const user = rows[0];
+  const user = (await lookupAuthorization(auth))?.user;
   if (!user || user.role !== "customer") return null;
   return user;
 }

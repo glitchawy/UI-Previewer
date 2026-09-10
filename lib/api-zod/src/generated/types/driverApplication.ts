@@ -25,5 +25,9 @@ export interface DriverApplication {
   /** @nullable */
   phone?: string | null;
   status: string;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  latestDocumentUploadedAt?: string | null;
   createdAt?: string;
 }

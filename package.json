@@ -6,7 +6,15 @@
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "test:dispatch": "node --test scripts/dispatch-critical.test.mjs",
+    "test:api-security": "pnpm --filter @workspace/api-server run build && node scripts/api-security-regression.mjs",
+    "test:sessions": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/session-regression.ts",
+    "test:operations-worker": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/operations-worker-regression.ts",
+    "test:auth-onboarding": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/auth-onboarding-regression.ts",
+    "test:payment-wallet-admin": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/payment-wallet-admin-regression.ts",
+    "test:critical": "pnpm run test:api-security && pnpm run test:sessions && pnpm run test:auth-onboarding && pnpm run test:operations-worker && pnpm run test:payment-wallet-admin && pnpm run test:dispatch",
+    "test": "pnpm run test:critical"
   },
   "private": true,
   "dependencies": {

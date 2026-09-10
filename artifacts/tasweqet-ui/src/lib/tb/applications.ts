@@ -19,6 +19,8 @@ export interface RestaurantApplication {
   coverUrl: string | null;
   coverUploadedAt: string | null;
   status: string;
+  rejectionReason: string | null;
+  latestDocumentUploadedAt: string | null;
   createdAt: string;
 }
 
@@ -39,6 +41,8 @@ export interface DriverApplication {
   licenseUploadedAt: string | null;
   phone: string | null;
   status: string;
+  rejectionReason: string | null;
+  latestDocumentUploadedAt: string | null;
   createdAt: string;
 }
 
@@ -47,23 +51,78 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function fetchRestaurantApplications(): Promise<RestaurantApplication[]> {
-  const res = await fetch("/api/admin/restaurants", { headers: authHeaders() });
+export interface ApplicationList<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ApplicationDocument {
+  id: number;
+  documentType: string;
+  objectPath: string;
+  uploaderUserId: number;
+  version: number;
+  uploadedAt: string;
+  reviewStatus: string;
+  reviewedByAdminId: number | null;
+  reviewedAt: string | null;
+  reviewReason: string | null;
+}
+
+export interface ApplicationDecision {
+  id: number;
+  actorAdminId: number;
+  fromStatus: string;
+  toStatus: string;
+  reason: string | null;
+  requestId: string | null;
+  createdAt: string;
+}
+
+function queryString(params?: { q?: string; status?: string; reuploaded?: boolean; sort?: string; page?: number; pageSize?: number }) {
+  const query = new URLSearchParams();
+  if (params?.q) query.set("q", params.q);
+  if (params?.status) query.set("status", params.status);
+  if (params?.reuploaded) query.set("reuploaded", "true");
+  if (params?.sort) query.set("sort", params.sort);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
+export async function fetchRestaurantApplications(params?: Parameters<typeof queryString>[0]): Promise<ApplicationList<RestaurantApplication>> {
+  const res = await fetch(`/api/admin/restaurants${queryString(params)}`, { headers: authHeaders() });
   if (!res.ok) throw new Error("Failed to load restaurant applications");
-  return (await res.json()) as RestaurantApplication[];
+  return (await res.json()) as ApplicationList<RestaurantApplication>;
 }
 
-export async function fetchDriverApplications(): Promise<DriverApplication[]> {
-  const res = await fetch("/api/admin/drivers", { headers: authHeaders() });
+export async function fetchDriverApplications(params?: Parameters<typeof queryString>[0]): Promise<ApplicationList<DriverApplication>> {
+  const res = await fetch(`/api/admin/drivers${queryString(params)}`, { headers: authHeaders() });
   if (!res.ok) throw new Error("Failed to load driver applications");
-  return (await res.json()) as DriverApplication[];
+  return (await res.json()) as ApplicationList<DriverApplication>;
 }
 
-export async function updateRestaurantStatus(id: number, status: string): Promise<void> {
+export async function fetchRestaurantApplication(id: number): Promise<{ application: RestaurantApplication; documents: ApplicationDocument[]; decisions: ApplicationDecision[] }> {
+  const res = await fetch(`/api/admin/restaurants/${id}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("تعذر تحميل بيانات الطلب");
+  return res.json();
+}
+
+export async function fetchDriverApplication(id: number): Promise<{ application: DriverApplication; documents: ApplicationDocument[]; decisions: ApplicationDecision[] }> {
+  const res = await fetch(`/api/admin/drivers/${id}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("تعذر تحميل بيانات الطلب");
+  const result = await res.json() as { application: { profile: DriverApplication; phone: string | null }; documents: ApplicationDocument[]; decisions: ApplicationDecision[] };
+  return { application: { ...result.application.profile, phone: result.application.phone }, documents: result.documents, decisions: result.decisions };
+}
+
+export async function updateRestaurantStatus(id: number, status: string, reason?: string): Promise<void> {
   const res = await fetch(`/api/admin/restaurants/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -89,11 +148,11 @@ export async function fetchMyApplicationStatus(): Promise<string | null> {
   return body.status;
 }
 
-export async function updateDriverStatus(id: number, status: string): Promise<void> {
+export async function updateDriverStatus(id: number, status: string, reason?: string): Promise<void> {
   const res = await fetch(`/api/admin/drivers/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;

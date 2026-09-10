@@ -12,6 +12,7 @@ import { Router } from "express";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { db, usersTable, restaurantsTable, branchesTable, branchStaffTable } from "@workspace/db";
 import type { Request, Response } from "express";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
@@ -20,9 +21,7 @@ const router = Router();
 async function getPartner(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const rows = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
-  const user = rows[0];
+  const user = (await lookupAuthorization(auth))?.user;
   if (!user || user.role !== "partner") return null;
   return user;
 }

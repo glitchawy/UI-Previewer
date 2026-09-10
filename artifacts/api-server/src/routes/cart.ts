@@ -10,13 +10,14 @@ import {
   restaurantsTable,
   usersTable,
 } from "@workspace/db";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
 export async function getCustomer(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.sessionToken, auth.slice(7))).limit(1);
+  const user = (await lookupAuthorization(auth))?.user;
   return user?.role === "customer" ? user : null;
 }
 

@@ -232,6 +232,8 @@ function AuthPending() {
 
   // Application status from the server
   const [appStatus, setAppStatus] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState("");
   const [statusLoading, setStatusLoading] = useState(false);
 
   // Update documents panel
@@ -271,11 +273,11 @@ function AuthPending() {
         const r = await fetch("/api/onboard/status", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        if (!r.ok || cancelled) return;
-        const d = (await r.json()) as { status?: string | null };
-        if (!cancelled) setAppStatus(d.status ?? null);
+        if (!r.ok) throw new Error("تعذر تحميل حالة الطلب");
+        const d = (await r.json()) as { status?: string | null; rejectionReason?: string | null };
+        if (!cancelled) { setAppStatus(d.status ?? null); setRejectionReason(d.rejectionReason ?? null); setStatusError(""); }
       } catch {
-        // silently ignore network errors during polling
+        if (!cancelled) setStatusError("تعذر تحديث حالة الطلب. تحقق من الاتصال وحاول مجدداً.");
       } finally {
         if (!cancelled) setStatusLoading(false);
       }
@@ -293,8 +295,8 @@ function AuthPending() {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((r) => r.json())
-      .then((d: { status?: string | null }) => setAppStatus(d.status ?? null))
-      .catch(() => {})
+      .then((d: { status?: string | null; rejectionReason?: string | null }) => { setAppStatus(d.status ?? null); setRejectionReason(d.rejectionReason ?? null); setStatusError(""); })
+      .catch(() => setStatusError("تعذر تحديث حالة الطلب. حاول مجدداً."))
       .finally(() => setStatusLoading(false));
   }
 
@@ -462,6 +464,13 @@ function AuthPending() {
             </span>
           </p>
         )}
+        {appStatus === "REJECTED" && rejectionReason ? (
+          <div className="w-full rounded-card bg-error-container p-md text-right text-on-error-container">
+            <p className="font-label-lg text-label-lg">سبب الرفض</p>
+            <p className="font-body-md text-body-md">{rejectionReason}</p>
+          </div>
+        ) : null}
+        {statusError ? <p className="font-label-md text-label-md text-error">{statusError}</p> : null}
       </div>
 
       {/* Progress stepper */}

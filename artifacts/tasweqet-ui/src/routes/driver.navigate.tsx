@@ -10,6 +10,16 @@ import { AppBar, Badge, Button, Card, EmptyState, Icon, MobileShell } from "@/co
 import { TrackingMap } from "@/components/tb/tracking-map";
 import { EGP } from "@/lib/tb/data";
 
+const LOCATION_BUFFER_KEY = "driver_location_buffer_v1";
+type BufferedPoint = DriverPoint & { at: number };
+function readBuffer(): BufferedPoint[] {
+  try { return JSON.parse(localStorage.getItem(LOCATION_BUFFER_KEY) ?? "[]") as BufferedPoint[]; } catch { return []; }
+}
+function bufferPoint(point: DriverPoint) {
+  const next = [...readBuffer(), { ...point, at: Date.now() }].slice(-20);
+  localStorage.setItem(LOCATION_BUFFER_KEY, JSON.stringify(next));
+}
+
 export const Route = createFileRoute("/driver/navigate")({
   head: () => ({
     meta: [
@@ -36,6 +46,12 @@ function DriverNavigate() {
   const [geoStatus, setGeoStatus] = useState("جاري تحديد موقعك…");
   const order = activeOrder.data;
   const activeOrderId = order?.id ?? null;
+  const sendPoint = (point: DriverPoint) => {
+    locationMutationRef.current({ data: point }, {
+      onSuccess: () => { localStorage.removeItem(LOCATION_BUFFER_KEY); setGeoStatus("الموقع مباشر"); },
+      onError: () => { bufferPoint(point); setGeoStatus("الاتصال منقطع — تم حفظ آخر موقع مؤقتاً"); },
+    });
+  };
 
   useEffect(() => {
     if (order?.driverLat != null && order.driverLng != null && !position) {
@@ -64,10 +80,7 @@ function DriverNavigate() {
         positionRef.current = next;
         setGeoStatus("الموقع مباشر");
         if (isFirstFix) {
-          locationMutationRef.current(
-            { data: next },
-            { onError: () => setGeoStatus("تعذر إرسال الموقع — سنحاول مع التحديث القادم") },
-          );
+          sendPoint(next);
         }
       },
       (error) => {
@@ -86,12 +99,28 @@ function DriverNavigate() {
     const heartbeat = window.setInterval(() => {
       const latest = positionRef.current;
       if (!latest) return;
-      locationMutationRef.current(
-        { data: latest },
-        { onError: () => setGeoStatus("تعذر إرسال الموقع — سنحاول مع التحديث القادم") },
-      );
+      sendPoint(latest);
     }, 10_000);
     return () => window.clearInterval(heartbeat);
+  }, [activeOrderId]);
+
+  useEffect(() => {
+    if (!activeOrderId) return;
+    const recover = () => {
+      if (!navigator.onLine || document.visibilityState !== "visible") return;
+      const buffered = readBuffer().at(-1);
+      const point = buffered ? { lat: buffered.lat, lng: buffered.lng } : positionRef.current;
+      if (point) sendPoint(point);
+      activeOrder.refetch();
+    };
+    window.addEventListener("online", recover);
+    window.addEventListener("pageshow", recover);
+    document.addEventListener("visibilitychange", recover);
+    return () => {
+      window.removeEventListener("online", recover);
+      window.removeEventListener("pageshow", recover);
+      document.removeEventListener("visibilitychange", recover);
+    };
   }, [activeOrderId]);
 
   function updateStatus(status: "picked_up" | "delivered") {
@@ -138,6 +167,10 @@ function DriverNavigate() {
             <span className={`size-2 rounded-full ${geoStatus === "الموقع مباشر" ? "animate-pulse bg-success" : "bg-warning"}`} />
             {geoStatus}
           </Badge>
+          <Card className="flex gap-2 bg-surface-container-low p-md text-label-md text-on-surface-variant">
+            <Icon name="info" className="shrink-0 text-[18px]" />
+            <p>التتبع عبر المتصفح يعمل أثناء فتح الصفحة ويستعيد الإرسال بعد رجوع الاتصال أو ظهور الصفحة. التتبع الحقيقي والشاشة مقفلة يحتاج تطبيق الموبايل الأصلي.</p>
+          </Card>
 
           <Card className="flex flex-col gap-3 p-md">
             {[

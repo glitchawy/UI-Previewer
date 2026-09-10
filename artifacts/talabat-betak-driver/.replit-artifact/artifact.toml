@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/talabat-betak-driver/"
+title = "Talabat Betak Driver"
+description = "Arabic-first native driver application for Talabat Betak with real dispatch offers, active delivery navigation, earnings, documents, and operating-system background location tracking."
+version = "1.0.0"
+id = "artifacts/talabat-betak-driver"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/talabat-betak-driver/" ]
+localPort = 25199
+
+[services.development]
+run = "pnpm --filter @workspace/talabat-betak-driver run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/talabat-betak-driver", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/talabat-betak-driver", "run", "serve" ]
+
+[services.env]
+PORT = "25199"
+BASE_PATH = "/talabat-betak-driver/"

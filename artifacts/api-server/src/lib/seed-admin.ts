@@ -6,6 +6,7 @@ import {
   branchesTable,
   categoriesTable,
   productsTable,
+  adminAccountsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
@@ -45,6 +46,20 @@ export async function seedAdminUser(): Promise<void> {
   if (inserted.length > 0) {
     logger.info({ userId: inserted[0].id }, "Admin user seeded");
   }
+  const [admin] = await db.select({ id: usersTable.id, role: usersTable.role })
+    .from(usersTable).where(eq(usersTable.phone, phone)).limit(1);
+  if (!admin || admin.role !== "admin") {
+    logger.error({ phone }, "Configured admin phone belongs to a non-admin account");
+    return;
+  }
+  await db.insert(adminAccountsTable).values({
+    userId: admin.id,
+    isActive: true,
+    isSuperAdmin: true,
+  }).onConflictDoUpdate({
+    target: adminAccountsTable.userId,
+    set: { isActive: true, isSuperAdmin: true, updatedAt: new Date() },
+  });
 }
 
 export const DEVELOPMENT_FIXTURE_PHONE_BY_ROLE = {
@@ -106,6 +121,18 @@ export async function seedDevelopmentFixtures(): Promise<void> {
       .returning();
     fixtureUsers.set(fixture.role, inserted);
     logger.info({ userId: inserted.id, role: fixture.role }, "Development fixture user seeded");
+  }
+
+  const fixtureAdmin = fixtureUsers.get("admin");
+  if (fixtureAdmin) {
+    await db.insert(adminAccountsTable).values({
+      userId: fixtureAdmin.id,
+      isActive: true,
+      isSuperAdmin: true,
+    }).onConflictDoUpdate({
+      target: adminAccountsTable.userId,
+      set: { isActive: true, isSuperAdmin: true, updatedAt: new Date() },
+    });
   }
 
   const partner = fixtureUsers.get("partner");

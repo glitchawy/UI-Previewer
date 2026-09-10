@@ -2,7 +2,8 @@ import { runMigrations } from "@workspace/db/migrate";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminUser, seedDevelopmentFixtures } from "./lib/seed-admin";
-import { startPaymentSessionExpiryWorker } from "./lib/payment-session-lifecycle";
+import { startOperationsWorker } from "./lib/operations-worker";
+import type { Server } from "node:http";
 
 const rawPort = process.env["PORT"];
 
@@ -25,16 +26,39 @@ async function main() {
 
   await seedAdminUser();
   await seedDevelopmentFixtures();
-  startPaymentSessionExpiryWorker();
+  const stopOperationsWorker = startOperationsWorker();
 
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
-
+  const server: Server = app.listen(port, () => {
     logger.info({ port }, "Server listening");
   });
+  server.requestTimeout = 30_000;
+  server.headersTimeout = 35_000;
+  server.keepAliveTimeout = 5_000;
+
+  let shuttingDown = false;
+  const shutdown = (signal: NodeJS.Signals) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal }, "Graceful shutdown started");
+    const forceTimer = setTimeout(() => {
+      logger.error("Graceful shutdown timed out; closing active connections");
+      server.closeAllConnections();
+      process.exit(1);
+    }, 10_000);
+    forceTimer.unref();
+    server.close(async (error) => {
+      await stopOperationsWorker();
+      clearTimeout(forceTimer);
+      if (error) {
+        logger.error({ err: error }, "Error closing HTTP server");
+        process.exit(1);
+      }
+      logger.info("HTTP server closed");
+      process.exit(0);
+    });
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
 }
 
 main().catch((err) => {

@@ -10,6 +10,7 @@ import { AppBar, Badge, Card, EmptyState, Icon, MobileShell } from "@/components
 import { TrackingMap } from "@/components/tb/tracking-map";
 import { customerTabs } from "@/lib/tb/nav";
 import { formatOrderDate, orderStatusTones } from "@/lib/tb/orders";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/app/track/$id")({
   head: () => ({
@@ -39,6 +40,7 @@ function statusStep(status: OrderStatus) {
 }
 
 function AppTrackId() {
+  const [connected, setConnected] = useState(navigator.onLine);
   const { id: rawId } = Route.useParams();
   const parsedId = Number(rawId);
   const id = Number.isInteger(parsedId) ? parsedId : 0;
@@ -55,6 +57,18 @@ function AppTrackId() {
   const driverLng = locationQuery.data?.lng ?? order?.driverLng ?? null;
   const locationUpdatedAt = locationQuery.data?.updatedAt ?? order?.driverLocationUpdatedAt ?? null;
   const currentStep = order ? statusStep(order.status) : -1;
+  const stale = locationUpdatedAt ? Date.now() - new Date(locationUpdatedAt).getTime() > 45_000 : true;
+  useEffect(() => {
+    const recover = () => {
+      setConnected(navigator.onLine);
+      if (navigator.onLine && document.visibilityState === "visible") {
+        orderQuery.refetch(); if (isOutForDelivery) locationQuery.refetch();
+      }
+    };
+    window.addEventListener("online", recover); window.addEventListener("offline", recover);
+    document.addEventListener("visibilitychange", recover); window.addEventListener("pageshow", recover);
+    return () => { window.removeEventListener("online", recover); window.removeEventListener("offline", recover); document.removeEventListener("visibilitychange", recover); window.removeEventListener("pageshow", recover); };
+  }, [isOutForDelivery, id]);
 
   return (
     <MobileShell tabs={customerTabs}>
@@ -64,7 +78,7 @@ function AppTrackId() {
           <Icon name="progress_activity" className="animate-spin text-[38px] text-primary" />
         </div>
       ) : orderQuery.isError || !order ? (
-        <div className="p-md"><EmptyState icon="error" title="تعذر تحميل التتبع" body="تأكد من رقم الطلب وحاول مرة أخرى" /></div>
+        <div className="p-md"><EmptyState icon="error" title="تعذر تحميل التتبع" body="تأكد من رقم الطلب وحاول مرة أخرى" /><button className="mt-md w-full rounded-button bg-primary p-3 text-on-primary" onClick={() => orderQuery.refetch()}>إعادة المحاولة</button></div>
       ) : (
         <div className="flex flex-col gap-lg p-md">
           {order.status === "picked_up" && driverLat != null && driverLng != null ? (
@@ -74,7 +88,7 @@ function AppTrackId() {
                 destination={{ lat: order.deliveryLat, lng: order.deliveryLng }}
               />
               <div className="flex items-center justify-between gap-3 px-1 text-label-md text-on-surface-variant">
-                <span className="flex items-center gap-1.5"><span className="size-2 animate-pulse rounded-full bg-success" />الموقع يتحدث كل ١٠ ثوانٍ</span>
+                <span className="flex items-center gap-1.5"><span className={`size-2 rounded-full ${connected && !stale ? "animate-pulse bg-success" : "bg-warning"}`} />{!connected ? "لا يوجد اتصال — نعرض آخر موقع" : stale ? "آخر موقع قديم — جاري إعادة الاتصال" : "الموقع مباشر"}</span>
                 {locationUpdatedAt ? <span>{formatOrderDate(locationUpdatedAt)}</span> : null}
               </div>
             </section>
@@ -87,6 +101,7 @@ function AppTrackId() {
               <p className="font-body-md text-body-md text-on-surface-variant">هنحدّث الحالة تلقائياً كل ١٥ ثانية</p>
             </Card>
           )}
+          {isOutForDelivery && locationQuery.isError ? <Card className="flex items-center justify-between gap-2 p-md text-error"><span>تعذر تحديث موقع الكابتن؛ لا يتم عرض أي موقع من طلب آخر.</span><button className="underline" onClick={() => locationQuery.refetch()}>إعادة</button></Card> : null}
 
           {order.driverName ? (
             <Card className="flex items-center gap-3 p-md">

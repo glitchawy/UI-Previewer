@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DriverRouteImport } from './routes/driver'
 import { Route as PartnerRouteImport } from './routes/partner'
 import { Route as ScreensRouteImport } from './routes/screens'
@@ -128,6 +129,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DriverRoute = DriverRouteImport.update({
   id: '/driver',
   path: '/driver',
@@ -144,89 +150,89 @@ const ScreensRoute = ScreensRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminAuditLogsRoute = AdminAuditLogsRouteImport.update({
-  id: '/admin/audit-logs',
-  path: '/admin/audit-logs',
-  getParentRoute: () => rootRouteImport,
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminCommissionsRoute = AdminCommissionsRouteImport.update({
-  id: '/admin/commissions',
-  path: '/admin/commissions',
-  getParentRoute: () => rootRouteImport,
+  id: '/commissions',
+  path: '/commissions',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminCustomersRoute = AdminCustomersRouteImport.update({
-  id: '/admin/customers',
-  path: '/admin/customers',
-  getParentRoute: () => rootRouteImport,
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminDriverCommissionsRoute = AdminDriverCommissionsRouteImport.update({
-  id: '/admin/driver-commissions',
-  path: '/admin/driver-commissions',
-  getParentRoute: () => rootRouteImport,
+  id: '/driver-commissions',
+  path: '/driver-commissions',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminDriversRoute = AdminDriversRouteImport.update({
-  id: '/admin/drivers',
-  path: '/admin/drivers',
-  getParentRoute: () => rootRouteImport,
+  id: '/drivers',
+  path: '/drivers',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
-  id: '/admin/notifications',
-  path: '/admin/notifications',
-  getParentRoute: () => rootRouteImport,
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminOrdersRoute = AdminOrdersRouteImport.update({
-  id: '/admin/orders',
-  path: '/admin/orders',
-  getParentRoute: () => rootRouteImport,
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminPaymentsRoute = AdminPaymentsRouteImport.update({
-  id: '/admin/payments',
-  path: '/admin/payments',
-  getParentRoute: () => rootRouteImport,
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminPricingRoute = AdminPricingRouteImport.update({
-  id: '/admin/pricing',
-  path: '/admin/pricing',
-  getParentRoute: () => rootRouteImport,
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminRefundsRoute = AdminRefundsRouteImport.update({
-  id: '/admin/refunds',
-  path: '/admin/refunds',
-  getParentRoute: () => rootRouteImport,
+  id: '/refunds',
+  path: '/refunds',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminReportsRoute = AdminReportsRouteImport.update({
-  id: '/admin/reports',
-  path: '/admin/reports',
-  getParentRoute: () => rootRouteImport,
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminRestaurantsRoute = AdminRestaurantsRouteImport.update({
-  id: '/admin/restaurants',
-  path: '/admin/restaurants',
-  getParentRoute: () => rootRouteImport,
+  id: '/restaurants',
+  path: '/restaurants',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminReviewsRoute = AdminReviewsRouteImport.update({
-  id: '/admin/reviews',
-  path: '/admin/reviews',
-  getParentRoute: () => rootRouteImport,
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminRolesRoute = AdminRolesRouteImport.update({
-  id: '/admin/roles',
-  path: '/admin/roles',
-  getParentRoute: () => rootRouteImport,
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
-  id: '/admin/settings',
-  path: '/admin/settings',
-  getParentRoute: () => rootRouteImport,
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettlementsRoute = AdminSettlementsRouteImport.update({
-  id: '/admin/settlements',
-  path: '/admin/settlements',
-  getParentRoute: () => rootRouteImport,
+  id: '/settlements',
+  path: '/settlements',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/app/',
@@ -698,6 +704,7 @@ const PartnerOrdersIdRoute = PartnerOrdersIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/driver': typeof DriverRouteWithChildren
   '/partner': typeof PartnerRouteWithChildren
   '/screens': typeof ScreensRoute
@@ -927,6 +934,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/driver': typeof DriverRouteWithChildren
   '/partner': typeof PartnerRouteWithChildren
   '/screens': typeof ScreensRoute
@@ -1044,6 +1052,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/driver'
     | '/partner'
     | '/screens'
@@ -1272,6 +1281,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/driver'
     | '/partner'
     | '/screens'
@@ -1388,25 +1398,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   DriverRoute: typeof DriverRouteWithChildren
   PartnerRoute: typeof PartnerRouteWithChildren
   ScreensRoute: typeof ScreensRoute
-  AdminAuditLogsRoute: typeof AdminAuditLogsRoute
-  AdminCommissionsRoute: typeof AdminCommissionsRoute
-  AdminCustomersRoute: typeof AdminCustomersRoute
-  AdminDriverCommissionsRoute: typeof AdminDriverCommissionsRoute
-  AdminDriversRoute: typeof AdminDriversRouteWithChildren
-  AdminNotificationsRoute: typeof AdminNotificationsRoute
-  AdminOrdersRoute: typeof AdminOrdersRouteWithChildren
-  AdminPaymentsRoute: typeof AdminPaymentsRoute
-  AdminPricingRoute: typeof AdminPricingRoute
-  AdminRefundsRoute: typeof AdminRefundsRoute
-  AdminReportsRoute: typeof AdminReportsRoute
-  AdminRestaurantsRoute: typeof AdminRestaurantsRouteWithChildren
-  AdminReviewsRoute: typeof AdminReviewsRoute
-  AdminRolesRoute: typeof AdminRolesRoute
-  AdminSettingsRoute: typeof AdminSettingsRoute
-  AdminSettlementsRoute: typeof AdminSettlementsRoute
   AppAddressRoute: typeof AppAddressRoute
   AppCartRoute: typeof AppCartRoute
   AppCheckoutRoute: typeof AppCheckoutRoute
@@ -1463,7 +1458,6 @@ export interface RootRouteChildren {
   SSplashScreenRoute: typeof SSplashScreenRoute
   SStoreDetailsRestaurantRoute: typeof SStoreDetailsRestaurantRoute
   SWelcomeScreenRoute: typeof SWelcomeScreenRoute
-  AdminIndexRoute: typeof AdminIndexRoute
   AppIndexRoute: typeof AppIndexRoute
   BranchIndexRoute: typeof BranchIndexRoute
   AppCategoryIdRoute: typeof AppCategoryIdRoute
@@ -1481,6 +1475,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/driver': {
@@ -1506,122 +1507,122 @@ declare module '@tanstack/react-router' {
     }
     '/admin/': {
       id: '/admin/'
-      path: '/admin'
+      path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/audit-logs': {
       id: '/admin/audit-logs'
-      path: '/admin/audit-logs'
+      path: '/audit-logs'
       fullPath: '/admin/audit-logs'
       preLoaderRoute: typeof AdminAuditLogsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/commissions': {
       id: '/admin/commissions'
-      path: '/admin/commissions'
+      path: '/commissions'
       fullPath: '/admin/commissions'
       preLoaderRoute: typeof AdminCommissionsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/customers': {
       id: '/admin/customers'
-      path: '/admin/customers'
+      path: '/customers'
       fullPath: '/admin/customers'
       preLoaderRoute: typeof AdminCustomersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/driver-commissions': {
       id: '/admin/driver-commissions'
-      path: '/admin/driver-commissions'
+      path: '/driver-commissions'
       fullPath: '/admin/driver-commissions'
       preLoaderRoute: typeof AdminDriverCommissionsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/drivers': {
       id: '/admin/drivers'
-      path: '/admin/drivers'
+      path: '/drivers'
       fullPath: '/admin/drivers'
       preLoaderRoute: typeof AdminDriversRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/notifications': {
       id: '/admin/notifications'
-      path: '/admin/notifications'
+      path: '/notifications'
       fullPath: '/admin/notifications'
       preLoaderRoute: typeof AdminNotificationsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/orders': {
       id: '/admin/orders'
-      path: '/admin/orders'
+      path: '/orders'
       fullPath: '/admin/orders'
       preLoaderRoute: typeof AdminOrdersRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/payments': {
       id: '/admin/payments'
-      path: '/admin/payments'
+      path: '/payments'
       fullPath: '/admin/payments'
       preLoaderRoute: typeof AdminPaymentsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/pricing': {
       id: '/admin/pricing'
-      path: '/admin/pricing'
+      path: '/pricing'
       fullPath: '/admin/pricing'
       preLoaderRoute: typeof AdminPricingRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/refunds': {
       id: '/admin/refunds'
-      path: '/admin/refunds'
+      path: '/refunds'
       fullPath: '/admin/refunds'
       preLoaderRoute: typeof AdminRefundsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/reports': {
       id: '/admin/reports'
-      path: '/admin/reports'
+      path: '/reports'
       fullPath: '/admin/reports'
       preLoaderRoute: typeof AdminReportsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/restaurants': {
       id: '/admin/restaurants'
-      path: '/admin/restaurants'
+      path: '/restaurants'
       fullPath: '/admin/restaurants'
       preLoaderRoute: typeof AdminRestaurantsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/reviews': {
       id: '/admin/reviews'
-      path: '/admin/reviews'
+      path: '/reviews'
       fullPath: '/admin/reviews'
       preLoaderRoute: typeof AdminReviewsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/roles': {
       id: '/admin/roles'
-      path: '/admin/roles'
+      path: '/roles'
       fullPath: '/admin/roles'
       preLoaderRoute: typeof AdminRolesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/settings': {
       id: '/admin/settings'
-      path: '/admin/settings'
+      path: '/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/settlements': {
       id: '/admin/settlements'
-      path: '/admin/settlements'
+      path: '/settlements'
       fullPath: '/admin/settlements'
       preLoaderRoute: typeof AdminSettlementsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/app/': {
       id: '/app/'
@@ -2270,6 +2271,83 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminDriversRouteChildren {
+  AdminDriversIdRoute: typeof AdminDriversIdRoute
+}
+
+const AdminDriversRouteChildren: AdminDriversRouteChildren = {
+  AdminDriversIdRoute: AdminDriversIdRoute,
+}
+
+const AdminDriversRouteWithChildren = AdminDriversRoute._addFileChildren(
+  AdminDriversRouteChildren,
+)
+
+interface AdminOrdersRouteChildren {
+  AdminOrdersIdRoute: typeof AdminOrdersIdRoute
+}
+
+const AdminOrdersRouteChildren: AdminOrdersRouteChildren = {
+  AdminOrdersIdRoute: AdminOrdersIdRoute,
+}
+
+const AdminOrdersRouteWithChildren = AdminOrdersRoute._addFileChildren(
+  AdminOrdersRouteChildren,
+)
+
+interface AdminRestaurantsRouteChildren {
+  AdminRestaurantsIdRoute: typeof AdminRestaurantsIdRoute
+}
+
+const AdminRestaurantsRouteChildren: AdminRestaurantsRouteChildren = {
+  AdminRestaurantsIdRoute: AdminRestaurantsIdRoute,
+}
+
+const AdminRestaurantsRouteWithChildren =
+  AdminRestaurantsRoute._addFileChildren(AdminRestaurantsRouteChildren)
+
+interface AdminRouteChildren {
+  AdminAuditLogsRoute: typeof AdminAuditLogsRoute
+  AdminCommissionsRoute: typeof AdminCommissionsRoute
+  AdminCustomersRoute: typeof AdminCustomersRoute
+  AdminDriverCommissionsRoute: typeof AdminDriverCommissionsRoute
+  AdminDriversRoute: typeof AdminDriversRouteWithChildren
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
+  AdminOrdersRoute: typeof AdminOrdersRouteWithChildren
+  AdminPaymentsRoute: typeof AdminPaymentsRoute
+  AdminPricingRoute: typeof AdminPricingRoute
+  AdminRefundsRoute: typeof AdminRefundsRoute
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminRestaurantsRoute: typeof AdminRestaurantsRouteWithChildren
+  AdminReviewsRoute: typeof AdminReviewsRoute
+  AdminRolesRoute: typeof AdminRolesRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSettlementsRoute: typeof AdminSettlementsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAuditLogsRoute: AdminAuditLogsRoute,
+  AdminCommissionsRoute: AdminCommissionsRoute,
+  AdminCustomersRoute: AdminCustomersRoute,
+  AdminDriverCommissionsRoute: AdminDriverCommissionsRoute,
+  AdminDriversRoute: AdminDriversRouteWithChildren,
+  AdminNotificationsRoute: AdminNotificationsRoute,
+  AdminOrdersRoute: AdminOrdersRouteWithChildren,
+  AdminPaymentsRoute: AdminPaymentsRoute,
+  AdminPricingRoute: AdminPricingRoute,
+  AdminRefundsRoute: AdminRefundsRoute,
+  AdminReportsRoute: AdminReportsRoute,
+  AdminRestaurantsRoute: AdminRestaurantsRouteWithChildren,
+  AdminReviewsRoute: AdminReviewsRoute,
+  AdminRolesRoute: AdminRolesRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminSettlementsRoute: AdminSettlementsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 interface DriverRouteChildren {
   DriverDeliveredRoute: typeof DriverDeliveredRoute
   DriverDocumentsRoute: typeof DriverDocumentsRoute
@@ -2366,41 +2444,6 @@ const PartnerRouteChildren: PartnerRouteChildren = {
 const PartnerRouteWithChildren =
   PartnerRoute._addFileChildren(PartnerRouteChildren)
 
-interface AdminDriversRouteChildren {
-  AdminDriversIdRoute: typeof AdminDriversIdRoute
-}
-
-const AdminDriversRouteChildren: AdminDriversRouteChildren = {
-  AdminDriversIdRoute: AdminDriversIdRoute,
-}
-
-const AdminDriversRouteWithChildren = AdminDriversRoute._addFileChildren(
-  AdminDriversRouteChildren,
-)
-
-interface AdminOrdersRouteChildren {
-  AdminOrdersIdRoute: typeof AdminOrdersIdRoute
-}
-
-const AdminOrdersRouteChildren: AdminOrdersRouteChildren = {
-  AdminOrdersIdRoute: AdminOrdersIdRoute,
-}
-
-const AdminOrdersRouteWithChildren = AdminOrdersRoute._addFileChildren(
-  AdminOrdersRouteChildren,
-)
-
-interface AdminRestaurantsRouteChildren {
-  AdminRestaurantsIdRoute: typeof AdminRestaurantsIdRoute
-}
-
-const AdminRestaurantsRouteChildren: AdminRestaurantsRouteChildren = {
-  AdminRestaurantsIdRoute: AdminRestaurantsIdRoute,
-}
-
-const AdminRestaurantsRouteWithChildren =
-  AdminRestaurantsRoute._addFileChildren(AdminRestaurantsRouteChildren)
-
 interface AppOrdersRouteChildren {
   AppOrdersIdRoute: typeof AppOrdersIdRoute
 }
@@ -2415,25 +2458,10 @@ const AppOrdersRouteWithChildren = AppOrdersRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   DriverRoute: DriverRouteWithChildren,
   PartnerRoute: PartnerRouteWithChildren,
   ScreensRoute: ScreensRoute,
-  AdminAuditLogsRoute: AdminAuditLogsRoute,
-  AdminCommissionsRoute: AdminCommissionsRoute,
-  AdminCustomersRoute: AdminCustomersRoute,
-  AdminDriverCommissionsRoute: AdminDriverCommissionsRoute,
-  AdminDriversRoute: AdminDriversRouteWithChildren,
-  AdminNotificationsRoute: AdminNotificationsRoute,
-  AdminOrdersRoute: AdminOrdersRouteWithChildren,
-  AdminPaymentsRoute: AdminPaymentsRoute,
-  AdminPricingRoute: AdminPricingRoute,
-  AdminRefundsRoute: AdminRefundsRoute,
-  AdminReportsRoute: AdminReportsRoute,
-  AdminRestaurantsRoute: AdminRestaurantsRouteWithChildren,
-  AdminReviewsRoute: AdminReviewsRoute,
-  AdminRolesRoute: AdminRolesRoute,
-  AdminSettingsRoute: AdminSettingsRoute,
-  AdminSettlementsRoute: AdminSettlementsRoute,
   AppAddressRoute: AppAddressRoute,
   AppCartRoute: AppCartRoute,
   AppCheckoutRoute: AppCheckoutRoute,
@@ -2490,7 +2518,6 @@ const rootRouteChildren: RootRouteChildren = {
   SSplashScreenRoute: SSplashScreenRoute,
   SStoreDetailsRestaurantRoute: SStoreDetailsRestaurantRoute,
   SWelcomeScreenRoute: SWelcomeScreenRoute,
-  AdminIndexRoute: AdminIndexRoute,
   AppIndexRoute: AppIndexRoute,
   BranchIndexRoute: BranchIndexRoute,
   AppCategoryIdRoute: AppCategoryIdRoute,

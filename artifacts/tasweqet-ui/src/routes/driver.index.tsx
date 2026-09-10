@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppBar, Badge, Card, Icon, MobileShell, Stat } from "@/components/tb/shell";
-import { EGP, driverWallet, drivers } from "@/lib/tb/data";
+import { useEffect, useRef } from "react";
+import { AppBar, Badge, Button, Card, Icon, MobileShell, Stat } from "@/components/tb/shell";
+import { EGP } from "@/lib/tb/data";
 import { driverTabs } from "@/lib/tb/nav";
 import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import {
@@ -9,7 +9,11 @@ import {
   getGetAvailableDriverOrderQueryKey,
   useGetActiveDriverOrder,
   useGetAvailableDriverOrder,
+  useUpdateDriverAvailability,
+  useUpdateDriverLocation,
 } from "@workspace/api-client-react";
+import { type DriverAccount, type DriverEarnings } from "@/lib/driver-api";
+import { useDriverData } from "@/lib/use-driver-data";
 
 export const Route = createFileRoute("/driver/")({
   beforeLoad: () => {
@@ -26,17 +30,21 @@ export const Route = createFileRoute("/driver/")({
   component: DriverIndex,
 });
 
-const me = drivers[0]!;
-
 function DriverIndex() {
   const navigate = useNavigate();
   const session = getSession();
-  const [online, setOnline] = useState(true);
+  const account = useDriverData<DriverAccount>("/account");
+  const earnings = useDriverData<DriverEarnings>("/earnings");
+  const availability = useUpdateDriverAvailability();
+  const location = useUpdateDriverLocation();
+  const online = account.data?.isOnline ?? false;
+  const locationRef = useRef(location.mutate);
+  locationRef.current = location.mutate;
   const activeOrder = useGetActiveDriverOrder({
     query: { queryKey: getGetActiveDriverOrderQueryKey(), refetchInterval: 15_000 },
   });
   const availableOrder = useGetAvailableDriverOrder({
-    query: { queryKey: getGetAvailableDriverOrderQueryKey(), refetchInterval: 15_000 },
+    query: { queryKey: getGetAvailableDriverOrderQueryKey(), enabled: online, refetchInterval: online ? 10_000 : false },
   });
   // Approval gating happens in the /driver layout route (driver.tsx).
 
@@ -44,6 +52,29 @@ function DriverIndex() {
     await logoutSession();
     navigate({ to: "/auth/login" });
   }
+  function sendPosition() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(result => {
+      locationRef.current({ data: { lat: result.coords.latitude, lng: result.coords.longitude } });
+    }, () => undefined, { enableHighAccuracy: true, maximumAge: 15_000, timeout: 12_000 });
+  }
+  function toggleOnline() {
+    availability.mutate({ data: { available: !online } }, {
+      onSuccess: async () => {
+        await account.retry();
+        if (!online) sendPosition();
+        availableOrder.refetch();
+      },
+    });
+  }
+  useEffect(() => {
+    if (!online || activeOrder.data) return;
+    const recover = () => { if (document.visibilityState === "visible" && navigator.onLine) sendPosition(); };
+    const timer = window.setInterval(sendPosition, 45_000);
+    window.addEventListener("online", recover); document.addEventListener("visibilitychange", recover);
+    recover();
+    return () => { window.clearInterval(timer); window.removeEventListener("online", recover); document.removeEventListener("visibilitychange", recover); };
+  }, [online, activeOrder.data]);
 
   return (
     <MobileShell tabs={driverTabs}>
@@ -72,7 +103,8 @@ function DriverIndex() {
               </p>
             </div>
             <button
-              onClick={() => setOnline((v) => !v)}
+              onClick={toggleOnline}
+              disabled={availability.isPending || account.loading}
               className={`relative h-9 w-16 rounded-full transition ${online ? "bg-success" : "bg-surface-container-high"}`}
               aria-label="تبديل الحالة"
             >
@@ -81,6 +113,7 @@ function DriverIndex() {
           </div>
         </Card>
 
+        {availability.isError || account.error ? <Card className="p-md text-error"><p>{account.error || "تعذر تحديث حالة الاتصال"}</p><Button className="mt-sm" onClick={account.retry}>إعادة المحاولة</Button></Card> : null}
         {online && availableOrder.data && !activeOrder.data ? (
           <Link to="/driver/offer" className="block">
             <Card className="tb-pulse-ring border-primary bg-primary-container/30 p-md">
@@ -115,10 +148,10 @@ function DriverIndex() {
         <div>
           <p className="mb-sm font-headline-md text-headline-md text-on-surface">إحصائيات اليوم</p>
           <div className="tb-stagger grid grid-cols-2 gap-sm">
-            <Stat label="توصيلات اليوم" value="8" icon="local_shipping" tone="info" />
-            <Stat label="أرباح اليوم" value={EGP(driverWallet["today"])} icon="payments" tone="success" delta="12%" />
-            <Stat label="المسافة" value="34 كم" icon="route" tone="warn" />
-            <Stat label="التقييم" value={me["rating"].toString()} icon="star" tone="warn" />
+            <Stat label="إجمالي التوصيلات" value={String(account.data?.deliveries ?? "—")} icon="local_shipping" tone="info" />
+            <Stat label="أرباح اليوم" value={earnings.data ? EGP(earnings.data.today) : "—"} icon="payments" tone="success" />
+            <Stat label="الحمل الحالي" value={String(account.data?.currentWorkload ?? "—")} icon="route" tone="warn" />
+            <Stat label="حالة الموقع" value={account.data?.locationUpdatedAt ? "محدّث" : "غير متاح"} icon="location_on" tone="warn" />
           </div>
         </div>
 

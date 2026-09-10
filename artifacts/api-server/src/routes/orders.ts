@@ -6,10 +6,12 @@ import {
   cartItemsTable,
   db,
   driverProfilesTable,
+  deliveryPricingTiersTable,
   orderAddonsTable,
   orderItemsTable,
   orderStatusEventsTable,
   ordersTable,
+  notificationsTable,
   paymentSessionsTable,
   productAddonsTable,
   productsTable,
@@ -45,6 +47,13 @@ const PAYMENT_SESSION_TTL_MS = 60 * 60 * 1000;
 
 function orderCode(id: number) {
   return `TB-${String(id).padStart(6, "0")}`;
+}
+
+function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const rad = (n: number) => n * Math.PI / 180;
+  const dLat = rad(bLat - aLat), dLng = rad(bLng - aLng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 type CheckoutAttachment =
@@ -201,12 +210,28 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       ? await tx.select().from(productAddonsTable).where(inArray(productAddonsTable.id, addonIds))
       : [];
     const branches = await tx.select().from(branchesTable).where(inArray(branchesTable.restaurantId, restaurantIds));
+    const pricingTiers = await tx.select().from(deliveryPricingTiersTable)
+      .where(eq(deliveryPricingTiersTable.isActive, true))
+      .orderBy(deliveryPricingTiersTable.fromKm);
     const restaurantMap = new Map(restaurants.map((row) => [row.id, row]));
     const productMap = new Map(products.map((row) => [row.id, row]));
     const variantMap = new Map(variants.map((row) => [row.id, row]));
     const addonMap = new Map(addons.map((row) => [row.id, row]));
     const branchMap = new Map<number, typeof branches[number]>();
     for (const branch of branches) if (branch.isOpen && !branchMap.has(branch.restaurantId)) branchMap.set(branch.restaurantId, branch);
+    const deliveryFees = new Map<number, number>();
+    for (const restaurantId of restaurantIds) {
+      const branch = branchMap.get(restaurantId);
+      if (!branch || branch.lat === null || branch.lng === null) throw new Error("UNAVAILABLE_ITEM");
+      if (!pricingTiers.length) {
+        deliveryFees.set(restaurantId, DELIVERY_FEE_PER_RESTAURANT);
+        continue;
+      }
+      const distance = distanceKm(branch.lat, branch.lng, deliveryLat, deliveryLng);
+      const tier = pricingTiers.find((candidate) => distance >= Number(candidate.fromKm) && distance < Number(candidate.toKm));
+      if (!tier) throw new Error("DELIVERY_UNAVAILABLE");
+      deliveryFees.set(restaurantId, Number(tier.price));
+    }
 
     const validLines = cartItems.map((item) => {
       const restaurant = restaurantMap.get(item.restaurantId);
@@ -228,7 +253,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
 
     const totalCartCents = restaurantIds.reduce((sum, restaurantId) => {
       const lines = validLines.filter((line) => line.cartItem.restaurantId === restaurantId);
-      return sum + toCents(lines.reduce((lineSum, line) => lineSum + line.lineTotal, 0) + DELIVERY_FEE_PER_RESTAURANT);
+      return sum + toCents(lines.reduce((lineSum, line) => lineSum + line.lineTotal, 0) + deliveryFees.get(restaurantId)!);
     }, 0);
     let remainingWalletCents = Math.min(
       requestedWalletCents,
@@ -250,7 +275,8 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       if (!branch) throw new Error("UNAVAILABLE_ITEM");
       const lines = validLines.filter((line) => line.cartItem.restaurantId === restaurantId);
       const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-      const total = subtotal + DELIVERY_FEE_PER_RESTAURANT;
+      const deliveryFee = deliveryFees.get(restaurantId)!;
+      const total = subtotal + deliveryFee;
       const totalCents = toCents(total);
       const walletAmountCents = Math.min(remainingWalletCents, totalCents);
       const externalAmountCents = totalCents - walletAmountCents;
@@ -267,7 +293,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         deliveryAddressText: address,
         deliveryLat,
         deliveryLng,
-        deliveryFee: DELIVERY_FEE_PER_RESTAURANT.toFixed(2),
+        deliveryFee: deliveryFee.toFixed(2),
         subtotal: subtotal.toFixed(2),
         total: total.toFixed(2),
         walletAmountUsed: fromCents(walletAmountCents),
@@ -275,6 +301,15 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         notes: rawNotes || null,
       }).returning({ id: ordersTable.id });
       await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: "pending" });
+      await tx.insert(notificationsTable).values({
+        userId: customer.id,
+        eventType: "ORDER_PLACED",
+        title: "تم استلام طلبك",
+        body: `استلمنا طلبك ${orderCode(order.id)} من ${restaurant.name}`,
+        entityType: "order",
+        entityId: order.id,
+        deduplicationKey: `order:${order.id}:pending`,
+      }).onConflictDoNothing();
       for (const line of lines) {
         const [orderItem] = await tx.insert(orderItemsTable).values({
           orderId: order.id,
@@ -359,6 +394,10 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     }
     if (error instanceof Error && error.message === "UNAVAILABLE_ITEM") {
       res.status(409).json({ error: "أحد عناصر السلة لم يعد متاحاً. راجع السلة وحاول مرة أخرى." });
+      return;
+    }
+    if (error instanceof Error && error.message === "DELIVERY_UNAVAILABLE") {
+      res.status(409).json({ error: "عنوانك خارج شرائح التوصيل النشطة حالياً" });
       return;
     }
     if (error instanceof Error && error.message === "PAYMENT_PENDING") {

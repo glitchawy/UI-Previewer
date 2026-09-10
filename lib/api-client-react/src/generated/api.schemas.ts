@@ -5,6 +5,63 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AdminObject { [key: string]: unknown }
+
+export interface AdminMutation { [key: string]: unknown }
+
+export interface AdminPage {
+  items: AdminObject[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export type AdminOverviewTopRestaurantsItem = {
+  id: number;
+  name: string;
+  orders: number;
+  gmv: number;
+};
+
+export type AdminOverviewMonthlyItem = {
+  month: string;
+  orders: number;
+  gmv: number;
+};
+
+export interface AdminOverview {
+  gmv: number;
+  orders: number;
+  activeOrders: number;
+  customers: number;
+  restaurants: number;
+  activeRestaurants: number;
+  activeDrivers: number;
+  topRestaurants: AdminOverviewTopRestaurantsItem[];
+  monthly: AdminOverviewMonthlyItem[];
+}
+
+export type AdminOrderPageItemsItem = { [key: string]: unknown };
+
+export interface AdminOrderPage {
+  items: AdminOrderPageItemsItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export type AdminCustomerPageItemsItem = { [key: string]: unknown };
+
+export interface AdminCustomerPage {
+  items: AdminCustomerPageItemsItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 export type PartnerOnboardDeliveryType = typeof PartnerOnboardDeliveryType[keyof typeof PartnerOnboardDeliveryType];
 
 
@@ -58,6 +115,32 @@ export interface OnboardResult {
   status: string;
 }
 
+export interface PartnerDocumentUpdate {
+  /** @minLength 1 */
+  logoUrl?: string;
+  /** @minLength 1 */
+  coverUrl?: string;
+}
+
+export interface DriverDocumentUpdate {
+  /** @minLength 1 */
+  nationalIdFrontUrl?: string;
+  /** @minLength 1 */
+  nationalIdBackUrl?: string;
+  /** @minLength 1 */
+  criminalRecordUrl?: string;
+  /** @minLength 1 */
+  licenseUrl?: string;
+}
+
+export interface ApplicantOnboardingStatus {
+  role: string;
+  /** @nullable */
+  status: string | null;
+  /** @nullable */
+  rejectionReason: string | null;
+}
+
 export interface RestaurantApplication {
   id: number;
   ownerUserId: number;
@@ -82,6 +165,10 @@ export interface RestaurantApplication {
   /** @nullable */
   coverUrl?: string | null;
   status: string;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  latestDocumentUploadedAt?: string | null;
   createdAt?: string;
 }
 
@@ -104,7 +191,90 @@ export interface DriverApplication {
   /** @nullable */
   phone?: string | null;
   status: string;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  latestDocumentUploadedAt?: string | null;
   createdAt?: string;
+}
+
+export interface RestaurantApplicationList {
+  items: RestaurantApplication[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface DriverApplicationList {
+  items: DriverApplication[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ApplicationStatusUpdate {
+  status: string;
+  /** @minLength 1 */
+  reason?: string;
+}
+
+export interface ApplicationDocument {
+  id: number;
+  documentType: string;
+  /** Private object reference; access through authorized storage endpoint only */
+  objectPath: string;
+  uploaderUserId: number;
+  version: number;
+  uploadedAt: string;
+  reviewStatus: string;
+  /** @nullable */
+  reviewedByAdminId?: number | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  reviewReason?: string | null;
+}
+
+export interface ApplicationDecision {
+  id: number;
+  actorAdminId: number;
+  fromStatus: string;
+  toStatus: string;
+  /** @nullable */
+  reason?: string | null;
+  /** @nullable */
+  requestId?: string | null;
+  createdAt: string;
+}
+
+export type ApplicationDetailApplication = { [key: string]: unknown };
+
+export interface ApplicationDetail {
+  application: ApplicationDetailApplication;
+  documents: ApplicationDocument[];
+  decisions: ApplicationDecision[];
+}
+
+export interface Notification {
+  id: number;
+  eventType: string;
+  title: string;
+  body: string;
+  /** @nullable */
+  entityType?: string | null;
+  /** @nullable */
+  entityId?: number | null;
+  createdAt: string;
+  /** @nullable */
+  readAt?: string | null;
+}
+
+export interface NotificationList {
+  items: Notification[];
+  page: number;
+  pageSize: number;
+  total: number;
+  unreadCount: number;
 }
 
 export interface UploadFileResponse {
@@ -191,6 +361,19 @@ export interface AuthSession {
 export interface LocationUpdate {
   lat: number;
   lng: number;
+}
+
+export interface ProfileUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 80
+     */
+  name: string;
+}
+
+export interface ProfileUpdateResult {
+  success: boolean;
+  name: string;
 }
 
 export interface LocationSaveResult {
@@ -516,6 +699,24 @@ export interface DriverLocationUpdate {
      * @maximum 180
      */
   lng: number;
+  accuracy?: number;
+}
+
+export interface DriverDispatchLocationUpdate {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+}
+
+export interface DriverDispatchLocationResult {
+  updatedAt: string;
 }
 
 export type DriverOrderStatusUpdateStatus = typeof DriverOrderStatusUpdateStatus[keyof typeof DriverOrderStatusUpdateStatus];
@@ -604,6 +805,9 @@ export interface DriverActiveOrder {
 
 export interface DriverOrderOffer {
   id: number;
+  offerId: number;
+  expiresAt: string;
+  distanceKm: number;
   code: string;
   restaurantName: string;
   deliveryAddressText: string;
@@ -616,6 +820,10 @@ export interface DriverOrderOffer {
 export interface ErrorResponse {
   error: string;
 }
+
+export type Logout200 = {
+  success?: boolean;
+};
 
 export type SearchAddressParams = {
 /**
@@ -634,5 +842,318 @@ page?: number;
  * @maximum 50
  */
 pageSize?: number;
+};
+
+export type UpdateDriverAvailabilityBody = {
+  available: boolean;
+};
+
+export type UpdateDriverAvailability200 = {
+  isOnline: boolean;
+  isAvailable: boolean;
+  lastHeartbeatAt: string;
+};
+
+export type RejectDriverOrder200 = { [key: string]: unknown };
+
+export type GetDriverAccount200 = { [key: string]: unknown };
+
+export type UpdateDriverAccountBody = {
+  fullName?: string;
+  area?: string;
+  vehicleType?: string;
+};
+
+export type UpdateDriverAccount200 = { [key: string]: unknown };
+
+export type ListDriverDeliveriesParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ListDriverDeliveries200 = { [key: string]: unknown };
+
+export type GetDriverEarnings200 = { [key: string]: unknown };
+
+export type ListDriverDocuments200 = { [key: string]: unknown };
+
+export type ListPartnerOrdersParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+status?: ListPartnerOrdersStatus;
+};
+
+export type ListPartnerOrdersStatus = typeof ListPartnerOrdersStatus[keyof typeof ListPartnerOrdersStatus];
+
+
+export const ListPartnerOrdersStatus = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  preparing: 'preparing',
+  ready: 'ready',
+  picked_up: 'picked_up',
+  delivered: 'delivered',
+  cancelled: 'cancelled',
+} as const;
+
+export type GetPartnerAnalyticsParams = {
+days?: GetPartnerAnalyticsDays;
+};
+
+export type GetPartnerAnalyticsDays = typeof GetPartnerAnalyticsDays[keyof typeof GetPartnerAnalyticsDays];
+
+
+export const GetPartnerAnalyticsDays = {
+  NUMBER_7: 7,
+  NUMBER_30: 30,
+  NUMBER_90: 90,
+} as const;
+
+export type GetPartnerAnalytics200 = { [key: string]: unknown };
+
+export type ListPartnerSettlementsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ListPartnerSettlements200 = { [key: string]: unknown };
+
+export type ListPartnerReviewsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ListPartnerReviews200 = { [key: string]: unknown };
+
+export type SavePartnerReviewResponseBody = {
+  /**
+     * @minLength 2
+     * @maxLength 1000
+     */
+  response: string;
+};
+
+export type SavePartnerReviewResponse200 = { [key: string]: unknown };
+
+export type GetPartnerInventory200 = { [key: string]: unknown };
+
+export type UpdatePartnerInventoryBody = {
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
+  quantity: number;
+  isAvailable: boolean;
+};
+
+export type UpdatePartnerInventory200 = { [key: string]: unknown };
+
+export type ListRestaurantApplicationsParams = {
+q?: string;
+status?: string;
+reuploaded?: boolean;
+sort?: ListRestaurantApplicationsSort;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+};
+
+export type ListRestaurantApplicationsSort = typeof ListRestaurantApplicationsSort[keyof typeof ListRestaurantApplicationsSort];
+
+
+export const ListRestaurantApplicationsSort = {
+  created: 'created',
+  reuploaded: 'reuploaded',
+} as const;
+
+export type ListDriverApplicationsParams = {
+q?: string;
+status?: string;
+reuploaded?: boolean;
+sort?: ListDriverApplicationsSort;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+};
+
+export type ListDriverApplicationsSort = typeof ListDriverApplicationsSort[keyof typeof ListDriverApplicationsSort];
+
+
+export const ListDriverApplicationsSort = {
+  created: 'created',
+  reuploaded: 'reuploaded',
+} as const;
+
+export type ListNotificationsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ReadNotification200 = { [key: string]: unknown };
+
+export type ReadAllNotifications200 = {
+  success: boolean;
+  updatedCount: number;
+};
+
+export type ListAdminCoreOrdersParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+/**
+ * @maxLength 100
+ */
+q?: string;
+status?: string;
+payment?: ListAdminCoreOrdersPayment;
+};
+
+export type ListAdminCoreOrdersPayment = typeof ListAdminCoreOrdersPayment[keyof typeof ListAdminCoreOrdersPayment];
+
+
+export const ListAdminCoreOrdersPayment = {
+  cash: 'cash',
+  card: 'card',
+} as const;
+
+export type GetAdminCoreOrder200 = { [key: string]: unknown };
+
+export type ListEligibleOrderDrivers200Item = { [key: string]: unknown };
+
+export type DispatchAdminOrderBodyAction = typeof DispatchAdminOrderBodyAction[keyof typeof DispatchAdminOrderBodyAction];
+
+
+export const DispatchAdminOrderBodyAction = {
+  assign: 'assign',
+  unassign: 'unassign',
+  reoffer: 'reoffer',
+} as const;
+
+export type DispatchAdminOrderBody = {
+  action: DispatchAdminOrderBodyAction;
+  driverProfileId?: number;
+  /**
+     * @minLength 3
+     * @maxLength 1000
+     */
+  reason: string;
+};
+
+export type DispatchAdminOrder200 = { [key: string]: unknown };
+
+export type ListAdminCoreCustomersParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+/**
+ * @maxLength 100
+ */
+q?: string;
+};
+
+export type GetAdminCoreCustomer200 = { [key: string]: unknown };
+
+export type ListAdminPermissionGroupsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ListAdminAccountsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ListBusinessAuditLogsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+/**
+ * @maxLength 100
+ */
+q?: string;
+};
+
+export type ExportAdminOrdersCsvParams = {
+start: string;
+end: string;
 };
 

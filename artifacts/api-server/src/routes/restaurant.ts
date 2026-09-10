@@ -16,6 +16,7 @@ import {
   orderItemsTable,
   orderStatusEventsTable,
   ordersTable,
+  notificationsTable,
   restaurantsTable,
   usersTable,
 } from "@workspace/db";
@@ -28,6 +29,7 @@ import {
   UpdatePartnerOrderStatusResponse,
 } from "@workspace/api-zod";
 import type { Request, Response } from "express";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
@@ -36,9 +38,7 @@ const router = Router();
 async function getPartner(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const rows = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
-  const user = rows[0];
+  const user = (await lookupAuthorization(auth))?.user;
   if (!user || user.role !== "partner") return null;
   return user;
 }
@@ -108,20 +108,46 @@ router.patch("/partner/restaurant", async (req, res: Response): Promise<void> =>
   const body = req.body as Record<string, unknown>;
   const updates: Partial<typeof restaurantsTable.$inferInsert> = {};
 
-  if (typeof body.name === "string" && body.name.trim()) updates.name = body.name.trim();
-  if (typeof body.description === "string") updates.description = body.description.trim() || null;
-  if (typeof body.phone === "string") updates.phone = body.phone.trim() || null;
-  if (typeof body.email === "string") updates.email = body.email.trim() || null;
-  if (typeof body.address === "string" && body.address.trim()) updates.address = body.address.trim();
-  if (typeof body.lat === "number") updates.lat = body.lat;
-  if (typeof body.lng === "number") updates.lng = body.lng;
-  if (typeof body.category === "string") updates.category = body.category.trim() || null;
+  if (body.name !== undefined) {
+    if (typeof body.name !== "string" || body.name.trim().length < 2 || body.name.trim().length > 120) { res.status(400).json({ error: "اسم المطعم غير صحيح" }); return; }
+    updates.name = body.name.trim();
+  }
+  if (body.description !== undefined) {
+    if (typeof body.description !== "string" || body.description.length > 2000) { res.status(400).json({ error: "وصف المطعم غير صحيح" }); return; }
+    updates.description = body.description.trim() || null;
+  }
+  if (body.phone !== undefined) {
+    if (typeof body.phone !== "string" || body.phone.trim().length > 20) { res.status(400).json({ error: "رقم الهاتف غير صحيح" }); return; }
+    updates.phone = body.phone.trim() || null;
+  }
+  if (body.email !== undefined) {
+    if (typeof body.email !== "string" || (body.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim()))) { res.status(400).json({ error: "البريد الإلكتروني غير صحيح" }); return; }
+    updates.email = body.email.trim() || null;
+  }
+  if (body.address !== undefined) {
+    if (typeof body.address !== "string" || body.address.trim().length < 3 || body.address.trim().length > 500) { res.status(400).json({ error: "العنوان غير صحيح" }); return; }
+    updates.address = body.address.trim();
+  }
+  if (body.lat !== undefined || body.lng !== undefined) {
+    if (typeof body.lat !== "number" || typeof body.lng !== "number" || body.lat < 21 || body.lat > 32.5 || body.lng < 24 || body.lng > 37.5) { res.status(400).json({ error: "الموقع يجب أن يكون داخل مصر" }); return; }
+    updates.lat = body.lat; updates.lng = body.lng;
+  }
+  if (body.category !== undefined) {
+    if (typeof body.category !== "string" || body.category.length > 100) { res.status(400).json({ error: "التصنيف غير صحيح" }); return; }
+    updates.category = body.category.trim() || null;
+  }
   if (body.deliveryType === "restaurant" || body.deliveryType === "platform") {
     updates.deliveryType = body.deliveryType;
   }
   // Logo / cover URL updates after upload
-  if (typeof body.logoUrl === "string") updates.logoUrl = body.logoUrl || null;
-  if (typeof body.coverUrl === "string") updates.coverUrl = body.coverUrl || null;
+  if (body.logoUrl !== undefined) {
+    if (typeof body.logoUrl !== "string" || body.logoUrl.length > 1000) { res.status(400).json({ error: "رابط الشعار غير صحيح" }); return; }
+    updates.logoUrl = body.logoUrl || null;
+  }
+  if (body.coverUrl !== undefined) {
+    if (typeof body.coverUrl !== "string" || body.coverUrl.length > 1000) { res.status(400).json({ error: "رابط الغلاف غير صحيح" }); return; }
+    updates.coverUrl = body.coverUrl || null;
+  }
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "لا توجد حقول للتعديل" }); return;
@@ -138,9 +164,19 @@ router.get("/partner/orders", async (req, res: Response): Promise<void> => {
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
   const restaurant = await getPartnerRestaurant(user.id);
   if (!restaurant) { res.status(403).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const page = Number(req.query.page ?? 1), pageSize = Number(req.query.pageSize ?? 20);
+  const status = typeof req.query.status === "string" ? req.query.status : "";
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50 ||
+      (status && !ordersTable.status.enumValues.includes(status as typeof ordersTable.status.enumValues[number]))) {
+    res.status(400).json({ error: "بيانات التصفية أو الصفحات غير صحيحة" }); return;
+  }
+  const condition = status
+    ? and(eq(ordersTable.restaurantId, restaurant.id), eq(ordersTable.status, status as typeof ordersTable.status.enumValues[number]))
+    : eq(ordersTable.restaurantId, restaurant.id);
   const orders = await db.select().from(ordersTable)
-    .where(eq(ordersTable.restaurantId, restaurant.id))
-    .orderBy(desc(ordersTable.createdAt));
+    .where(condition)
+    .orderBy(desc(ordersTable.createdAt), desc(ordersTable.id))
+    .limit(pageSize).offset((page - 1) * pageSize);
   const response = await Promise.all(orders.map(async (order) => {
     const [customer] = await db.select({ name: usersTable.name, phone: usersTable.phone })
       .from(usersTable).where(eq(usersTable.id, order.customerId)).limit(1);
@@ -259,6 +295,20 @@ router.patch("/partner/orders/:id/status", async (req, res: Response): Promise<v
       .where(and(eq(ordersTable.id, order.id), eq(ordersTable.restaurantId, restaurant.id)))
       .returning();
     await tx.insert(orderStatusEventsTable).values({ orderId: order.id, status: body.data.status });
+    const notificationCopy = {
+      confirmed: { title: "تم تأكيد طلبك", body: `أكد ${order.restaurantName} طلبك وبدأ العمل عليه` },
+      preparing: { title: "طلبك قيد التحضير", body: `${order.restaurantName} يحضّر طلبك الآن` },
+      ready: { title: "طلبك جاهز", body: "طلبك جاهز للاستلام والتوصيل" },
+    }[body.data.status];
+    await tx.insert(notificationsTable).values({
+      userId: order.customerId,
+      eventType: `ORDER_${body.data.status.toUpperCase()}`,
+      title: notificationCopy.title,
+      body: notificationCopy.body,
+      entityType: "order",
+      entityId: order.id,
+      deduplicationKey: `order:${order.id}:${body.data.status}`,
+    }).onConflictDoNothing();
     return { order: updated };
   });
   if ("error" in result && result.error) {
@@ -295,7 +345,11 @@ router.get("/partner/restaurant/hours", async (req, res: Response): Promise<void
     FRI: { open: "10:00", close: "02:00", closed: false },
   };
 
-  const parsed = restaurant.hours ? (JSON.parse(restaurant.hours) as typeof DEFAULT_HOURS) : DEFAULT_HOURS;
+  let parsed = DEFAULT_HOURS;
+  if (restaurant.hours) {
+    try { parsed = JSON.parse(restaurant.hours) as typeof DEFAULT_HOURS; }
+    catch { req.log.error({ restaurantId: restaurant.id }, "Stored restaurant hours are invalid"); }
+  }
   res.json(parsed);
 });
 
@@ -311,11 +365,15 @@ router.patch("/partner/restaurant/hours", async (req, res: Response): Promise<vo
   const cleaned: Record<string, { open: string; close: string; closed: boolean }> = {};
   for (const day of days) {
     const entry = body[day];
-    if (!entry) continue;
+    if (!entry || typeof entry !== "object" || typeof entry.closed !== "boolean" ||
+        typeof entry.open !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(entry.open) ||
+        typeof entry.close !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(entry.close)) {
+      res.status(400).json({ error: `مواعيد ${day} غير صحيحة` }); return;
+    }
     cleaned[day] = {
-      open: typeof entry.open === "string" ? entry.open : "10:00",
-      close: typeof entry.close === "string" ? entry.close : "02:00",
-      closed: Boolean(entry.closed),
+      open: entry.open,
+      close: entry.close,
+      closed: entry.closed,
     };
   }
 

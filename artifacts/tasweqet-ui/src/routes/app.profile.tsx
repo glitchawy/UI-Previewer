@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { AppBar, MobileShell, Icon, Card } from "@/components/tb/shell";
+import { AppBar, MobileShell, Icon, Card, Button, Field } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
-import { getSession, logoutSession, validateWithServer, type AuthUser } from "@/lib/auth-session";
+import { getSession, logoutSession, saveSession, validateWithServer, type AuthUser } from "@/lib/auth-session";
+import { useUpdateProfile } from "@workspace/api-client-react";
 
 export const Route = createFileRoute("/app/profile")({
   head: () => ({
@@ -33,12 +34,47 @@ function formatPhone(phone: string) {
 function AppProfile() {
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(getSession()?.user ?? null);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user?.name ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const updateProfile = useUpdateProfile();
 
   useEffect(() => {
     validateWithServer().then((s) => {
-      if (s) setUser(s.user);
+      if (s) {
+        setUser(s.user);
+        setName(s.user.name ?? "");
+      }
     });
   }, []);
+
+  async function saveProfile() {
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 80) {
+      setError("الاسم يجب أن يتكون من حرفين إلى 80 حرفاً");
+      return;
+    }
+    const session = getSession();
+    if (!session) {
+      navigate({ to: "/auth/login" });
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await updateProfile.mutateAsync({ data: { name: trimmed } });
+      const nextUser = { ...session.user, name: result.name };
+      saveSession({ ...session, user: nextUser });
+      setUser(nextUser);
+      setName(result.name);
+      setEditing(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر حفظ بياناتك");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <MobileShell tabs={customerTabs}>
@@ -48,13 +84,33 @@ function AppProfile() {
           <span className="flex size-16 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
             <Icon name="person" className="text-[28px]" />
           </span>
-          <div>
-            <p className="font-headline-md text-headline-md text-on-surface">{user?.name ?? "عميل طلبات بيتك"}</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate font-headline-md text-headline-md text-on-surface">{user?.name ?? "عميل طلبات بيتك"}</p>
+              {!editing ? (
+                <button type="button" onClick={() => setEditing(true)} className="shrink-0 font-label-md text-label-md text-secondary">
+                  تعديل
+                </button>
+              ) : null}
+            </div>
             <p className="font-label-md text-label-md text-on-surface-variant" dir="ltr">
               {user ? formatPhone(user.phone) : "—"}
             </p>
           </div>
         </Card>
+
+        {editing ? (
+          <Card className="flex flex-col gap-3 p-md">
+            <Field label="الاسم" value={name} onChange={(event) => setName(event.target.value)} />
+            {error ? <p role="alert" className="font-label-md text-label-md text-error">{error}</p> : null}
+            <div className="flex gap-2">
+              <Button type="button" onClick={saveProfile} disabled={saving}>{saving ? "جارٍ الحفظ..." : "حفظ"}</Button>
+              <Button type="button" variant="ghost" onClick={() => { setName(user?.name ?? ""); setError(null); setEditing(false); }} disabled={saving}>
+                إلغاء
+              </Button>
+            </div>
+          </Card>
+        ) : null}
 
         {/* Saved delivery address */}
         <Link to="/app/address">

@@ -2,12 +2,14 @@ import { Router } from "express";
 import { eq, and, not } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { RequestOtpBody, VerifyOtpBody, UpdateLocationBody } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
 import { issueOtp, verifyOtpCode } from "../lib/otp";
 import { generateTelegramLink } from "../lib/authevo";
 import { DEVELOPMENT_FIXTURE_PHONE_BY_ROLE } from "../lib/seed-admin";
+import { bearerToken, issueSession, lookupAuthorization, revokeSession, rotateSession } from "../lib/session";
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -48,11 +50,7 @@ function serializeUser(user: AuthUser) {
 }
 
 async function createSession(user: AuthUser) {
-  const token = crypto.randomUUID();
-  await db
-    .update(usersTable)
-    .set({ sessionToken: token })
-    .where(eq(usersTable.id, user.id));
+  const { token } = await issueSession(user);
   return { token, user: serializeUser(user) };
 }
 
@@ -231,18 +229,12 @@ router.post("/auth/dev-login", async (req, res): Promise<void> => {
 // POST /api/auth/logout  — invalidate the current bearer session
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/logout", async (req, res): Promise<void> => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
+  const token = bearerToken(req.headers.authorization);
+  if (!token) {
     res.status(401).json({ error: "غير مصرح" });
     return;
   }
-  const token = auth.slice(7);
-  const rows = await db
-    .update(usersTable)
-    .set({ sessionToken: null })
-    .where(eq(usersTable.sessionToken, token))
-    .returning({ id: usersTable.id });
-  if (rows.length === 0) {
+  if (!await revokeSession(token)) {
     res.status(401).json({ error: "الجلسة منتهية" });
     return;
   }
@@ -334,27 +326,21 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/auth/profile  — update the logged-in user's name
 // ─────────────────────────────────────────────────────────────────────────────
-router.patch("/auth/profile", async (req, res): Promise<void> => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "غير مصرح" });
-    return;
-  }
-  const token = auth.slice(7);
-  const { name } = req.body as { name?: string };
-  if (!name?.trim()) {
-    res.status(400).json({ error: "الاسم مطلوب" });
+router.patch("/auth/profile", requireAuth, async (req, res): Promise<void> => {
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
+    ? req.body as Record<string, unknown>
+    : {};
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (Object.keys(body).some((key) => key !== "name") || name.length < 2 || name.length > 80) {
+    res.status(400).json({ error: "الاسم يجب أن يتكون من حرفين إلى 80 حرفاً" });
     return;
   }
   const rows = await db
     .update(usersTable)
-    .set({ name: name.trim() })
-    .where(eq(usersTable.sessionToken, token))
+    .set({ name, updatedAt: new Date() })
+    .where(eq(usersTable.id, req.authUser!.id))
     .returning();
-  if (rows.length === 0) {
-    res.status(401).json({ error: "الجلسة منتهية" });
-    return;
-  }
+  req.log.info({ userId: req.authUser!.id }, "User profile updated");
   res.json({ success: true, name: rows[0].name });
 });
 
@@ -362,26 +348,20 @@ router.patch("/auth/profile", async (req, res): Promise<void> => {
 // GET /api/auth/me  — validate Bearer token, return current user
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/auth/me", async (req, res): Promise<void> => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
+  const auth = await lookupAuthorization(req.headers.authorization);
+  if (!auth) {
     res.status(401).json({ error: "غير مصرح" });
     return;
   }
-  const token = auth.slice(7);
+  res.json(serializeUser(auth.user));
+});
 
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.sessionToken, token))
-    .limit(1);
-
-  if (rows.length === 0) {
-    res.status(401).json({ error: "الجلسة منتهية — سجّل دخولك مجدداً" });
-    return;
-  }
-
-  const user = rows[0];
-  res.json(serializeUser(user));
+router.post("/auth/rotate", async (req, res): Promise<void> => {
+  const token = bearerToken(req.headers.authorization);
+  if (!token) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const rotated = await rotateSession(token);
+  if (!rotated) { res.status(401).json({ error: "الجلسة منتهية" }); return; }
+  res.json({ token: rotated.token, user: serializeUser(rotated.user) });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -395,27 +375,15 @@ router.patch("/auth/location", async (req, res): Promise<void> => {
   }
   const { lat, lng } = parsed.data;
 
-  const auth = req.headers.authorization;
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) {
+  const auth = await lookupAuthorization(req.headers.authorization);
+  if (!auth) {
     res.status(401).json({ error: "غير مصرح" });
     return;
   }
 
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.sessionToken, token))
-    .limit(1);
+  await db.update(usersTable).set({ lat, lng }).where(eq(usersTable.id, auth.user.id));
 
-  if (rows.length === 0) {
-    res.status(401).json({ error: "غير مصرح" });
-    return;
-  }
-
-  await db.update(usersTable).set({ lat, lng }).where(eq(usersTable.id, rows[0].id));
-
-  req.log.info({ userId: rows[0].id }, "Location updated");
+  req.log.info({ userId: auth.user.id }, "Location updated");
   res.json({ success: true });
 });
 

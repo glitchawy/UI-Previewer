@@ -1,8 +1,7 @@
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Card, DashboardShell, Field, Icon, StatusBadge, Table, Td } from "@/components/tb/shell";
+import { Button, Card, DashboardShell, Icon, StatusBadge, Table, Td } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
-import { restaurants } from "@/lib/tb/data";
 import { appRouteId, fetchRestaurantApplications, type RestaurantApplication } from "@/lib/tb/applications";
 
 export const Route = createFileRoute("/admin/restaurants")({
@@ -38,11 +37,23 @@ function AdminRestaurants() {
 function AdminRestaurantsList() {
   const [filter, setFilter] = useState<(typeof filters)[number]>("الكل");
   const [applications, setApplications] = useState<RestaurantApplication[]>([]);
+  const [query, setQuery] = useState("");
+  const [reuploaded, setReuploaded] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   useEffect(() => {
-    fetchRestaurantApplications().then(setApplications).catch(() => setApplications([]));
-  }, []);
-  const rows = restaurants.filter((r) => filter === "الكل" || r.status === filter);
-  const appRows = applications.filter((a) => filter === "الكل" || a.status === filter);
+    const timer = setTimeout(() => {
+      setLoading(true); setError("");
+      fetchRestaurantApplications({ q: query, status: filter === "الكل" ? undefined : filter, reuploaded, sort: reuploaded ? "reuploaded" : undefined, page })
+        .then((result) => { setApplications(result.items); setTotal(result.total); })
+        .catch(() => setError("تعذر تحميل طلبات المطاعم. حاول مرة أخرى."))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [filter, page, query, reuploaded]);
+  const appRows = applications;
 
   return (
     <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title="المطاعم">
@@ -53,7 +64,8 @@ function AdminRestaurantsList() {
         </Card>
 
         <Card className="flex flex-col gap-sm p-md">
-          <Field label="بحث" icon="search" placeholder="اسم المطعم أو المنطقة" />
+          <label className="flex flex-col gap-1.5"><span className="font-label-lg text-label-lg text-on-surface-variant">بحث</span><input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="اسم المطعم أو المنطقة" className="rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5" /></label>
+          <label className="flex items-center gap-2 font-label-md text-label-md"><input type="checkbox" checked={reuploaded} onChange={(e) => { setReuploaded(e.target.checked); setPage(1); }} /> مستندات أُعيد رفعها حديثاً</label>
           <div className="flex flex-wrap gap-2">
             {filters.map((f) => (
               <button
@@ -69,7 +81,7 @@ function AdminRestaurantsList() {
           </div>
         </Card>
 
-        <Table head={["المطعم", "المنطقة", "الفروع", "التقييم", "العمولة", "مزود التوصيل", "الحالة"]}>
+        {loading ? <Card className="p-md">جاري تحميل الطلبات...</Card> : error ? <Card className="p-md text-error">{error}</Card> : appRows.length === 0 ? <Card className="p-md">لا توجد طلبات مطابقة.</Card> : <Table head={["المطعم", "المنطقة", "الفروع", "التقييم", "العمولة", "مزود التوصيل", "الحالة"]}>
           {appRows.map((a) => (
             <tr key={`app-${a.id}`} className="bg-secondary-container/20 transition hover:bg-surface-container-low">
               <Td>
@@ -90,25 +102,8 @@ function AdminRestaurantsList() {
               </Td>
             </tr>
           ))}
-          {rows.map((r) => (
-            <tr key={r.id} className="transition hover:bg-surface-container-low">
-              <Td>
-                <Link to="/admin/restaurants/$id" params={{ id: r.id }} className="flex items-center gap-2 font-label-lg text-label-lg text-secondary">
-                  <img src={r.logo} alt="" className="size-8 rounded-full object-cover" />
-                  {r.name}
-                </Link>
-              </Td>
-              <Td className="text-on-surface-variant">{r.address}</Td>
-              <Td>{r.branches}</Td>
-              <Td>⭐ {r.rating}</Td>
-              <Td>{r.commission}%</Td>
-              <Td>{r.deliveryProvider === "TALABAT_BETAK" ? "طلبات بيتك" : "المطعم"}</Td>
-              <Td>
-                <StatusBadge status={r.status} label={filterLabels[r.status]} />
-              </Td>
-            </tr>
-          ))}
-        </Table>
+        </Table>}
+        <div className="flex items-center justify-between"><Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>السابق</Button><span>صفحة {page} · {total} طلب</span><Button variant="outline" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}>التالي</Button></div>
       </div>
     </DashboardShell>
   );

@@ -1,149 +1,45 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import {
-  DashboardShell,
-  Card,
-  SectionTitle,
-  Stat,
-  Bars,
-  Table,
-  Td,
-  Badge,
-  StatusBadge,
-  Icon,
-} from "@/components/tb/shell";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { DashboardShell, Card, SectionTitle, Stat, Table, Td, Button } from "@/components/tb/shell";
 import { partnerNav } from "@/lib/tb/nav";
-import { EGP, restaurantStats, orders } from "@/lib/tb/data";
-import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
+import { usePartnerResource } from "@/lib/partner-api";
 
-export const Route = createFileRoute("/partner/")({
-  beforeLoad: () => {
-    const session = getSession();
-    if (!session) throw redirect({ to: "/auth/login" });
-    if (session.user.role !== "partner") throw redirect({ to: getRoleDashboard(session.user.role) });
-  },
-  head: () => ({
-    meta: [
-      { title: "لوحة الأداء — طلبات بيتك" },
-      { name: "description", content: "نظرة عامة على أداء مطعمك، الإيرادات، الطلبات والفروع." },
-    ],
-  }),
-  component: PartnerIndex,
-});
+export const Route = createFileRoute("/partner/")({ component: PartnerIndex });
+type Analytics = {
+  summary: { orders: number; revenue: number; cancelled: number; averageOrderValue: number };
+  customers: { unique: number; repeat: number };
+  series: { date: string; orders: number; revenue: number }[];
+  bestProducts: { name: string; orders: number; revenue: number }[];
+  branches: { branchId: number; name: string; orders: number; revenue: number }[];
+};
+const egp = (value: number) => `${value.toLocaleString("ar-EG", { maximumFractionDigits: 2 })} ج.م`;
 
 function PartnerIndex() {
-  const navigate = useNavigate();
-  const session = getSession();
-  // Approval gating happens in the /partner layout route (partner.tsx).
-  const liveOrders = orders.filter((o) => !["DELIVERED", "CANCELLED"].includes(o.status));
-
-  async function handleLogout() {
-    await logoutSession();
-    navigate({ to: "/auth/login" });
-  }
-
-  return (
-    <DashboardShell
-      brand="طلبات بيتك"
-      role={`مطعم — +20${session?.user.phone ?? ""}`}
-      nav={partnerNav}
-      title="لوحة الأداء"
-    >
-      <div className="tb-stagger flex flex-col gap-lg">
-
-        {/* Top bar with logout */}
-        <div className="flex items-center justify-between">
-          <Badge tone="info" className="w-fit">
-            <Icon name="info" className="text-[16px]" />
-            هذه اللوحة تعرض طلبات طلبات بيتك فقط
-          </Badge>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-button border border-outline-variant px-3 py-1.5 font-label-md text-label-md text-on-surface-variant transition hover:border-error hover:text-error"
-          >
-            <Icon name="logout" className="text-[16px]" />
-            خروج
-          </button>
+  const query = usePartnerResource<Analytics>("/api/partner/operations/analytics?days=7");
+  return <DashboardShell brand="طلبات بيتك" role="صاحب المطعم" nav={partnerNav} title="لوحة الأداء">
+    {query.loading ? <Card className="p-md">جارٍ تحميل بيانات المطعم...</Card> :
+      query.error ? <Card className="flex flex-col gap-3 p-md text-error">{query.error}<Button variant="outline" onClick={query.reload}>إعادة المحاولة</Button></Card> :
+      query.data ? <div className="tb-stagger flex flex-col gap-lg">
+        <div className="grid grid-cols-2 gap-sm lg:grid-cols-4">
+          <Stat label="إيرادات الطلبات المسلّمة" value={egp(query.data.summary.revenue)} icon="payments" tone="success" />
+          <Stat label="الطلبات" value={String(query.data.summary.orders)} icon="receipt_long" tone="info" />
+          <Stat label="متوسط قيمة الطلب" value={egp(query.data.summary.averageOrderValue)} icon="shopping_basket" />
+          <Stat label="الطلبات الملغاة" value={String(query.data.summary.cancelled)} icon="cancel" tone="danger" />
         </div>
-
-        <div className="grid grid-cols-2 gap-sm md:grid-cols-3 xl:grid-cols-6">
-          <Stat label="الإيرادات" value={EGP(restaurantStats.revenue)} delta="+12%" icon="payments" tone="warn" />
-          <Stat label="الطلبات" value={String(restaurantStats.orders)} delta="+8%" icon="receipt_long" tone="info" />
-          <Stat label="متوسط قيمة الطلب" value={EGP(restaurantStats.aov)} icon="shopping_basket" tone="neutral" />
-          <Stat label="الطلبات الملغية" value={String(restaurantStats.cancelled)} icon="cancel" tone="danger" />
-          <Stat label="عمولة المنصة" value={EGP(restaurantStats.commission)} icon="percent" tone="warn" />
-          <Stat label="الصافي المستحق" value={EGP(restaurantStats.net)} icon="account_balance_wallet" tone="success" />
-        </div>
-
-        <Card className="p-md">
-          <SectionTitle title="الطلبات خلال الأسبوع" icon="bar_chart" />
-          <Bars values={restaurantStats.series} labels={restaurantStats.days} />
-        </Card>
-
         <div className="grid grid-cols-1 gap-md lg:grid-cols-2">
-          <div>
-            <SectionTitle title="أفضل المنتجات" icon="trending_up" />
-            <Table head={["المنتج", "الطلبات", "الإيرادات"]}>
-              {restaurantStats.best.map((p) => (
-                <tr key={p.name} className="transition hover:bg-surface-container-low">
-                  <Td>{p.name}</Td><Td>{p.orders}</Td><Td>{EGP(p.revenue)}</Td>
-                </tr>
-              ))}
-            </Table>
-          </div>
-          <div>
-            <SectionTitle title="أقل المنتجات" icon="trending_down" />
-            <Table head={["المنتج", "الطلبات", "الإيرادات"]}>
-              {restaurantStats.worst.map((p) => (
-                <tr key={p.name} className="transition hover:bg-surface-container-low">
-                  <Td>{p.name}</Td><Td>{p.orders}</Td><Td>{EGP(p.revenue)}</Td>
-                </tr>
-              ))}
-            </Table>
-          </div>
-        </div>
-
-        <div>
-          <SectionTitle title="أداء الفروع" icon="store" />
-          <Table head={["الفرع", "الطلبات", "الإيرادات", "التقييم"]}>
-            {restaurantStats.branchPerf.map((b) => (
-              <tr key={b.name} className="transition hover:bg-surface-container-low">
-                <Td>{b.name}</Td><Td>{b.orders}</Td><Td>{EGP(b.revenue)}</Td>
-                <Td><span className="flex items-center gap-1"><Icon name="star" className="text-[16px] text-primary" filled />{b.rating}</span></Td>
-              </tr>
-            ))}
-          </Table>
-        </div>
-
-        <div className="grid grid-cols-1 gap-md md:grid-cols-2">
           <Card className="p-md">
-            <SectionTitle title="نمو العملاء" icon="group_add" />
-            <p className="font-headline-md text-headline-md text-on-surface">{restaurantStats.newCustomers}</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">عميل جديد هذا الأسبوع</p>
+            <SectionTitle title="أفضل المنتجات خلال 7 أيام" icon="trending_up" />
+            {query.data.bestProducts.length ? <Table head={["المنتج", "الكمية", "الإيراد"]}>{query.data.bestProducts.map(item =>
+              <tr key={item.name}><Td>{item.name}</Td><Td>{item.orders}</Td><Td>{egp(item.revenue)}</Td></tr>)}</Table> :
+              <p className="text-on-surface-variant">لا توجد مبيعات مسلّمة في هذه الفترة.</p>}
           </Card>
           <Card className="p-md">
-            <SectionTitle title="العملاء المتكررين" icon="repeat" />
-            <p className="font-headline-md text-headline-md text-on-surface">{restaurantStats.repeatRate}%</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">من إجمالي العملاء</p>
+            <SectionTitle title="أداء الفروع" icon="store" />
+            {query.data.branches.length ? <Table head={["الفرع", "الطلبات", "الإيراد"]}>{query.data.branches.map(branch =>
+              <tr key={branch.branchId}><Td>{branch.name}</Td><Td>{branch.orders}</Td><Td>{egp(branch.revenue)}</Td></tr>)}</Table> :
+              <p className="text-on-surface-variant">لم تتم إضافة فروع بعد.</p>}
           </Card>
         </div>
-
-        <div>
-          <SectionTitle title="طلبات جارية" icon="local_fire_department" />
-          <div className="flex flex-col gap-sm">
-            {liveOrders.map((o) => (
-              <Link key={o.id} to="/partner/orders/$id" params={{ id: o.id }}>
-                <Card className="flex items-center justify-between p-md transition hover:shadow-md">
-                  <div>
-                    <p className="font-label-lg text-label-lg text-on-surface">{o.code}</p>
-                    <p className="font-label-md text-label-md text-on-surface-variant">{o.placedAt} · {EGP(o.total)}</p>
-                  </div>
-                  <StatusBadge status={o.status} />
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-    </DashboardShell>
-  );
+        <div className="flex flex-wrap gap-2"><Link to="/partner/orders"><Button>عرض الطلبات</Button></Link><Link to="/partner/analytics"><Button variant="outline">التحليلات التفصيلية</Button></Link></div>
+      </div> : null}
+  </DashboardShell>;
 }

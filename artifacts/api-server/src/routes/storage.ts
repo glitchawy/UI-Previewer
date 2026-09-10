@@ -1,9 +1,10 @@
 import { Readable } from 'stream';
 import express, { Router, type IRouter, type NextFunction, type Request, type Response } from 'express';
-import { eq, or } from 'drizzle-orm';
-import { db, usersTable, restaurantsTable, driverProfilesTable } from '@workspace/db';
+import { and, eq, or } from 'drizzle-orm';
+import { adminAccountsTable, adminPermissionGroupsTable, applicationDocumentsTable, db, usersTable, restaurantsTable, driverProfilesTable } from '@workspace/db';
 
 import { ObjectNotFoundError, ObjectStorageService } from '../lib/objectStorage';
+import { lookupSession } from '../lib/session';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -20,12 +21,7 @@ function extractToken(req: Request): string | null {
 async function getUserFromToken(req: Request) {
   const token = extractToken(req);
   if (!token) return null;
-  const rows = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.sessionToken, token))
-    .limit(1);
-  return rows[0] ?? null;
+  return (await lookupSession(token))?.user ?? null;
 }
 
 /**
@@ -33,35 +29,74 @@ async function getUserFromToken(req: Request) {
  * Admins can access everything.
  * Any other role may only access objects stored in their own application row.
  */
-async function canUserAccessObject(
+export async function canUserAccessObject(
   user: typeof usersTable.$inferSelect,
   objectPath: string,
 ): Promise<boolean> {
-  if (user.role === 'admin') return true;
+  if (user.role === 'admin') {
+    const [account] = await db.select({
+      isActive: adminAccountsTable.isActive,
+      isSuperAdmin: adminAccountsTable.isSuperAdmin,
+      permissions: adminPermissionGroupsTable.permissions,
+    })
+      .from(adminAccountsTable)
+      .leftJoin(adminPermissionGroupsTable, eq(adminPermissionGroupsTable.id, adminAccountsTable.permissionGroupId))
+      .where(eq(adminAccountsTable.userId, user.id))
+      .limit(1);
+    return account?.isActive === true &&
+      (account.isSuperAdmin || (account.permissions ?? []).includes("applications.read"));
+  }
 
   // Check restaurant ownership (logoUrl / coverUrl)
   const rRows = await db
     .select({ ownerUserId: restaurantsTable.ownerUserId })
     .from(restaurantsTable)
-    .where(or(
-      eq(restaurantsTable.logoUrl, objectPath),
-      eq(restaurantsTable.coverUrl, objectPath),
+    .where(and(
+      eq(restaurantsTable.ownerUserId, user.id),
+      or(eq(restaurantsTable.logoUrl, objectPath), eq(restaurantsTable.coverUrl, objectPath)),
     ))
     .limit(1);
-  if (rRows.length > 0 && rRows[0].ownerUserId === user.id) return true;
+  if (rRows.length > 0) return true;
 
   // Check driver profile ownership (four document URL columns)
   const dRows = await db
     .select({ userId: driverProfilesTable.userId })
     .from(driverProfilesTable)
-    .where(or(
-      eq(driverProfilesTable.nationalIdFrontUrl, objectPath),
-      eq(driverProfilesTable.nationalIdBackUrl, objectPath),
-      eq(driverProfilesTable.criminalRecordUrl, objectPath),
-      eq(driverProfilesTable.licenseUrl, objectPath),
+    .where(and(
+      eq(driverProfilesTable.userId, user.id),
+      or(
+        eq(driverProfilesTable.nationalIdFrontUrl, objectPath),
+        eq(driverProfilesTable.nationalIdBackUrl, objectPath),
+        eq(driverProfilesTable.criminalRecordUrl, objectPath),
+        eq(driverProfilesTable.licenseUrl, objectPath),
+      ),
     ))
     .limit(1);
-  if (dRows.length > 0 && dRows[0].userId === user.id) return true;
+  if (dRows.length > 0) return true;
+
+  // Historical versions remain private but accessible to the owning applicant.
+  const restaurantHistory = await db
+    .select({ id: applicationDocumentsTable.id })
+    .from(applicationDocumentsTable)
+    .innerJoin(restaurantsTable, eq(restaurantsTable.id, applicationDocumentsTable.applicationId))
+    .where(and(
+      eq(applicationDocumentsTable.applicationType, 'restaurant'),
+      eq(applicationDocumentsTable.objectPath, objectPath),
+      eq(restaurantsTable.ownerUserId, user.id),
+    ))
+    .limit(1);
+  if (restaurantHistory.length > 0) return true;
+  const driverHistory = await db
+    .select({ id: applicationDocumentsTable.id })
+    .from(applicationDocumentsTable)
+    .innerJoin(driverProfilesTable, eq(driverProfilesTable.id, applicationDocumentsTable.applicationId))
+    .where(and(
+      eq(applicationDocumentsTable.applicationType, 'driver'),
+      eq(applicationDocumentsTable.objectPath, objectPath),
+      eq(driverProfilesTable.userId, user.id),
+    ))
+    .limit(1);
+  if (driverHistory.length > 0) return true;
 
   return false;
 }

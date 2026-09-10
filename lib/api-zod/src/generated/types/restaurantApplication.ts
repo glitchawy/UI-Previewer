@@ -30,5 +30,9 @@ export interface RestaurantApplication {
   /** @nullable */
   coverUrl?: string | null;
   status: string;
+  /** @nullable */
+  rejectionReason?: string | null;
+  /** @nullable */
+  latestDocumentUploadedAt?: string | null;
   createdAt?: string;
 }

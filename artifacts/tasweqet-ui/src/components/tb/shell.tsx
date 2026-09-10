@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import type { ChangeEventHandler, ReactNode } from "react";
 import { useCart } from "@/lib/tb/cart";
 import { getSession, logoutSession } from "@/lib/auth-session";
 
@@ -154,6 +154,7 @@ export function Field({
   type = "text",
   hint,
   value,
+  onChange,
 }: {
   label: string;
   placeholder?: string;
@@ -161,6 +162,7 @@ export function Field({
   type?: string;
   hint?: string;
   value?: string;
+  onChange?: ChangeEventHandler<HTMLInputElement>;
 }) {
   return (
     <label className="flex flex-col gap-1.5">
@@ -169,7 +171,7 @@ export function Field({
         {icon ? <Icon name={icon} className="text-[20px] text-outline" /> : null}
         <input
           type={type}
-          defaultValue={value}
+          {...(onChange ? { value, onChange } : { defaultValue: value })}
           placeholder={placeholder}
           className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
         />

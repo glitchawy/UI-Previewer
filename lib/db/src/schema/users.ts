@@ -12,7 +12,6 @@ export const usersTable = pgTable("users", {
   addressText: text("address_text"),
   addressPlaceId: text("address_place_id"),
   addressDetails: text("address_details"),
-  sessionToken: text("session_token"),
   isDevelopmentFixture: boolean("is_development_fixture").notNull().default(false),
   walletBalance: numeric("wallet_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

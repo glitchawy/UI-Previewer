@@ -5,7 +5,7 @@ import { adminNav } from "@/lib/tb/nav";
 import { EGP, drivers, driverWallet } from "@/lib/tb/data";
 import { useEffect } from "react";
 import { getToken } from "@/lib/auth-session";
-import { fetchDriverApplications, parseAppRouteId, updateDriverStatus, type DriverApplication } from "@/lib/tb/applications";
+import { fetchDriverApplication, parseAppRouteId, updateDriverStatus, type ApplicationDecision, type ApplicationDocument, type DriverApplication } from "@/lib/tb/applications";
 
 function storageUrl(objectPath: string): string {
   const token = getToken();
@@ -48,6 +48,13 @@ const appStatusLabels: Record<string, string> = {
   REJECTED: "مرفوض",
   SUSPENDED: "موقوف",
 };
+const driverTransitions: Record<string, string[]> = {
+  PENDING: ["UNDER_REVIEW", "REJECTED"],
+  UNDER_REVIEW: ["APPROVED", "REJECTED"],
+  APPROVED: ["SUSPENDED"],
+  SUSPENDED: ["APPROVED"],
+  REJECTED: ["UNDER_REVIEW"],
+};
 
 const docLabels: Record<string, string> = {
   national_id_front: "صورة الرقم القومي (وجه)",
@@ -60,9 +67,12 @@ function StoredDriverDetail({ appId }: { appId: number }) {
   const [app, setApp] = useState<DriverApplication | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [documentHistory, setDocumentHistory] = useState<ApplicationDocument[]>([]);
+  const [decisions, setDecisions] = useState<ApplicationDecision[]>([]);
   useEffect(() => {
-    fetchDriverApplications()
-      .then((apps) => setApp(apps.find((a) => a.id === appId) ?? null))
+    fetchDriverApplication(appId)
+      .then((detail) => { setApp(detail.application); setDocumentHistory(detail.documents); setDecisions(detail.decisions); })
       .catch(() => setApp(null));
   }, [appId]);
 
@@ -71,8 +81,9 @@ function StoredDriverDetail({ appId }: { appId: number }) {
     setBusy(true);
     setActionError(null);
     try {
-      await updateDriverStatus(app.id, status);
-      setApp({ ...app, status });
+      await updateDriverStatus(app.id, status, status === "REJECTED" ? reason : undefined);
+      const detail = await fetchDriverApplication(app.id);
+      setApp(detail.application); setDocumentHistory(detail.documents); setDecisions(detail.decisions);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "حدث خطأ — حاول مرة أخرى");
     } finally {
@@ -107,6 +118,19 @@ function StoredDriverDetail({ appId }: { appId: number }) {
                 </p>
               </div>
               <StatusBadge status={app.status} label={appStatusLabels[app.status] ?? app.status} />
+            </Card>
+            <Card className="p-md">
+              <SectionTitle title="سجل نسخ المستندات" icon="history" />
+              {documentHistory.length === 0 ? <p>لا توجد مستندات.</p> : documentHistory.map((doc) => (
+                <div key={doc.id} className="mb-2 flex items-center justify-between rounded-card bg-surface-container p-3">
+                  <span>{docLabels[doc.documentType] ?? doc.documentType} · النسخة {doc.version} · {new Date(doc.uploadedAt).toLocaleString("ar-EG")}</span>
+                  <a href={storageUrl(doc.objectPath)} target="_blank" rel="noreferrer" className="text-primary">فتح عبر التخزين الآمن</a>
+                </div>
+              ))}
+            </Card>
+            <Card className="p-md">
+              <SectionTitle title="سجل القرارات" icon="fact_check" />
+              {decisions.length === 0 ? <p>لا توجد قرارات بعد.</p> : decisions.map((decision) => <p key={decision.id} className="mb-2">{decision.fromStatus} ← {decision.toStatus} · مشرف #{decision.actorAdminId} · {decision.reason ?? "بدون سبب"} · {new Date(decision.createdAt).toLocaleString("ar-EG")}</p>)}
             </Card>
             <Card className="p-md">
               <SectionTitle title="المستندات المرفوعة" icon="description" />
@@ -176,23 +200,15 @@ function StoredDriverDetail({ appId }: { appId: number }) {
                 <p className="mb-sm font-body-md text-body-md text-on-surface-variant">راجع بيانات ومستندات المندوب ثم اعتمد أو ارفض التوثيق.</p>
               )}
               <div className="flex flex-wrap gap-sm">
-                {app.status !== "APPROVED" ? (
-                  <Button icon="check_circle" variant="primary" disabled={busy} onClick={() => setStatus("APPROVED")}>
-                    موافقة على التوثيق
+                <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="سبب الرفض (مطلوب عند الرفض)" className="min-w-[260px] rounded-button border border-outline-variant px-3 py-2" />
+                {driverTransitions[app.status]?.filter((status) => status !== "REJECTED").map((status) => (
+                  <Button key={status} icon={status === "SUSPENDED" ? "pause_circle" : "check_circle"} variant={status === "SUSPENDED" ? "danger" : "primary"} disabled={busy} onClick={() => setStatus(status)}>
+                    {status === "UNDER_REVIEW" ? "بدء المراجعة" : status === "SUSPENDED" ? "إيقاف المندوب" : "موافقة على التوثيق"}
                   </Button>
-                ) : (
-                  <Button icon="pause_circle" variant="danger" disabled={busy} onClick={() => setStatus("SUSPENDED")}>
-                    إيقاف المندوب
-                  </Button>
-                )}
-                {app.status !== "REJECTED" && app.status !== "APPROVED" ? (
+                ))}
+                {driverTransitions[app.status]?.includes("REJECTED") ? (
                   <Button icon="cancel" variant="danger" disabled={busy} onClick={() => setStatus("REJECTED")}>
                     رفض الطلب
-                  </Button>
-                ) : null}
-                {app.status === "REJECTED" || app.status === "SUSPENDED" ? (
-                  <Button icon="undo" variant="outline" disabled={busy} onClick={() => setStatus("PENDING")}>
-                    إعادة للمراجعة
                   </Button>
                 ) : null}
               </div>
@@ -209,7 +225,7 @@ function AdminDriverDetail() {
   const { id } = Route.useParams();
   const appId = parseAppRouteId(id);
   if (appId !== null) return <StoredDriverDetail appId={appId} />;
-  return <MockDriverDetail id={id} />;
+  return <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title="طلب غير موجود"><Card className="p-md text-error">معرّف الطلب غير صحيح.</Card></DashboardShell>;
 }
 
 function MockDriverDetail({ id }: { id: string }) {

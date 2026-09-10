@@ -1,92 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppBar, Card, EmptyState, Icon, MobileShell, StatusBadge } from "@/components/tb/shell";
-import { EGP, orders } from "@/lib/tb/data";
+import { AppBar, Button, Card, EmptyState, Icon, MobileShell, StatusBadge } from "@/components/tb/shell";
+import { EGP } from "@/lib/tb/data";
 import { driverTabs } from "@/lib/tb/nav";
+import { type DriverDelivery } from "@/lib/driver-api";
+import { useDriverData } from "@/lib/use-driver-data";
 
 export const Route = createFileRoute("/driver/history")({
-  head: () => ({
-    meta: [
-      { title: "سجل التوصيلات | طلبات بيتك" },
-      { name: "description", content: "راجع كل توصيلاتك السابقة وأرباحك عنها." },
-      { property: "og:title", content: "سجل التوصيلات | طلبات بيتك" },
-      { property: "og:description", content: "راجع كل توصيلاتك السابقة وأرباحك عنها." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "سجل التوصيلات | طلبات بيتك" }, { name: "description", content: "سجل التوصيلات الحقيقي للكابتن." }] }),
   component: DriverHistory,
 });
 
-const filters = ["اليوم", "الأسبوع", "الشهر"];
-
-const deliveries = orders.flatMap((o) =>
-  o["subOrders"]
-    .filter((s) => s["driver"])
-    .map((s) => ({
-      code: o["code"],
-      date: o["placedAt"],
-      restaurant: s["restaurantName"],
-      area: o["address"],
-      distance: (Math.random() * 5 + 1).toFixed(1),
-      earnings: Math.round(s["deliveryFee"] * 0.7),
-      status: s["status"],
-    })),
-);
-
 function DriverHistory() {
-  const [active, setActive] = useState("اليوم");
-  const totalEarnings = deliveries.reduce((s, d) => s + d.earnings, 0);
-
-  return (
-    <MobileShell tabs={driverTabs}>
-      <AppBar title="سجل التوصيلات" />
-      <div className="tb-fade-up flex flex-col gap-md p-md">
-        <div className="flex gap-2">
-          {filters.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActive(f)}
-              className={`rounded-full px-3 py-1.5 font-label-md text-label-md transition ${
-                active === f ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        <Card className="flex items-center justify-between p-md">
-          <span className="font-label-lg text-label-lg text-on-surface">إجمالي {deliveries.length} توصيلة</span>
-          <span className="font-headline-md text-headline-md text-success">{EGP(totalEarnings)}</span>
-        </Card>
-
-        {deliveries.length ? (
-          <div className="tb-stagger flex flex-col gap-2">
-            {deliveries.map((d, i) => (
-              <Card key={`${d.code}-${i}`} className="flex items-center justify-between p-md">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-9 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
-                    <Icon name="two_wheeler" className="text-[18px]" />
-                  </span>
-                  <div>
-                    <p className="font-label-lg text-label-lg text-on-surface">{d.restaurant}</p>
-                    <p className="font-label-md text-label-md text-on-surface-variant">
-                      {d.code} · {d.date} · {d.distance} كم
-                    </p>
-                  </div>
-                </div>
-                <div className="text-left">
-                  <p className="font-label-lg text-label-lg text-success">{EGP(d.earnings)}</p>
-                  <StatusBadge status={d.status} />
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <EmptyState icon="history" title="مفيش توصيلات" body="لسه معملتش أي توصيلة في الفترة دي" />
-        )}
-      </div>
-    </MobileShell>
-  );
+  const query = useDriverData<{ items: DriverDelivery[]; page: number; pageSize: number }>("/deliveries?page=1&pageSize=50");
+  const rows = query.data?.items ?? [];
+  return <MobileShell tabs={driverTabs}>
+    <AppBar title="سجل التوصيلات" />
+    <div className="tb-fade-up flex flex-col gap-md p-md">
+      {query.loading ? <Card className="p-xl text-center"><Icon name="progress_activity" className="animate-spin text-[32px] text-primary" /><p>جاري تحميل التوصيلات…</p></Card> :
+       query.error ? <Card className="p-lg text-center text-error"><p>{query.error}</p><Button className="mt-sm" onClick={query.retry}>إعادة المحاولة</Button></Card> :
+       !rows.length ? <EmptyState icon="history" title="مفيش توصيلات" body="هتظهر هنا التوصيلات المسندة ليك" /> :
+       <>
+         <Card className="flex items-center justify-between p-md"><span>إجمالي {rows.length} توصيلة</span><b className="text-success">{EGP(rows.reduce((sum, row) => sum + row.earnings, 0))}</b></Card>
+         <div className="flex flex-col gap-2">{rows.map(row => <Card key={row.id} className="flex items-center justify-between gap-2 p-md">
+           <div className="min-w-0"><p className="font-label-lg">{row.restaurantName}</p><p className="truncate text-label-md text-on-surface-variant">{row.code} · {new Date(row.deliveredAt ?? row.createdAt).toLocaleString("ar-EG")}</p><p className="truncate text-label-md text-on-surface-variant">{row.deliveryAddressText}</p></div>
+           <div className="shrink-0 text-left"><p className="font-label-lg text-success">{EGP(row.earnings)}</p><StatusBadge status={row.status.toUpperCase()} label={row.status === "delivered" ? "تم التوصيل" : row.status} /></div>
+         </Card>)}</div>
+       </>}
+    </div>
+  </MobileShell>;
 }

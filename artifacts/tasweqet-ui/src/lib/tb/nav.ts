@@ -28,14 +28,6 @@ export const partnerNav = [
     items: [
       { to: "/partner/menu", label: "المنتجات", icon: "restaurant_menu" },
       { to: "/partner/inventory", label: "مخزون الفروع", icon: "inventory_2" },
-      { to: "/partner/offers", label: "العروض", icon: "local_offer" },
-    ],
-  },
-  {
-    label: "الفريق",
-    items: [
-      { to: "/partner/staff", label: "الموظفين", icon: "badge" },
-      { to: "/partner/drivers", label: "مندوبين المطعم", icon: "delivery_dining" },
     ],
   },
   {
@@ -49,16 +41,7 @@ export const partnerNav = [
   },
 ];
 
-export const branchNav = [
-  {
-    label: "الفرع",
-    items: [
-      { to: "/branch", label: "شاشة المطبخ", icon: "soup_kitchen" },
-      { to: "/branch/inventory", label: "المخزون", icon: "inventory" },
-      { to: "/branch/drivers", label: "التوصيل", icon: "delivery_dining" },
-    ],
-  },
-];
+export const branchNav: { label: string; items: { to: string; label: string; icon: string }[] }[] = [];
 
 export const adminNav = [
   {

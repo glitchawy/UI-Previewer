@@ -17,7 +17,7 @@
  */
 
 import { Router } from "express";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, inArray } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -26,6 +26,7 @@ import {
   branchStaffTable,
 } from "@workspace/db";
 import type { Request, Response } from "express";
+import { lookupAuthorization } from "../lib/session";
 
 const router = Router();
 
@@ -34,9 +35,7 @@ const router = Router();
 async function getPartner(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const rows = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
-  const user = rows[0];
+  const user = (await lookupAuthorization(auth))?.user;
   if (!user || user.role !== "partner") return null;
   return user;
 }
@@ -49,9 +48,7 @@ async function getPartnerRestaurant(userId: number) {
 async function getSessionUser(req: Request) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const rows = await db.select().from(usersTable).where(eq(usersTable.sessionToken, token)).limit(1);
-  return rows[0] ?? null;
+  return (await lookupAuthorization(auth))?.user ?? null;
 }
 
 /** Verify a branch belongs to the given restaurant id */
@@ -70,14 +67,20 @@ router.get("/partner/branches", async (req, res: Response): Promise<void> => {
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
   const restaurant = await getPartnerRestaurant(user.id);
   if (!restaurant) { res.status(404).json({ error: "لم يتم العثور على مطعمك" }); return; }
+  const page = Number(req.query.page ?? 1), pageSize = Number(req.query.pageSize ?? 50);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+    res.status(400).json({ error: "بيانات الصفحات غير صحيحة" }); return;
+  }
 
   const branches = await db.select().from(branchesTable)
     .where(eq(branchesTable.restaurantId, restaurant.id))
-    .orderBy(desc(branchesTable.createdAt));
+    .orderBy(desc(branchesTable.createdAt))
+    .limit(pageSize).offset((page - 1) * pageSize);
 
   // Attach staff count per branch
-  const staffRows = await db.select().from(branchStaffTable)
-    .where(isNull(branchStaffTable.leftAt));
+  const branchIds = branches.map(branch => branch.id);
+  const staffRows = branchIds.length ? await db.select().from(branchStaffTable)
+    .where(and(isNull(branchStaffTable.leftAt), inArray(branchStaffTable.branchId, branchIds))) : [];
 
   res.json(branches.map((b) => ({
     ...b,
@@ -216,6 +219,13 @@ router.delete("/partner/branches/:id", async (req, res: Response): Promise<void>
 
 // ─── Partner: staff management ────────────────────────────────────────────────
 
+// The users model has no branch_staff/branch_manager login role. Keep these
+// legacy endpoints explicitly unavailable rather than assigning customer or
+// partner identities to a branch without enforceable branch-scoped RBAC.
+router.use("/partner/branches/:id/staff", (_req, res: Response): void => {
+  res.status(501).json({ error: "إدارة حسابات موظفي الفروع غير متاحة حتى يتوفر دور فرعي آمن" });
+});
+
 /** List active staff for a branch */
 router.get("/partner/branches/:id/staff", async (req, res: Response): Promise<void> => {
   const user = await getPartner(req);
@@ -310,6 +320,10 @@ router.delete("/partner/branches/:id/staff/:staffId", async (req, res: Response)
 });
 
 // ─── Branch staff: self-identification ───────────────────────────────────────
+
+router.use("/branch", (_req, res: Response): void => {
+  res.status(501).json({ error: "دخول موظفي الفروع غير مدعوم في نموذج الصلاحيات الحالي" });
+});
 
 /** Returns the branch the authenticated user is currently assigned to */
 router.get("/branch/me", async (req, res: Response): Promise<void> => {
