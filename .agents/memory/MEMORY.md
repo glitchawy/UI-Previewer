@@ -5,3 +5,4 @@
 - [Paymob checkout settlement](paymob-checkout-settlement.md) — settle grouped restaurant orders only from reconciled, terminal, HMAC-verified Paymob callbacks.
 - [Driver location lifecycle](driver-location-lifecycle.md) — collect GPS only for assigned active work; expose precise coordinates to the owning customer only after pickup.
 - [Cash delivery accounting](cash-delivery-accounting.md) — allocate collected cash on delivery, but keep restaurant payout pending until it is actually approved and paid.
+- [Egyptian phone canonicalization](egyptian-phone-canonicalization.md) — accept local and international auth input, but store, query, and rate-limit by canonical Egyptian local form.

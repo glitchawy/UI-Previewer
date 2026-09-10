@@ -12,7 +12,7 @@ import { DEVELOPMENT_FIXTURE_PHONE_BY_ROLE } from "../lib/seed-admin";
 import { bearerToken, issueSession, lookupAuthorization, revokeSession, rotateSession } from "../lib/session";
 import { runtimeCapabilities } from "../lib/deployment-profile";
 import { authCapabilitiesRateLimit } from "../middleware/rate-limit";
-const EG_PHONE_RE = /^01[0125]\d{8}$/;
+import { normalizeEgyptianMobile } from "../lib/egyptian-mobile";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,9 +129,9 @@ router.get("/auth/capabilities", authCapabilitiesRateLimit, (_req, res): void =>
 router.post("/auth/request-otp", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { phone, role } = parsed.data;
-
-  if (!EG_PHONE_RE.test(phone)) {
+  const { role } = parsed.data;
+  const phone = normalizeEgyptianMobile(parsed.data.phone);
+  if (!phone) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح — يجب أن يكون رقماً مصرياً (01XXXXXXXXX)" });
     return;
   }
@@ -172,14 +172,15 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { phone, role } = parsed.data;
+  const { role } = parsed.data;
+  const phone = normalizeEgyptianMobile(parsed.data.phone);
 
   if (role === "admin") {
     res.status(403).json({ error: "لا يمكن إنشاء حساب مشرف من هنا" });
     return;
   }
 
-  if (!EG_PHONE_RE.test(phone)) {
+  if (!phone) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح — يجب أن يكون رقماً مصرياً (01XXXXXXXXX)" });
     return;
   }
@@ -272,9 +273,9 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
 router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   const parsed = VerifyOtpBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { phone, otp, role, type } = parsed.data;
-
-  if (!EG_PHONE_RE.test(phone)) {
+  const { otp, role, type } = parsed.data;
+  const phone = normalizeEgyptianMobile(parsed.data.phone);
+  if (!phone) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح" });
     return;
   }

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { normalizeEgyptianMobile } from "../lib/egyptian-mobile";
 
 type Entry = { count: number; resetAt: number; touchedAt: number };
 type KeyFactory = (req: Request) => string;
@@ -10,13 +11,10 @@ function digest(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
-function normalizedPhone(req: Request): string | null {
-  const value = req.body && typeof req.body === "object" && !Array.isArray(req.body)
-    ? (req.body as Record<string, unknown>)["phone"]
-    : null;
-  if (typeof value !== "string") return null;
-  const phone = value.replace(/[^\d+]/g, "");
-  return phone.length >= 8 && phone.length <= 16 ? phone : null;
+/** A privacy-preserving, format-invariant OTP rate-limit identity. */
+export function otpPhoneRateLimitKey(phone: unknown): string {
+  const canonical = normalizeEgyptianMobile(phone);
+  return canonical ? `phone-${digest(canonical)}` : "invalid-phone";
 }
 
 function accountKey(req: Request): string | null {
@@ -86,7 +84,11 @@ const otpLimit = rateLimit({
   prefix: "otp",
   windowMs: 10 * 60_000,
   limit: 8,
-  key: (req) => `${clientKey(req)}:${normalizedPhone(req) ?? "no-phone"}`,
+  key: (req) => `${clientKey(req)}:${otpPhoneRateLimitKey(
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)["phone"]
+      : null,
+  )}`,
 });
 const devLoginLimit = rateLimit({
   prefix: "dev-login",

@@ -17,6 +17,7 @@ import {
 } from "../middleware/auth";
 import { recordBusinessAudit, requestIdForAudit } from "../lib/business-audit";
 import { revokeAllUserSessions } from "../lib/session";
+import { normalizeEgyptianMobile } from "../lib/egyptian-mobile";
 
 const router = Router();
 router.use("/admin/access", requireAuth, requireRole("admin"));
@@ -171,12 +172,12 @@ router.get("/admin/access/accounts", requireAdminPermission("access.read"), asyn
 });
 
 router.post("/admin/access/accounts", requireAdminPermission("access.manage"), async (req, res: Response): Promise<void> => {
-  const phone = text(req.body?.phone, 20);
+  const phone = normalizeEgyptianMobile(text(req.body?.phone, 24));
   const name = text(req.body?.name, 100);
   const email = text(req.body?.email, 200).toLowerCase() || null;
   const groupId = Number(req.body?.permissionGroupId);
   const reason = text(req.body?.reason, 500);
-  if (!/^\+?\d{10,15}$/.test(phone) || name.length < 2 || (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+  if (!phone || name.length < 2 || (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     || !Number.isInteger(groupId) || groupId < 1 || reason.length < 3) {
     res.status(400).json({ error: "بيانات حساب الأدمن غير صحيحة" }); return;
   }

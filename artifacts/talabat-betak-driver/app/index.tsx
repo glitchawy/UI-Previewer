@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,6 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useRequestOtp, useVerifyOtp, OtpRequestRole, OtpVerifyType } from '@workspace/api-client-react';
 import { useAuth } from '@/ctx/AuthContext';
+import {
+  acquireSubmissionLock,
+  loginErrorMessage,
+  normalizeEgyptianMobile,
+  otpRequestData,
+} from '@/lib/login-behavior';
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -24,33 +30,46 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
+  const [requestLocked, setRequestLocked] = useState(false);
+  const [verifyLocked, setVerifyLocked] = useState(false);
+  const requestLock = useRef(false);
+  const verifyLock = useRef(false);
 
   const requestOtp = useRequestOtp();
   const verifyOtp = useVerifyOtp();
 
   const handleRequestOtp = async () => {
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid phone number');
+    if (!acquireSubmissionLock(requestLock)) return;
+    setRequestLocked(true);
+    const canonicalPhone = normalizeEgyptianMobile(phone);
+    if (!canonicalPhone) {
+      setError('أدخل رقم موبايل مصري صحيح');
+      requestLock.current = false;
+      setRequestLocked(false);
       return;
     }
+    setPhone(canonicalPhone);
     setError('');
     
     try {
       await requestOtp.mutateAsync({
-        data: {
-          phone,
-          role: OtpRequestRole.driver,
-        }
+        data: otpRequestData(canonicalPhone)
       });
       setStep('otp');
-    } catch (err: any) {
-      setError(err?.error || 'Failed to request OTP');
+    } catch (err: unknown) {
+      setError(loginErrorMessage(err, 'تعذر إرسال كود التحقق، حاول مرة أخرى'));
+      requestLock.current = false;
+      setRequestLocked(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (!otp || otp.length < 6) {
-      setError('Please enter a valid 6-digit OTP');
+    if (!acquireSubmissionLock(verifyLock)) return;
+    setVerifyLocked(true);
+    if (!/^\d{6}$/.test(otp)) {
+      setError('أدخل كود التحقق المكوّن من 6 أرقام');
+      verifyLock.current = false;
+      setVerifyLocked(false);
       return;
     }
     setError('');
@@ -65,9 +84,21 @@ export default function LoginScreen() {
         }
       });
       await login(session);
-    } catch (err: any) {
-      setError(err?.error || 'Failed to verify OTP');
+    } catch (err: unknown) {
+      setError(loginErrorMessage(err, 'تعذر التحقق من الكود، حاول مرة أخرى'));
+      verifyLock.current = false;
+      setVerifyLocked(false);
     }
+  };
+
+  const handleChangePhone = () => {
+    requestLock.current = false;
+    verifyLock.current = false;
+    setRequestLocked(false);
+    setVerifyLocked(false);
+    setOtp('');
+    setError('');
+    setStep('phone');
   };
 
   return (
@@ -108,17 +139,17 @@ export default function LoginScreen() {
                 keyboardType="phone-pad"
                 value={phone}
                 onChangeText={setPhone}
-                editable={!requestOtp.isPending}
+                editable={!requestLocked && !requestOtp.isPending}
                 testID="phone-input"
               />
               <TouchableOpacity
                 style={[
                   styles.button,
                   { backgroundColor: colors.primary, borderRadius: colors.radius },
-                  requestOtp.isPending && { opacity: 0.7 },
+                  (requestLocked || requestOtp.isPending) && { opacity: 0.7 },
                 ]}
                 onPress={handleRequestOtp}
-                disabled={requestOtp.isPending}
+                disabled={requestLocked || requestOtp.isPending}
                 testID="request-otp-button"
               >
                 {requestOtp.isPending ? (
@@ -149,17 +180,17 @@ export default function LoginScreen() {
                 maxLength={6}
                 value={otp}
                 onChangeText={setOtp}
-                editable={!verifyOtp.isPending}
+                editable={!verifyLocked && !verifyOtp.isPending}
                 testID="otp-input"
               />
               <TouchableOpacity
                 style={[
                   styles.button,
                   { backgroundColor: colors.primary, borderRadius: colors.radius },
-                  verifyOtp.isPending && { opacity: 0.7 },
+                  (verifyLocked || verifyOtp.isPending) && { opacity: 0.7 },
                 ]}
                 onPress={handleVerifyOtp}
-                disabled={verifyOtp.isPending}
+                disabled={verifyLocked || verifyOtp.isPending}
                 testID="verify-otp-button"
               >
                 {verifyOtp.isPending ? (
@@ -170,8 +201,8 @@ export default function LoginScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.linkButton, { marginTop: 16 }]}
-                onPress={() => setStep('phone')}
-                disabled={verifyOtp.isPending}
+                onPress={handleChangePhone}
+                disabled={verifyLocked || verifyOtp.isPending}
                 testID="change-phone-button"
               >
                 <Text style={[styles.linkText, { color: colors.foreground }]}>Change phone number</Text>

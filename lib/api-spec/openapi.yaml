@@ -2701,7 +2701,8 @@ components:
       properties:
         phone:
           type: string
-          description: Phone number in Egyptian format e.g. 01012345678
+          description: Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.
+          examples: ["01012345678", "+201012345678"]
         role:
           type: string
           enum: [customer, partner, driver, admin]
@@ -2721,6 +2722,8 @@ components:
       properties:
         phone:
           type: string
+          description: Egyptian mobile number in any accepted local or international form; it is normalized to 01XXXXXXXXX before verification.
+          examples: ["01012345678", "+201012345678"]
         otp:
           type: string
           description: 6-digit OTP code

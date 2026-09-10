@@ -493,7 +493,7 @@ export const OtpRequestRole = {
 } as const;
 
 export interface OtpRequest {
-  /** Phone number in Egyptian format e.g. 01012345678 */
+  /** Egyptian mobile number. Accepted local and international forms are normalized by the server to 01XXXXXXXXX. */
   phone: string;
   role: OtpRequestRole;
 }
@@ -525,6 +525,7 @@ export const OtpVerifyType = {
 } as const;
 
 export interface OtpVerify {
+  /** Egyptian mobile number in any accepted local or international form; normalized before verification. */
   phone: string;
   /** 6-digit OTP code */
   otp: string;

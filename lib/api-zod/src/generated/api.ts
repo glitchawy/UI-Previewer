@@ -39,7 +39,7 @@ export const GetAuthCapabilitiesResponse = zod.object({
  * @summary Request OTP for phone number
  */
 export const RequestOtpBody = zod.object({
-  "phone": zod.string().describe('Phone number in Egyptian format e.g. 01012345678'),
+  "phone": zod.string().describe('Egyptian mobile number in local or international form; normalized by the server to 01XXXXXXXXX'),
   "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
 })
 
@@ -53,7 +53,7 @@ export const RequestOtpResponse = zod.object({
  * @summary Request OTP for a new account (signup)
  */
 export const RegisterOtpBody = zod.object({
-  "phone": zod.string().describe('Phone number in Egyptian format e.g. 01012345678'),
+  "phone": zod.string().describe('Egyptian mobile number in local or international form; normalized by the server to 01XXXXXXXXX'),
   "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
 })
 
@@ -67,7 +67,7 @@ export const RegisterOtpResponse = zod.object({
  * @summary Verify OTP and create session
  */
 export const VerifyOtpBody = zod.object({
-  "phone": zod.string(),
+  "phone": zod.string().describe('Egyptian mobile number in local or international form; normalized by the server to 01XXXXXXXXX'),
   "otp": zod.string().describe('6-digit OTP code'),
   "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
   "type": zod.enum(['login', 'register']).describe('login = existing user only; register = new user only')

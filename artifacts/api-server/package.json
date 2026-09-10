@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:restaurant-acceptance": "tsx src/restaurant-acceptance-regression.ts"
+    "test:restaurant-acceptance": "tsx src/restaurant-acceptance-regression.ts",
+    "test:phone-auth": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/egyptian-mobile.test.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.0.0",
