@@ -19,6 +19,20 @@ export interface AuthCapabilities {
   deploymentProfile: AuthCapabilitiesDeploymentProfile;
 }
 
+export type PaymentCapabilitiesStatus = typeof PaymentCapabilitiesStatus[keyof typeof PaymentCapabilitiesStatus];
+
+
+export const PaymentCapabilitiesStatus = {
+  available: 'available',
+  unavailable: 'unavailable',
+} as const;
+
+export interface PaymentCapabilities {
+  cardPaymentsAvailable: boolean;
+  provider: 'paymob';
+  status: PaymentCapabilitiesStatus;
+}
+
 export interface AdminObject { [key: string]: unknown }
 
 export interface AdminMutation { [key: string]: unknown }
@@ -833,6 +847,7 @@ export interface DriverOrderOffer {
 
 export interface ErrorResponse {
   error: string;
+  code?: string;
 }
 
 export type Logout200 = {

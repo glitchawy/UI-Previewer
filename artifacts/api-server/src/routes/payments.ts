@@ -5,11 +5,25 @@ import {
   ordersTable,
   paymentSessionsTable,
 } from "@workspace/db";
-import { GetPaymentSessionParams, GetPaymentSessionResponse } from "@workspace/api-zod";
+import {
+  GetPaymentCapabilitiesResponse,
+  GetPaymentSessionParams,
+  GetPaymentSessionResponse,
+} from "@workspace/api-zod";
 import { getCustomer } from "./cart";
 import { expireLockedPaymentSession } from "../lib/payment-session-lifecycle";
+import { isPaymobCheckoutAvailable } from "../lib/paymob";
 
 const router = Router();
+
+router.get("/payments/capabilities", (_req, res: Response): void => {
+  const cardPaymentsAvailable = isPaymobCheckoutAvailable();
+  res.json(GetPaymentCapabilitiesResponse.parse({
+    cardPaymentsAvailable,
+    provider: "paymob",
+    status: cardPaymentsAvailable ? "available" : "unavailable",
+  }));
+});
 
 router.get("/payments/:id", async (req, res: Response): Promise<void> => {
   const customer = await getCustomer(req);

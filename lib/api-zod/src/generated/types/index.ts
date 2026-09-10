@@ -111,6 +111,8 @@ export * from './partnerOrderDetail';
 export * from './partnerOrderStatusUpdate';
 export * from './partnerOrderStatusUpdateStatus';
 export * from './partnerOrderSummary';
+export * from './paymentCapabilities';
+export * from './paymentCapabilitiesStatus';
 export * from './paymentMethod';
 export * from './paymentRefundResolutionInput';
 export * from './paymentRefundResolutionInputOutcome';

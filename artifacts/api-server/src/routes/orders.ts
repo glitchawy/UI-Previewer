@@ -34,6 +34,7 @@ import {
   createPaymentSession,
   getPaymobCallbackUrls,
   getPaymobIntegrationIds,
+  isPaymobCheckoutAvailable,
   isDefinitivePaymobCreationError,
   PaymobConfigurationError,
   PaymobRequestError,
@@ -260,6 +261,13 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       toCents(lockedCustomer.walletBalance),
       totalCartCents,
     );
+    if (
+      paymentMethod === "card" &&
+      totalCartCents - remainingWalletCents > 0 &&
+      !isPaymobCheckoutAvailable()
+    ) {
+      throw new Error("PAYMOB_UNAVAILABLE");
+    }
     const address = `${deliveryAddressText}${customer.addressDetails ? `، ${customer.addressDetails}` : ""}`;
     const results: {
       id: number;
@@ -402,6 +410,13 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     }
     if (error instanceof Error && error.message === "PAYMENT_PENDING") {
       res.status(409).json({ error: "لديك عملية دفع أونلاين بانتظار التأكيد. أكملها أو انتظر انتهاءها قبل إنشاء طلب جديد." });
+      return;
+    }
+    if (error instanceof Error && error.message === "PAYMOB_UNAVAILABLE") {
+      res.status(503).json({
+        code: "PAYMOB_UNAVAILABLE",
+        error: "الدفع أونلاين غير متاح حالياً. اختر الدفع كاش أو استخدم رصيد المحفظة بالكامل.",
+      });
       return;
     }
     if (error instanceof PaymobConfigurationError) {

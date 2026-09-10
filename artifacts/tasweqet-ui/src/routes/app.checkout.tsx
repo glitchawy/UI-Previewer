@@ -5,6 +5,7 @@ import {
   getListCustomerOrdersQueryKey,
   useGetCustomerAddress,
   useGetCustomerWallet,
+  useGetPaymentCapabilities,
   usePlaceOrder,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button, MapCanvas, EmptyState } from "@/components/tb/shell";
@@ -35,6 +36,7 @@ function AppCheckout() {
   const { cart, isLoading: cartLoading } = useCart();
   const address = useGetCustomerAddress();
   const wallet = useGetCustomerWallet({ page: 1, pageSize: 1 });
+  const paymentCapabilities = useGetPaymentCapabilities();
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
   const [useWallet, setUseWallet] = useState(false);
@@ -65,6 +67,8 @@ function AppCheckout() {
   const walletBalance = wallet.data?.balance ?? 0;
   const walletAmount = useWallet ? Math.min(walletBalance, grandTotal) : 0;
   const amountDue = Math.max(0, grandTotal - walletAmount);
+  const cardPaymentsAvailable =
+    paymentCapabilities.isSuccess && paymentCapabilities.data.cardPaymentsAvailable === true;
 
   if (cartLoading || address.isLoading || wallet.isLoading) {
     return <MobileShell tabs={customerTabs}><div className="flex h-screen items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[40px] text-primary" /></div></MobileShell>;
@@ -132,12 +136,19 @@ function AppCheckout() {
               </span>
               {paymentMethod === "cash" ? <Icon name="check_circle" className="text-success" filled /> : null}
             </label>
-            <label className={`mt-2 flex cursor-pointer items-center gap-3 rounded-card border-2 p-4 ${paymentMethod === "card" ? "border-secondary bg-secondary-container/60" : "border-outline-variant bg-surface-container-lowest"}`}>
-              <input type="radio" name="payment" checked={paymentMethod === "card"} onChange={() => setPaymentMethod("card")} className="accent-secondary" />
+            <label aria-disabled={!cardPaymentsAvailable} className={`mt-2 flex items-center gap-3 rounded-card border-2 p-4 ${cardPaymentsAvailable ? "cursor-pointer" : "cursor-not-allowed opacity-70"} ${paymentMethod === "card" ? "border-secondary bg-secondary-container/60" : "border-outline-variant bg-surface-container-lowest"}`}>
+              <input type="radio" name="payment" checked={paymentMethod === "card"} disabled={!cardPaymentsAvailable} onChange={() => setPaymentMethod("card")} className="accent-secondary" />
               <span className="flex size-10 items-center justify-center rounded-full bg-surface-container-lowest text-secondary"><Icon name="credit_card" /></span>
               <span className="flex-1">
-                <span className="block font-label-lg text-label-lg text-on-surface">بطاقة أو محفظة إلكترونية</span>
-                <span className="block font-label-md text-label-md text-on-surface-variant">فيزا، ميزة ومحافظ وخيارات Paymob المتاحة</span>
+                <span className="flex items-center gap-2 font-label-lg text-label-lg text-on-surface">
+                  بطاقة أو محفظة إلكترونية
+                  {!cardPaymentsAvailable ? <Badge tone="neutral">غير متاح حالياً</Badge> : null}
+                </span>
+                <span className="block font-label-md text-label-md text-on-surface-variant">
+                  {cardPaymentsAvailable
+                    ? "فيزا، ميزة ومحافظ وخيارات Paymob المتاحة"
+                    : "سيتم تفعيل الدفع أونلاين بعد إتمام إعداد مزود الدفع."}
+                </span>
               </span>
               {paymentMethod === "card" ? <Icon name="check_circle" className="text-success" filled /> : null}
             </label>

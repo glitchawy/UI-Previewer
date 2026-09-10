@@ -40,3 +40,13 @@ test("DEV MODE login is controlled by the server runtime capability", () => {
   assert.match(source, /capabilities\.data\?\.publicTestLoginEnabled === true/);
   assert.doesNotMatch(source, /import\.meta\.env.*(?:MOCK_AUTH|PUBLIC_TEST|DEPLOYMENT_PROFILE)/);
 });
+
+test("checkout defaults online payment to server-driven unavailable", () => {
+  const source = readFileSync(join(routes, "app.checkout.tsx"), "utf8");
+  assert.match(source, /useGetPaymentCapabilities/);
+  assert.match(source, /paymentCapabilities\.isSuccess && paymentCapabilities\.data\.cardPaymentsAvailable === true/);
+  assert.match(source, /disabled=\{!cardPaymentsAvailable\}/);
+  assert.match(source, /غير متاح حالياً/);
+  assert.match(source, /بعد إتمام إعداد مزود الدفع/);
+  assert.match(source, /useState<"cash" \| "card">\("cash"\)/);
+});

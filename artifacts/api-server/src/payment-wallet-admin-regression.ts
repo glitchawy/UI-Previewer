@@ -5,14 +5,18 @@ import {
   adminAccountsTable,
   adminPermissionGroupsTable,
   authSessionsTable,
+  branchesTable,
   businessAuditLogsTable,
+  cartItemsTable,
   db,
   ordersTable,
   paymentRefundClaimsTable,
   paymentSessionsTable,
   paymobWebhookInboxTable,
+  productsTable,
   pool,
   refundRequestsTable,
+  restaurantsTable,
   restaurantSettlementsTable,
   usersTable,
   walletTransactionsTable,
@@ -34,6 +38,9 @@ const sessionIds: number[] = [];
 const refundIds: number[] = [];
 const claimIds: number[] = [];
 const inboxIds: number[] = [];
+const checkoutFixtureRestaurantIds: number[] = [];
+const checkoutFixtureBranchIds: number[] = [];
+const checkoutFixtureProductIds: number[] = [];
 let server: ReturnType<typeof app.listen> | undefined;
 
 async function rejectsDb(operation: PromiseLike<unknown>, message: string) {
@@ -330,6 +337,146 @@ async function main() {
   const address = server.address();
   assert(address && typeof address === "object");
   const base = `http://127.0.0.1:${address.port}`;
+
+  // Public capability discovery is secret-free, and the order route must reject
+  // an unavailable external-card amount before creating any durable allocation.
+  const paymobEnvironmentKeys = [
+    "PAYMOB_INTEGRATION_IDS",
+    "PAYMOB_INTEGRATION_ID",
+    "PAYMOB_PUBLIC_APP_URL",
+    "PAYMOB_PUBLIC_KEY",
+    "PAYMOB_SECRET_KEY",
+    "PAYMOB_API_KEY",
+    "PAYMOB_IFRAME_ID",
+  ] as const;
+  const savedPaymobEnvironment = new Map(
+    paymobEnvironmentKeys.map((key) => [key, process.env[key]]),
+  );
+  for (const key of paymobEnvironmentKeys) delete process.env[key];
+  try {
+    const capability = await fetch(`${base}/api/payments/capabilities`);
+    assert.equal(capability.status, 200);
+    assert.deepEqual(await capability.json(), {
+      cardPaymentsAvailable: false,
+      provider: "paymob",
+      status: "unavailable",
+    });
+
+    const checkoutCustomers = await db.insert(usersTable).values([
+      {
+        phone: `${prefix}-card-customer`,
+        role: "customer",
+        name: prefix,
+        walletBalance: "0.00",
+        addressText: prefix,
+        lat: 30,
+        lng: 31,
+      },
+      {
+        phone: `${prefix}-cash-customer`,
+        role: "customer",
+        name: prefix,
+        walletBalance: "0.00",
+        addressText: prefix,
+        lat: 30,
+        lng: 31,
+      },
+      {
+        phone: `${prefix}-wallet-customer`,
+        role: "customer",
+        name: prefix,
+        walletBalance: "1000.00",
+        addressText: prefix,
+        lat: 30,
+        lng: 31,
+      },
+    ]).returning();
+    userIds.push(...checkoutCustomers.map((row) => row.id));
+    const [restaurant] = await db.insert(restaurantsTable).values({
+      ownerUserId: checkoutCustomers[0]!.id,
+      name: `${prefix}-checkout-restaurant`,
+      address: prefix,
+      status: "ACTIVE",
+    }).returning();
+    checkoutFixtureRestaurantIds.push(restaurant.id);
+    const [branch] = await db.insert(branchesTable).values({
+      restaurantId: restaurant.id,
+      name: prefix,
+      address: prefix,
+      lat: 30,
+      lng: 31,
+    }).returning();
+    checkoutFixtureBranchIds.push(branch.id);
+    const [product] = await db.insert(productsTable).values({
+      restaurantId: restaurant.id,
+      name: prefix,
+      basePrice: "10.00",
+    }).returning();
+    checkoutFixtureProductIds.push(product.id);
+    await db.insert(cartItemsTable).values(checkoutCustomers.map((checkoutCustomer) => ({
+      userId: checkoutCustomer.id,
+      restaurantId: restaurant.id,
+      productId: product.id,
+      quantity: 1,
+      unitPrice: "10.00",
+    })));
+    const checkoutTokens = await Promise.all(checkoutCustomers.map(async (checkoutCustomer) =>
+      (await issueSession(checkoutCustomer)).token
+    ));
+    const place = (index: number, body: Record<string, unknown>) => fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${checkoutTokens[index]}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const unavailableCard = await place(0, { paymentMethod: "card" });
+    assert.equal(unavailableCard.status, 503);
+    assert.equal((await unavailableCard.json() as { code?: string }).code, "PAYMOB_UNAVAILABLE");
+    assert.equal(
+      (await db.select().from(ordersTable).where(eq(ordersTable.customerId, checkoutCustomers[0]!.id))).length,
+      0,
+    );
+    assert.equal(
+      (await db.select().from(paymentSessionsTable)
+        .where(eq(paymentSessionsTable.customerId, checkoutCustomers[0]!.id))).length,
+      0,
+    );
+    assert.equal(
+      (await db.select().from(walletTransactionsTable)
+        .where(eq(walletTransactionsTable.userId, checkoutCustomers[0]!.id))).length,
+      0,
+    );
+    assert.equal(
+      (await db.select().from(cartItemsTable)
+        .where(eq(cartItemsTable.userId, checkoutCustomers[0]!.id))).length,
+      1,
+      "rejected card checkout must leave the cart untouched",
+    );
+
+    const cash = await place(1, { paymentMethod: "cash" });
+    assert.equal(cash.status, 201, "cash checkout must remain available");
+    const cashResult = await cash.json() as { orders: { id: number }[] };
+    orderIds.push(...cashResult.orders.map((order) => order.id));
+
+    const walletOnly = await place(2, { paymentMethod: "card", useWalletAmount: 1000 });
+    assert.equal(walletOnly.status, 201, "a fully wallet-covered order must not require Paymob");
+    const walletResult = await walletOnly.json() as {
+      orders: { id: number; externalAmountDue: number }[];
+      paymentSessionId: number | null;
+    };
+    orderIds.push(...walletResult.orders.map((order) => order.id));
+    assert.equal(walletResult.paymentSessionId, null);
+    assert.ok(walletResult.orders.every((order) => order.externalAmountDue === 0));
+  } finally {
+    for (const [key, value] of savedPaymobEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+
   const paths = [
     "/api/admin/operations/payments",
     "/api/admin/refunds",
@@ -441,12 +588,29 @@ try {
       .where(inArray(refundRequestsTable.id, refundIds));
   }
   if (orderIds.length) {
+    await db.execute(sql`DELETE FROM order_addons WHERE order_item_id IN (
+      SELECT id FROM order_items WHERE order_id IN (${sql.join(orderIds.map((value) => sql`${value}`), sql`, `)})
+    )`);
+    await db.execute(sql`DELETE FROM order_items WHERE order_id IN (${sql.join(orderIds.map((value) => sql`${value}`), sql`, `)})`);
     await db.execute(sql`DELETE FROM order_status_events WHERE order_id IN (${sql.join(orderIds.map((value) => sql`${value}`), sql`, `)})`);
+    await db.execute(sql`DELETE FROM notifications WHERE entity_type = 'order' AND entity_id IN (${sql.join(orderIds.map((value) => sql`${value}`), sql`, `)})`);
     await db.delete(ordersTable).where(inArray(ordersTable.id, orderIds));
   }
   if (sessionIds.length) {
     await db.delete(paymentSessionsTable)
       .where(inArray(paymentSessionsTable.id, sessionIds));
+  }
+  if (userIds.length) {
+    await db.delete(cartItemsTable).where(inArray(cartItemsTable.userId, userIds));
+  }
+  if (checkoutFixtureProductIds.length) {
+    await db.delete(productsTable).where(inArray(productsTable.id, checkoutFixtureProductIds));
+  }
+  if (checkoutFixtureBranchIds.length) {
+    await db.delete(branchesTable).where(inArray(branchesTable.id, checkoutFixtureBranchIds));
+  }
+  if (checkoutFixtureRestaurantIds.length) {
+    await db.delete(restaurantsTable).where(inArray(restaurantsTable.id, checkoutFixtureRestaurantIds));
   }
   if (userIds.length) {
     await db.delete(authSessionsTable).where(inArray(authSessionsTable.userId, userIds));

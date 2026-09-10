@@ -98,6 +98,7 @@ import type {
   PartnerOrderDetail,
   PartnerOrderStatusUpdate,
   PartnerOrderSummary,
+  PaymentCapabilities,
   PaymentRefundResolutionInput,
   PaymentSession,
   ProfileUpdate,
@@ -1254,6 +1255,84 @@ export function useGetCustomerWallet<TData = Awaited<ReturnType<typeof getCustom
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetCustomerWalletQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPaymentCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/payments/capabilities`
+}
+
+/**
+ * Reports local Paymob checkout readiness without contacting the provider.
+ * @summary Read secret-free online payment availability
+ */
+export const getPaymentCapabilities = async ( options?: Parameters<typeof customFetch>[1]): Promise<PaymentCapabilities> => {
+
+  return customFetch<PaymentCapabilities>(getGetPaymentCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentCapabilitiesQueryKey = () => {
+    return [
+    `/api/payments/capabilities`
+    ] as const;
+    }
+
+
+export const getGetPaymentCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getPaymentCapabilities>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaymentCapabilities>>> = ({ signal }) => getPaymentCapabilities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaymentCapabilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaymentCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getPaymentCapabilities>>>
+export type GetPaymentCapabilitiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read secret-free online payment availability
+ */
+
+export function useGetPaymentCapabilities<TData = Awaited<ReturnType<typeof getPaymentCapabilities>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaymentCapabilitiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

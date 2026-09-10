@@ -249,6 +249,17 @@ export const GetCustomerWalletResponse = zod.object({
 
 
 /**
+ * Reports local Paymob checkout readiness without contacting the provider.
+ * @summary Read secret-free online payment availability
+ */
+export const GetPaymentCapabilitiesResponse = zod.object({
+  "cardPaymentsAvailable": zod.boolean(),
+  "provider": zod.literal("paymob"),
+  "status": zod.enum(['available', 'unavailable'])
+})
+
+
+/**
  * @summary Convert the authenticated customer's cart into restaurant orders
  */
 export const placeOrderBodyNotesMax = 1000;

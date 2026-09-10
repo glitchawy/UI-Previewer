@@ -414,6 +414,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /payments/capabilities:
+    get:
+      operationId: getPaymentCapabilities
+      tags: [orders]
+      summary: Read secret-free online payment availability
+      description: Reports local Paymob checkout readiness without contacting the provider.
+      responses:
+        "200":
+          description: Public payment capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentCapabilities"
+
   /orders:
     post:
       operationId: placeOrder
@@ -2199,6 +2213,18 @@ components:
         deploymentProfile:
           type: string
           enum: [unknown, customer, test]
+    PaymentCapabilities:
+      type: object
+      additionalProperties: false
+      required: [cardPaymentsAvailable, provider, status]
+      properties:
+        cardPaymentsAvailable: { type: boolean }
+        provider:
+          type: string
+          const: paymob
+        status:
+          type: string
+          enum: [available, unavailable]
     AdminObject:
       type: object
       additionalProperties: true
@@ -3238,4 +3264,6 @@ components:
       required: [error]
       properties:
         error:
+          type: string
+        code:
           type: string

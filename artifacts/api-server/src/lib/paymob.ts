@@ -53,6 +53,30 @@ function required(name: string) {
   return value;
 }
 
+/**
+ * Validates every local setting needed to create a hosted checkout. This is
+ * intentionally synchronous so capability discovery never contacts Paymob.
+ */
+export function assertPaymobCheckoutConfigured() {
+  getPaymobIntegrationIds();
+  getPaymobCallbackUrls(0);
+  const publicKey = process.env.PAYMOB_PUBLIC_KEY?.trim();
+  const secretKey = process.env.PAYMOB_SECRET_KEY?.trim();
+  if (publicKey && secretKey) return;
+  required("PAYMOB_API_KEY");
+  required("PAYMOB_IFRAME_ID");
+}
+
+export function isPaymobCheckoutAvailable() {
+  try {
+    assertPaymobCheckoutConfigured();
+    return true;
+  } catch (error) {
+    if (error instanceof PaymobConfigurationError) return false;
+    throw error;
+  }
+}
+
 export function getPaymobIntegrationIds() {
   const configured = process.env.PAYMOB_INTEGRATION_IDS?.trim() || required("PAYMOB_INTEGRATION_ID");
   const integrationIds = [...new Set(configured.split(",").map((id) => id.trim()).filter(Boolean))];
@@ -119,6 +143,7 @@ function billingData(input: PaymobBillingData) {
  * API-key/iframe fallback keeps existing Accept accounts supported.
  */
 export async function createPaymentSession(input: PaymobPaymentInput): Promise<PaymobPaymentSession> {
+  assertPaymobCheckoutConfigured();
   const integrationIds = getPaymobIntegrationIds();
   const publicKey = process.env.PAYMOB_PUBLIC_KEY?.trim();
   const secretKey = process.env.PAYMOB_SECRET_KEY?.trim();
