@@ -18,6 +18,7 @@ import adminAccessRouter from "./admin-access";
 import adminOperationsRouter from "./admin-operations";
 import partnerOperationsRouter from "./partner-operations";
 import driverAccountRouter from "./driver-account";
+import notificationDevicesRouter from "./notification-devices";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(adminAccessRouter);
 router.use(adminOperationsRouter);
 router.use(partnerOperationsRouter);
 router.use(driverAccountRouter);
+router.use(notificationDevicesRouter);
 
 export default router;

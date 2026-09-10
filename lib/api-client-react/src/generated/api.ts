@@ -33,6 +33,7 @@ import type {
   ApplicantOnboardingStatus,
   ApplicationDetail,
   ApplicationStatusUpdate,
+  AuthCapabilities,
   AuthSession,
   CustomerAddress,
   CustomerAddressInput,
@@ -105,6 +106,7 @@ import type {
   ReadNotification200,
   RefundRequest,
   RefundRequestInput,
+  RegisterNotificationDeviceBody,
   RejectDriverOrder200,
   RestaurantApplicationList,
   SavePartnerReviewResponse200,
@@ -212,6 +214,161 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReadinessCheckUrl = () => {
+
+
+
+
+  return `/api/readyz`
+}
+
+/**
+ * @summary Database and operations-worker readiness check
+ */
+export const readinessCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<HealthStatus> => {
+
+  return customFetch<HealthStatus>(getReadinessCheckUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReadinessCheckQueryKey = () => {
+    return [
+    `/api/readyz`
+    ] as const;
+    }
+
+
+export const getReadinessCheckQueryOptions = <TData = Awaited<ReturnType<typeof readinessCheck>>, TError = ErrorType<HealthStatus>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof readinessCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReadinessCheckQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof readinessCheck>>> = ({ signal }) => readinessCheck({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readinessCheck>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ReadinessCheckQueryResult = NonNullable<Awaited<ReturnType<typeof readinessCheck>>>
+export type ReadinessCheckQueryError = ErrorType<HealthStatus>
+
+
+/**
+ * @summary Database and operations-worker readiness check
+ */
+
+export function useReadinessCheck<TData = Awaited<ReturnType<typeof readinessCheck>>, TError = ErrorType<HealthStatus>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof readinessCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getReadinessCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAuthCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/auth/capabilities`
+}
+
+/**
+ * Unauthenticated runtime capability discovery for the login UI.
+ * @summary Read secret-free public authentication capabilities
+ */
+export const getAuthCapabilities = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthCapabilities> => {
+
+  return customFetch<AuthCapabilities>(getGetAuthCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthCapabilitiesQueryKey = () => {
+    return [
+    `/api/auth/capabilities`
+    ] as const;
+    }
+
+
+export const getGetAuthCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getAuthCapabilities>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthCapabilities>>> = ({ signal }) => getAuthCapabilities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAuthCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthCapabilities>>>
+export type GetAuthCapabilitiesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Read secret-free public authentication capabilities
+ */
+
+export function useGetAuthCapabilities<TData = Awaited<ReturnType<typeof getAuthCapabilities>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAuthCapabilitiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -7386,6 +7543,219 @@ export function useExportAdminOrdersCsv<TData = Awaited<ReturnType<typeof export
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getExportAdminOrdersCsvQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRegisterNotificationDeviceUrl = () => {
+
+
+
+
+  return `/api/notification-devices`
+}
+
+/**
+ * @summary Register or reactivate an owned Expo push token
+ */
+export const registerNotificationDevice = async (registerNotificationDeviceBody: RegisterNotificationDeviceBody, options?: Parameters<typeof customFetch>[1]): Promise<AdminObject> => {
+
+  return customFetch<AdminObject>(getRegisterNotificationDeviceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(registerNotificationDeviceBody)
+  }
+);}
+
+
+
+
+
+export const getRegisterNotificationDeviceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerNotificationDevice>>, TError,{data: BodyType<RegisterNotificationDeviceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerNotificationDevice>>, TError,{data: BodyType<RegisterNotificationDeviceBody>}, TContext> => {
+
+const mutationKey = ['registerNotificationDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerNotificationDevice>>, {data: BodyType<RegisterNotificationDeviceBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerNotificationDevice(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterNotificationDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof registerNotificationDevice>>>
+    export type RegisterNotificationDeviceMutationBody = BodyType<RegisterNotificationDeviceBody>
+    export type RegisterNotificationDeviceMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Register or reactivate an owned Expo push token
+ */
+export const useRegisterNotificationDevice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerNotificationDevice>>, TError,{data: BodyType<RegisterNotificationDeviceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerNotificationDevice>>,
+        TError,
+        {data: BodyType<RegisterNotificationDeviceBody>},
+        TContext
+      > => {
+      return useMutation(getRegisterNotificationDeviceMutationOptions(options));
+    }
+
+export const getRevokeNotificationDeviceUrl = (id: number,) => {
+
+
+
+
+  return `/api/notification-devices/${id}`
+}
+
+export const revokeNotificationDevice = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AdminObject> => {
+
+  return customFetch<AdminObject>(getRevokeNotificationDeviceUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeNotificationDeviceMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeNotificationDevice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeNotificationDevice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['revokeNotificationDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeNotificationDevice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  revokeNotificationDevice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeNotificationDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof revokeNotificationDevice>>>
+
+    export type RevokeNotificationDeviceMutationError = ErrorType<ErrorResponse>
+
+    export const useRevokeNotificationDevice = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeNotificationDevice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeNotificationDevice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRevokeNotificationDeviceMutationOptions(options));
+    }
+
+export const getGetAdminOperationsHealthUrl = () => {
+
+
+
+
+  return `/api/admin/operations/health`
+}
+
+/**
+ * @summary Read secret-free worker, queue, dispatch, storage, and provider health
+ */
+export const getAdminOperationsHealth = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminObject> => {
+
+  return customFetch<AdminObject>(getGetAdminOperationsHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminOperationsHealthQueryKey = () => {
+    return [
+    `/api/admin/operations/health`
+    ] as const;
+    }
+
+
+export const getGetAdminOperationsHealthQueryOptions = <TData = Awaited<ReturnType<typeof getAdminOperationsHealth>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminOperationsHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminOperationsHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminOperationsHealth>>> = ({ signal }) => getAdminOperationsHealth({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminOperationsHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminOperationsHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminOperationsHealth>>>
+export type GetAdminOperationsHealthQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read secret-free worker, queue, dispatch, storage, and provider health
+ */
+
+export function useGetAdminOperationsHealth<TData = Awaited<ReturnType<typeof getAdminOperationsHealth>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminOperationsHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminOperationsHealthQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

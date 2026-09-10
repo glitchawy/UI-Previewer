@@ -10,6 +10,8 @@ import { issueOtp, verifyOtpCode } from "../lib/otp";
 import { generateTelegramLink } from "../lib/authevo";
 import { DEVELOPMENT_FIXTURE_PHONE_BY_ROLE } from "../lib/seed-admin";
 import { bearerToken, issueSession, lookupAuthorization, revokeSession, rotateSession } from "../lib/session";
+import { runtimeCapabilities } from "../lib/deployment-profile";
+import { authCapabilitiesRateLimit } from "../middleware/rate-limit";
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -24,18 +26,6 @@ const MOCK_ROLES = ["customer", "partner", "driver", "admin"] as const;
 type AuthRole = (typeof MOCK_ROLES)[number];
 type AuthUser = typeof usersTable.$inferSelect;
 
-function mockAuthEnabled(): boolean {
-  const flagEnabled = process.env["MOCK_AUTH_ENABLED"] === "true";
-  const environment = process.env.NODE_ENV;
-  const localTestMode = (environment === "development" || environment === "test") && flagEnabled;
-  const publicWebTestMode =
-    environment === "production" &&
-    flagEnabled &&
-    process.env["PUBLIC_TEST_MODE_ENABLED"] === "true";
-
-  return localTestMode || publicWebTestMode;
-}
-
 function serializeUser(user: AuthUser) {
   return {
     id: user.id,
@@ -47,6 +37,23 @@ function serializeUser(user: AuthUser) {
     addressText: user.addressText ?? null,
     addressDetails: user.addressDetails ?? null,
   };
+}
+
+async function disabledFixtureIdentity(phone: string): Promise<boolean> {
+  if (runtimeCapabilities().publicTestLoginEnabled) return false;
+  const [fixture] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(
+      eq(usersTable.phone, phone),
+      eq(usersTable.isDevelopmentFixture, true),
+    ))
+    .limit(1);
+  return Boolean(fixture);
+}
+
+function rejectFixtureAuthentication(res: import("express").Response): void {
+  res.status(401).json({ error: "غير مصرح" });
 }
 
 async function createSession(user: AuthUser) {
@@ -108,6 +115,14 @@ async function handleIssueFailure(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/auth/capabilities  ← public, secret-free runtime UI capabilities
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/auth/capabilities", authCapabilitiesRateLimit, (_req, res): void => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(runtimeCapabilities());
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/request-otp  ← LOGIN only
 // Validates phone, enforces account separation, issues WhatsApp OTP.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,6 +133,10 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
 
   if (!EG_PHONE_RE.test(phone)) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح — يجب أن يكون رقماً مصرياً (01XXXXXXXXX)" });
+    return;
+  }
+  if (await disabledFixtureIdentity(phone)) {
+    rejectFixtureAuthentication(res);
     return;
   }
 
@@ -164,6 +183,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     res.status(400).json({ error: "رقم الموبايل غير صحيح — يجب أن يكون رقماً مصرياً (01XXXXXXXXX)" });
     return;
   }
+  if (await disabledFixtureIdentity(phone)) {
+    rejectFixtureAuthentication(res);
+    return;
+  }
 
   // Same phone + same role = already registered
   const sameRole = await db
@@ -195,7 +218,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 // Never accepts a phone number: only a server-seeded fixture role can be used.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/dev-login", async (req, res): Promise<void> => {
-  if (!mockAuthEnabled()) {
+  if (!runtimeCapabilities().publicTestLoginEnabled) {
     res.status(404).json({ error: "المسار غير متاح" });
     return;
   }
@@ -253,6 +276,10 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
 
   if (!EG_PHONE_RE.test(phone)) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح" });
+    return;
+  }
+  if (await disabledFixtureIdentity(phone)) {
+    rejectFixtureAuthentication(res);
     return;
   }
 

@@ -30,6 +30,8 @@ import {
 } from "@workspace/api-zod";
 import type { Request, Response } from "express";
 import { lookupAuthorization } from "../lib/session";
+import { dispatchReadyOrder } from "../lib/driver-dispatch";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -314,6 +316,11 @@ router.patch("/partner/orders/:id/status", async (req, res: Response): Promise<v
   if ("error" in result && result.error) {
     res.status(result.error).json({ error: result.message });
     return;
+  }
+  if (result.order.status === "ready") {
+    await dispatchReadyOrder(result.order.id).catch((error) => {
+      logger.warn({ err: error, orderId: result.order.id }, "Immediate ready-order dispatch failed; worker will recover");
+    });
   }
   res.json(UpdatePartnerOrderStatusResponse.parse({
     id: result.order.id,

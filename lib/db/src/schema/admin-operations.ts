@@ -62,6 +62,51 @@ export const orderReviewsTable = pgTable("order_reviews", {
   moderatedAt: timestamp("moderated_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [uniqueIndex("order_reviews_order_uidx").on(t.orderId), index("order_reviews_moderation_idx").on(t.moderationStatus, t.createdAt), check("order_reviews_rating_check", sql`${t.rating} BETWEEN 1 AND 5`)]);
 
+export const operationsWorkerHeartbeatTable = pgTable("operations_worker_heartbeat", {
+  workerName: text("worker_name").primaryKey(),
+  owner: text("owner").notNull(),
+  lastStartedAt: timestamp("last_started_at", { withTimezone: true }).notNull(),
+  lastSucceededAt: timestamp("last_succeeded_at", { withTimezone: true }),
+  lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  lastHealthEvaluatedAt: timestamp("last_health_evaluated_at", { withTimezone: true }),
+  lastHealthCritical: boolean("last_health_critical").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const operationsAlertConditionsTable = pgTable("operations_alert_conditions", {
+  conditionKey: text("condition_key").primaryKey(),
+  active: boolean("active").notNull().default(false),
+  severity: text("severity", { enum: ["warning", "critical"] }).notNull().default("warning"),
+  sequence: integer("sequence").notNull().default(0),
+  firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }),
+  lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }),
+  lastAlertAt: timestamp("last_alert_at", { withTimezone: true }),
+  recoveredAt: timestamp("recovered_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const operationsAlertDeliveriesTable = pgTable("operations_alert_deliveries", {
+  id: serial("id").primaryKey(),
+  conditionKey: text("condition_key").notNull(),
+  eventKind: text("event_kind", { enum: ["active", "recovery"] }).notNull(),
+  severity: text("severity", { enum: ["warning", "critical"] }).notNull(),
+  payload: jsonb("payload").notNull(),
+  deduplicationKey: text("deduplication_key").notNull(),
+  status: text("status", { enum: ["pending", "processing", "retry", "delivered", "skipped", "dead_letter"] }).notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  leaseOwner: text("lease_owner"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("operations_alert_deliveries_dedupe_uidx").on(t.deduplicationKey),
+  index("operations_alert_deliveries_claim_idx").on(t.status, t.nextAttemptAt, t.leaseExpiresAt),
+]);
+
 export const insertPlatformSettingSchema = createInsertSchema(platformSettingsTable);
 export const insertDeliveryPricingTierSchema = createInsertSchema(deliveryPricingTiersTable);
 export const insertRestaurantCommissionSchema = createInsertSchema(restaurantCommissionsTable);

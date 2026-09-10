@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
+import { runtimeCapabilities } from "./deployment-profile";
 
 /**
  * Idempotent admin provisioning.
@@ -17,18 +18,21 @@ import { logger } from "./logger";
  * applications can be reviewed. Admin self-registration is blocked in the
  * auth routes; this is the only creation path.
  *
- * In production the admin phone MUST be provided via ADMIN_PHONE — there is
- * no default account. In development a well-known local phone is used so the
- * dev OTP flow works out of the box. Public web test mode uses separate,
- * clearly labelled fixture users and must be explicitly enabled.
+ * ADMIN_PHONE provisions the real admin account. The well-known local admin
+ * exists only when the complete public-test capability is explicitly enabled;
+ * customer and unknown deployment profiles never acquire a default identity.
  */
 export async function seedAdminUser(): Promise<void> {
-  const isProd = process.env.NODE_ENV === "production";
-  const phone = process.env["ADMIN_PHONE"] ?? (isProd ? null : "01000000000");
+  const developmentFixturesEnabled = runtimeCapabilities().publicTestLoginEnabled;
+  const isDefaultDevelopmentFixture =
+    developmentFixturesEnabled && !process.env["ADMIN_PHONE"];
+  const phone =
+    process.env["ADMIN_PHONE"] ??
+    (isDefaultDevelopmentFixture ? "01000000000" : null);
 
   if (!phone) {
     logger.error(
-      "ADMIN_PHONE is not set — no admin account was provisioned. Set the ADMIN_PHONE secret to enable admin review in production.",
+      "ADMIN_PHONE is not set — no admin account was provisioned. Set the ADMIN_PHONE secret to enable admin review.",
     );
     return;
   }
@@ -38,8 +42,8 @@ export async function seedAdminUser(): Promise<void> {
     .values({
       phone,
       role: "admin",
-      name: !isProd && !process.env["ADMIN_PHONE"] ? "DEV TEST — مشرف المنصة" : "مشرف المنصة",
-      isDevelopmentFixture: !isProd && !process.env["ADMIN_PHONE"],
+      name: isDefaultDevelopmentFixture ? "DEV TEST — مشرف المنصة" : "مشرف المنصة",
+      isDevelopmentFixture: isDefaultDevelopmentFixture,
     })
     .onConflictDoNothing({ target: usersTable.phone })
     .returning({ id: usersTable.id });
@@ -82,15 +86,7 @@ const DEV_FIXTURE_USERS = [
  * production/staging can never acquire test identities accidentally.
  */
 export async function seedDevelopmentFixtures(): Promise<void> {
-  const environment = process.env.NODE_ENV;
-  const localTestMode =
-    (environment === "development" || environment === "test") &&
-    process.env["MOCK_AUTH_ENABLED"] === "true";
-  const publicWebTestMode =
-    environment === "production" &&
-    process.env["MOCK_AUTH_ENABLED"] === "true" &&
-    process.env["PUBLIC_TEST_MODE_ENABLED"] === "true";
-  if (!localTestMode && !publicWebTestMode) return;
+  if (!runtimeCapabilities().publicTestLoginEnabled) return;
 
   const fixtureUsers = new Map<string, typeof usersTable.$inferSelect>();
   for (const fixture of DEV_FIXTURE_USERS) {

@@ -17,8 +17,13 @@ import {
 } from "@workspace/db";
 import { runMigrations } from "@workspace/db/migrate";
 import app from "./app";
-import { issueSession } from "./lib/session";
+import { issueSession, lookupSession, rotateSession } from "./lib/session";
 import { canUserAccessObject } from "./routes/storage";
+import {
+  assertSafeDeploymentConfiguration,
+  runtimeCapabilities,
+} from "./lib/deployment-profile";
+import { assertCustomerDatabaseSafety } from "./lib/customer-database-safety";
 
 type Json = Record<string, any>;
 
@@ -70,6 +75,7 @@ try {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalMockAuth = process.env.MOCK_AUTH_ENABLED;
   const originalPublicTestMode = process.env.PUBLIC_TEST_MODE_ENABLED;
+  const originalDeploymentProfile = process.env.DEPLOYMENT_PROFILE;
 
   server = await new Promise<Server>((resolve, reject) => {
     const listening = app.listen(0, "127.0.0.1", () => resolve(listening));
@@ -140,19 +146,123 @@ try {
   assert.equal(separation.status, 409, "a role-specific session/account must not permit role reuse");
 
   process.env.NODE_ENV = "production";
-  process.env.MOCK_AUTH_ENABLED = "true";
-  delete process.env.PUBLIC_TEST_MODE_ENABLED;
-  assert.equal((await request(baseUrl, "/auth/dev-login", {
-    method: "POST", body: { role: "customer" },
-  })).status, 404, "production dev-login must remain hidden without the explicit public gate");
-  process.env.PUBLIC_TEST_MODE_ENABLED = "true";
-  assert.equal((await request(baseUrl, "/auth/dev-login", {
-    method: "POST", body: { role: "not-a-role" },
-  })).status, 400, "the explicit public test gate must expose only validated fixture roles");
+  for (const profile of [undefined, "unknown-value", "customer", "test"] as const) {
+    for (const mockAuth of [false, true]) {
+      for (const publicTestMode of [false, true]) {
+        if (profile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+        else process.env.DEPLOYMENT_PROFILE = profile;
+        if (mockAuth) process.env.MOCK_AUTH_ENABLED = "true";
+        else delete process.env.MOCK_AUTH_ENABLED;
+        if (publicTestMode) process.env.PUBLIC_TEST_MODE_ENABLED = "true";
+        else delete process.env.PUBLIC_TEST_MODE_ENABLED;
+
+        const expectedEnabled =
+          profile === "test" && mockAuth && publicTestMode;
+        assert.equal(
+          runtimeCapabilities().publicTestLoginEnabled,
+          expectedEnabled,
+          `capability gate mismatch for ${profile ?? "missing"}/${mockAuth}/${publicTestMode}`,
+        );
+        const capabilities = await request(baseUrl, "/auth/capabilities");
+        assert.equal(capabilities.status, 200);
+        assert.deepEqual(capabilities.body, {
+          deploymentProfile:
+            profile === "test" || profile === "customer" ? profile : "unknown",
+          publicTestLoginEnabled: expectedEnabled,
+        });
+        const devLogin = await request(baseUrl, "/auth/dev-login", {
+          method: "POST", body: { role: "not-a-role" },
+        });
+        assert.equal(
+          devLogin.status,
+          expectedEnabled ? 400 : 404,
+          "capability response and dev-login availability must match",
+        );
+
+        if (profile === "customer" && (mockAuth || publicTestMode)) {
+          assert.throws(
+            () => assertSafeDeploymentConfiguration(),
+            /Unsafe customer deployment/,
+            "customer profile with either test flag must reject startup",
+          );
+        } else {
+          assert.doesNotThrow(() => assertSafeDeploymentConfiguration());
+        }
+      }
+    }
+  }
   if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;
   if (originalMockAuth === undefined) delete process.env.MOCK_AUTH_ENABLED; else process.env.MOCK_AUTH_ENABLED = originalMockAuth;
   if (originalPublicTestMode === undefined) delete process.env.PUBLIC_TEST_MODE_ENABLED;
   else process.env.PUBLIC_TEST_MODE_ENABLED = originalPublicTestMode;
+  if (originalDeploymentProfile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+  else process.env.DEPLOYMENT_PROFILE = originalDeploymentProfile;
+
+  process.env.DEPLOYMENT_PROFILE = "test";
+  process.env.MOCK_AUTH_ENABLED = "true";
+  process.env.PUBLIC_TEST_MODE_ENABLED = "true";
+  const [transitionAdmin] = await db.insert(usersTable).values({
+    phone: phones[8]!,
+    role: "admin",
+    name: `${prefix}_transition_fixture_admin`,
+    isDevelopmentFixture: true,
+  }).returning();
+  createdUserIds.push(transitionAdmin.id);
+  await db.insert(adminAccountsTable).values({
+    userId: transitionAdmin.id,
+    isActive: true,
+    isSuperAdmin: true,
+  });
+  const transitionSession = await issueSession(transitionAdmin);
+  assert.equal((await lookupSession(transitionSession.token))?.user.id, transitionAdmin.id);
+
+  process.env.DEPLOYMENT_PROFILE = "customer";
+  delete process.env.MOCK_AUTH_ENABLED;
+  delete process.env.PUBLIC_TEST_MODE_ENABLED;
+  await assert.rejects(
+    assertCustomerDatabaseSafety(),
+    /fresh isolated customer database is required/,
+    "customer startup must reject fixture-contaminated database state",
+  );
+  assert.equal(await lookupSession(transitionSession.token), null,
+    "test bearer must stop resolving immediately after switching to customer");
+  assert.equal(await rotateSession(transitionSession.token), null,
+    "test bearer rotation must fail after switching to customer");
+  await assert.rejects(issueSession(transitionAdmin), /Authentication failed/,
+    "no new fixture session may be issued while public test capability is disabled");
+  assert.equal((await request(baseUrl, "/auth/me", { token: transitionSession.token })).status, 401,
+    "fixture bearer must not authorize authenticated APIs in customer mode");
+  assert.equal((await request(baseUrl, "/auth/rotate", {
+    method: "POST", token: transitionSession.token,
+  })).status, 401, "fixture bearer rotation endpoint must return generic unauthorized");
+  assert.equal((await request(baseUrl, "/auth/request-otp", {
+    method: "POST", body: { phone: transitionAdmin.phone, role: "admin" },
+  })).status, 401, "fixture OTP login request must fail generically in customer mode");
+  assert.equal((await request(baseUrl, "/auth/verify-otp", {
+    method: "POST",
+    body: { phone: transitionAdmin.phone, role: "admin", otp: "000000", type: "login" },
+  })).status, 401, "fixture OTP verification must fail before provider verification");
+  assert.equal((await request(baseUrl, "/auth/dev-login", {
+    method: "POST", body: { role: "admin" },
+  })).status, 404, "fixture-specific dev login must be hidden in customer mode");
+  assert.equal((await request(baseUrl, "/admin/core/overview", {
+    token: transitionSession.token,
+  })).status, 401, "fixture super-admin bearer must not authorize admin APIs");
+  await assert.doesNotReject(
+    assertCustomerDatabaseSafety(async () => ({
+      developmentFixtureUsers: 0,
+      activeDevelopmentFixtureSessions: 0,
+      activeDevelopmentFixtureAdmins: 0,
+    })),
+    "a clean isolated customer database must pass the startup assertion",
+  );
+
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;
+  if (originalMockAuth === undefined) delete process.env.MOCK_AUTH_ENABLED; else process.env.MOCK_AUTH_ENABLED = originalMockAuth;
+  if (originalPublicTestMode === undefined) delete process.env.PUBLIC_TEST_MODE_ENABLED;
+  else process.env.PUBLIC_TEST_MODE_ENABLED = originalPublicTestMode;
+  if (originalDeploymentProfile === undefined) delete process.env.DEPLOYMENT_PROFILE;
+  else process.env.DEPLOYMENT_PROFILE = originalDeploymentProfile;
 
   const deviceA = await issueSession(customer.user);
   const deviceB = await issueSession(customer.user);

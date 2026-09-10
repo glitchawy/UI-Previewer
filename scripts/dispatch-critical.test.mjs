@@ -10,6 +10,14 @@ const driverLayout = await readFile(new URL("../artifacts/talabat-betak-driver/a
 const trackingContext = await readFile(new URL("../artifacts/talabat-betak-driver/ctx/TrackingContext.tsx", import.meta.url), "utf8");
 const queueLogic = await readFile(new URL("../artifacts/talabat-betak-driver/utils/locationQueue.ts", import.meta.url), "utf8");
 const coarseMigration = await readFile(new URL("../lib/db/migrations/0033_coarse_driver_dispatch_location.sql", import.meta.url), "utf8");
+const proactiveDispatch = await readFile(new URL("../artifacts/api-server/src/lib/driver-dispatch.ts", import.meta.url), "utf8");
+const operationsWorker = await readFile(new URL("../artifacts/api-server/src/lib/operations-worker.ts", import.meta.url), "utf8");
+const operationsMigration = await readFile(new URL("../lib/db/migrations/0034_dispatch_notifications_operations.sql", import.meta.url), "utf8");
+const healthMigration = await readFile(new URL("../lib/db/migrations/0036_proactive_operations_health.sql", import.meta.url), "utf8");
+const operationsHealth = await readFile(new URL("../artifacts/api-server/src/lib/operations-health.ts", import.meta.url), "utf8");
+const notificationDevices = await readFile(new URL("../artifacts/api-server/src/routes/notification-devices.ts", import.meta.url), "utf8");
+const notificationDelivery = await readFile(new URL("../artifacts/api-server/src/lib/notification-delivery.ts", import.meta.url), "utf8");
+const healthRoutes = await readFile(new URL("../artifacts/api-server/src/routes/health.ts", import.meta.url), "utf8");
 
 test("database preserves one active order and one pending offer per order", () => {
   assert.match(migration, /driver_order_offer_pending_order_uidx[\s\S]+WHERE "status" = 'pending'/);
@@ -70,9 +78,56 @@ test("idle dispatch uses separate coarse coordinates and rejects precise input",
   assert.match(driverRoutes, /isCoarseCoordinate\(parsed\.data\.lat\)/);
   assert.match(driverRoutes, /!driver\.profile\.isOnline \|\| !driver\.profile\.isAvailable/);
   assert.match(driverRoutes, /driverProfilesTable\.dispatchLocationUpdatedAt/);
-  assert.match(driverRoutes, /distanceKm\(candidate\.dispatchLat, candidate\.dispatchLng/);
+  assert.match(proactiveDispatch, /distanceKm\(candidate\.dispatchLat, candidate\.dispatchLng/);
   assert.match(trackingContext, /Math\.round\(lat \* 100\) \/ 100/);
   assert.match(trackingContext, /distanceInterval: 250, timeInterval: 30_000/);
+});
+
+test("ready orders are offered proactively and recovered by durable workers", () => {
+  assert.match(proactiveDispatch, /pg_advisory_xact_lock\(78241,/);
+  assert.match(proactiveDispatch, /eq\(ordersTable\.status, "ready"\)/);
+  assert.match(proactiveDispatch, /lte\(driverOrderOffersTable\.expiresAt, now\)/);
+  assert.match(proactiveDispatch, /\.sort\(\(a, b\) => a\.distance - b\.distance/);
+  assert.match(operationsWorker, /await dispatchReadyOrders\(\)/);
+  assert.match(operationsMigration, /driver_order_offer_pending_driver_uidx[\s\S]+WHERE status = 'pending'/);
+});
+
+test("dispatch ranking cannot use precise tracking coordinates", () => {
+  const candidateSelect = proactiveDispatch.slice(
+    proactiveDispatch.indexOf("const candidates"),
+    proactiveDispatch.indexOf("const nearest"),
+  );
+  assert.match(candidateSelect, /dispatchLat/);
+  assert.match(candidateSelect, /dispatchLng/);
+  assert.doesNotMatch(candidateSelect, /currentLat|currentLng/);
+});
+
+test("device token conflict ownership is enforced by the atomic upsert", () => {
+  assert.match(notificationDevices, /setWhere:\s*eq\(notificationDeviceTokensTable\.userId, req\.authUser!\.id\)/);
+  assert.doesNotMatch(notificationDevices, /const \[existing\][\s\S]+onConflictDoUpdate/);
+  assert.match(notificationDevices, /if \(!record\)[\s\S]+status\(409\)/);
+});
+
+test("webhook delivery rechecks active sessions before outbound HTTP", () => {
+  const webhookBranch = notificationDelivery.slice(notificationDelivery.indexOf("} else {"));
+  assert.match(webhookBranch, /isNull\(authSessionsTable\.revokedAt\)/);
+  assert.match(webhookBranch, /gt\(authSessionsTable\.absoluteExpiresAt/);
+  assert.match(webhookBranch, /gt\(authSessionsTable\.idleExpiresAt/);
+  assert.ok(webhookBranch.indexOf("NO_ACTIVE_SESSION") < webhookBranch.indexOf("fetch(url"));
+});
+
+test("worker proactively evaluates durable alert conditions and readiness", () => {
+  for (const condition of ["worker_stalled", "paymob_backlog", "paymob_dead_letters",
+    "notification_dead_letters", "stale_ready_orders"]) {
+    assert.match(operationsHealth, new RegExp(`key: \"${condition}\"`));
+  }
+  assert.match(operationsWorker, /await evaluateOperationsHealth\(\)/);
+  assert.match(operationsHealth, /ALERT_COOLDOWN_MS/);
+  assert.match(operationsHealth, /eventKind === "recovery"/);
+  assert.match(healthMigration, /operations_alert_deliveries[\s\S]+lease_owner/);
+  assert.match(healthMigration, /operations_alert_deliveries[\s\S]+dead_letter/);
+  assert.match(healthRoutes, /router\.get\("\/readyz"/);
+  assert.match(healthRoutes, /health\.critical \? 503 : 200/);
 });
 
 test("native precise queue is isolated by driver, order, and age", () => {

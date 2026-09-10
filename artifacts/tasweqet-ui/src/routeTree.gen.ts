@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DriverRouteImport } from './routes/driver'
 import { Route as PartnerRouteImport } from './routes/partner'
-import { Route as ScreensRouteImport } from './routes/screens'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAuditLogsRouteImport } from './routes/admin.audit-logs'
 import { Route as AdminCommissionsRouteImport } from './routes/admin.commissions'
@@ -75,41 +74,6 @@ import { Route as PartnerReviewsRouteImport } from './routes/partner.reviews'
 import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
 import { Route as PartnerSettlementsRouteImport } from './routes/partner.settlements'
 import { Route as PartnerStaffRouteImport } from './routes/partner.staff'
-import { Route as SAddAddressRouteImport } from './routes/s/add-address'
-import { Route as SAdminDashboardOverviewMobileRouteImport } from './routes/s/admin-dashboard-overview-mobile'
-import { Route as SAdminOrdersManagementMobileRouteImport } from './routes/s/admin-orders-management-mobile'
-import { Route as SBusinessTypeSelectionRouteImport } from './routes/s/business-type-selection'
-import { Route as SCheckoutRouteImport } from './routes/s/checkout'
-import { Route as SDeliveryCompletedRouteImport } from './routes/s/delivery-completed'
-import { Route as SDriverEarningsDashboardRouteImport } from './routes/s/driver-earnings-dashboard'
-import { Route as SDriverHomeOnlineRouteImport } from './routes/s/driver-home-online'
-import { Route as SDriverOperationsMobileRouteImport } from './routes/s/driver-operations-mobile'
-import { Route as SFinancePayoutsMobileRouteImport } from './routes/s/finance-payouts-mobile'
-import { Route as SHomeDiscoveryRouteImport } from './routes/s/home-discovery'
-import { Route as SLocationSelectionRouteImport } from './routes/s/location-selection'
-import { Route as SLoginScreenRouteImport } from './routes/s/login-screen'
-import { Route as SMerchantAnalyticsRouteImport } from './routes/s/merchant-analytics'
-import { Route as SMerchantCatalogRestaurantRouteImport } from './routes/s/merchant-catalog-restaurant'
-import { Route as SMerchantDashboardRestaurantRouteImport } from './routes/s/merchant-dashboard-restaurant'
-import { Route as SMerchantManagementMobileRouteImport } from './routes/s/merchant-management-mobile'
-import { Route as SMerchantOrdersManagementRouteImport } from './routes/s/merchant-orders-management'
-import { Route as SMyOrdersRouteImport } from './routes/s/my-orders'
-import { Route as SNavigationToCustomerRouteImport } from './routes/s/navigation-to-customer'
-import { Route as SNewDeliveryRequestRouteImport } from './routes/s/new-delivery-request'
-import { Route as SNewOrderAlertRouteImport } from './routes/s/new-order-alert'
-import { Route as SOrderSuccessRouteImport } from './routes/s/order-success'
-import { Route as SOrderTrackingRouteImport } from './routes/s/order-tracking'
-import { Route as SOtpVerificationRouteImport } from './routes/s/otp-verification'
-import { Route as SPharmacyListingRouteImport } from './routes/s/pharmacy-listing'
-import { Route as SProductDetailsBurgerRouteImport } from './routes/s/product-details-burger'
-import { Route as SProfileRouteImport } from './routes/s/profile'
-import { Route as SRestaurantListingRouteImport } from './routes/s/restaurant-listing'
-import { Route as SSearchRouteImport } from './routes/s/search'
-import { Route as SShoppingCartRouteImport } from './routes/s/shopping-cart'
-import { Route as SSignUpScreenRouteImport } from './routes/s/sign-up-screen'
-import { Route as SSplashScreenRouteImport } from './routes/s/splash-screen'
-import { Route as SStoreDetailsRestaurantRouteImport } from './routes/s/store-details-restaurant'
-import { Route as SWelcomeScreenRouteImport } from './routes/s/welcome-screen'
 import { Route as AdminDriversIdRouteImport } from './routes/admin.drivers.$id'
 import { Route as AdminOrdersIdRouteImport } from './routes/admin.orders.$id'
 import { Route as AdminRestaurantsIdRouteImport } from './routes/admin.restaurants.$id'
@@ -142,11 +106,6 @@ const DriverRoute = DriverRouteImport.update({
 const PartnerRoute = PartnerRouteImport.update({
   id: '/partner',
   path: '/partner',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScreensRoute = ScreensRouteImport.update({
-  id: '/screens',
-  path: '/screens',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -454,188 +413,6 @@ const PartnerStaffRoute = PartnerStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => PartnerRoute,
 } as any)
-const SAddAddressRoute = SAddAddressRouteImport.update({
-  id: '/s/add-address',
-  path: '/s/add-address',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SAdminDashboardOverviewMobileRoute =
-  SAdminDashboardOverviewMobileRouteImport.update({
-    id: '/s/admin-dashboard-overview-mobile',
-    path: '/s/admin-dashboard-overview-mobile',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SAdminOrdersManagementMobileRoute =
-  SAdminOrdersManagementMobileRouteImport.update({
-    id: '/s/admin-orders-management-mobile',
-    path: '/s/admin-orders-management-mobile',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SBusinessTypeSelectionRoute = SBusinessTypeSelectionRouteImport.update({
-  id: '/s/business-type-selection',
-  path: '/s/business-type-selection',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SCheckoutRoute = SCheckoutRouteImport.update({
-  id: '/s/checkout',
-  path: '/s/checkout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SDeliveryCompletedRoute = SDeliveryCompletedRouteImport.update({
-  id: '/s/delivery-completed',
-  path: '/s/delivery-completed',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SDriverEarningsDashboardRoute =
-  SDriverEarningsDashboardRouteImport.update({
-    id: '/s/driver-earnings-dashboard',
-    path: '/s/driver-earnings-dashboard',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SDriverHomeOnlineRoute = SDriverHomeOnlineRouteImport.update({
-  id: '/s/driver-home-online',
-  path: '/s/driver-home-online',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SDriverOperationsMobileRoute = SDriverOperationsMobileRouteImport.update({
-  id: '/s/driver-operations-mobile',
-  path: '/s/driver-operations-mobile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SFinancePayoutsMobileRoute = SFinancePayoutsMobileRouteImport.update({
-  id: '/s/finance-payouts-mobile',
-  path: '/s/finance-payouts-mobile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SHomeDiscoveryRoute = SHomeDiscoveryRouteImport.update({
-  id: '/s/home-discovery',
-  path: '/s/home-discovery',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SLocationSelectionRoute = SLocationSelectionRouteImport.update({
-  id: '/s/location-selection',
-  path: '/s/location-selection',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SLoginScreenRoute = SLoginScreenRouteImport.update({
-  id: '/s/login-screen',
-  path: '/s/login-screen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SMerchantAnalyticsRoute = SMerchantAnalyticsRouteImport.update({
-  id: '/s/merchant-analytics',
-  path: '/s/merchant-analytics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SMerchantCatalogRestaurantRoute =
-  SMerchantCatalogRestaurantRouteImport.update({
-    id: '/s/merchant-catalog-restaurant',
-    path: '/s/merchant-catalog-restaurant',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SMerchantDashboardRestaurantRoute =
-  SMerchantDashboardRestaurantRouteImport.update({
-    id: '/s/merchant-dashboard-restaurant',
-    path: '/s/merchant-dashboard-restaurant',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SMerchantManagementMobileRoute =
-  SMerchantManagementMobileRouteImport.update({
-    id: '/s/merchant-management-mobile',
-    path: '/s/merchant-management-mobile',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SMerchantOrdersManagementRoute =
-  SMerchantOrdersManagementRouteImport.update({
-    id: '/s/merchant-orders-management',
-    path: '/s/merchant-orders-management',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SMyOrdersRoute = SMyOrdersRouteImport.update({
-  id: '/s/my-orders',
-  path: '/s/my-orders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SNavigationToCustomerRoute = SNavigationToCustomerRouteImport.update({
-  id: '/s/navigation-to-customer',
-  path: '/s/navigation-to-customer',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SNewDeliveryRequestRoute = SNewDeliveryRequestRouteImport.update({
-  id: '/s/new-delivery-request',
-  path: '/s/new-delivery-request',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SNewOrderAlertRoute = SNewOrderAlertRouteImport.update({
-  id: '/s/new-order-alert',
-  path: '/s/new-order-alert',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SOrderSuccessRoute = SOrderSuccessRouteImport.update({
-  id: '/s/order-success',
-  path: '/s/order-success',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SOrderTrackingRoute = SOrderTrackingRouteImport.update({
-  id: '/s/order-tracking',
-  path: '/s/order-tracking',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SOtpVerificationRoute = SOtpVerificationRouteImport.update({
-  id: '/s/otp-verification',
-  path: '/s/otp-verification',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SPharmacyListingRoute = SPharmacyListingRouteImport.update({
-  id: '/s/pharmacy-listing',
-  path: '/s/pharmacy-listing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SProductDetailsBurgerRoute = SProductDetailsBurgerRouteImport.update({
-  id: '/s/product-details-burger',
-  path: '/s/product-details-burger',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SProfileRoute = SProfileRouteImport.update({
-  id: '/s/profile',
-  path: '/s/profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SRestaurantListingRoute = SRestaurantListingRouteImport.update({
-  id: '/s/restaurant-listing',
-  path: '/s/restaurant-listing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SSearchRoute = SSearchRouteImport.update({
-  id: '/s/search',
-  path: '/s/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SShoppingCartRoute = SShoppingCartRouteImport.update({
-  id: '/s/shopping-cart',
-  path: '/s/shopping-cart',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SSignUpScreenRoute = SSignUpScreenRouteImport.update({
-  id: '/s/sign-up-screen',
-  path: '/s/sign-up-screen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SSplashScreenRoute = SSplashScreenRouteImport.update({
-  id: '/s/splash-screen',
-  path: '/s/splash-screen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SStoreDetailsRestaurantRoute = SStoreDetailsRestaurantRouteImport.update({
-  id: '/s/store-details-restaurant',
-  path: '/s/store-details-restaurant',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SWelcomeScreenRoute = SWelcomeScreenRouteImport.update({
-  id: '/s/welcome-screen',
-  path: '/s/welcome-screen',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminDriversIdRoute = AdminDriversIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -707,7 +484,6 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/driver': typeof DriverRouteWithChildren
   '/partner': typeof PartnerRouteWithChildren
-  '/screens': typeof ScreensRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/commissions': typeof AdminCommissionsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -764,41 +540,6 @@ export interface FileRoutesByFullPath {
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/settlements': typeof PartnerSettlementsRoute
   '/partner/staff': typeof PartnerStaffRoute
-  '/s/add-address': typeof SAddAddressRoute
-  '/s/admin-dashboard-overview-mobile': typeof SAdminDashboardOverviewMobileRoute
-  '/s/admin-orders-management-mobile': typeof SAdminOrdersManagementMobileRoute
-  '/s/business-type-selection': typeof SBusinessTypeSelectionRoute
-  '/s/checkout': typeof SCheckoutRoute
-  '/s/delivery-completed': typeof SDeliveryCompletedRoute
-  '/s/driver-earnings-dashboard': typeof SDriverEarningsDashboardRoute
-  '/s/driver-home-online': typeof SDriverHomeOnlineRoute
-  '/s/driver-operations-mobile': typeof SDriverOperationsMobileRoute
-  '/s/finance-payouts-mobile': typeof SFinancePayoutsMobileRoute
-  '/s/home-discovery': typeof SHomeDiscoveryRoute
-  '/s/location-selection': typeof SLocationSelectionRoute
-  '/s/login-screen': typeof SLoginScreenRoute
-  '/s/merchant-analytics': typeof SMerchantAnalyticsRoute
-  '/s/merchant-catalog-restaurant': typeof SMerchantCatalogRestaurantRoute
-  '/s/merchant-dashboard-restaurant': typeof SMerchantDashboardRestaurantRoute
-  '/s/merchant-management-mobile': typeof SMerchantManagementMobileRoute
-  '/s/merchant-orders-management': typeof SMerchantOrdersManagementRoute
-  '/s/my-orders': typeof SMyOrdersRoute
-  '/s/navigation-to-customer': typeof SNavigationToCustomerRoute
-  '/s/new-delivery-request': typeof SNewDeliveryRequestRoute
-  '/s/new-order-alert': typeof SNewOrderAlertRoute
-  '/s/order-success': typeof SOrderSuccessRoute
-  '/s/order-tracking': typeof SOrderTrackingRoute
-  '/s/otp-verification': typeof SOtpVerificationRoute
-  '/s/pharmacy-listing': typeof SPharmacyListingRoute
-  '/s/product-details-burger': typeof SProductDetailsBurgerRoute
-  '/s/profile': typeof SProfileRoute
-  '/s/restaurant-listing': typeof SRestaurantListingRoute
-  '/s/search': typeof SSearchRoute
-  '/s/shopping-cart': typeof SShoppingCartRoute
-  '/s/sign-up-screen': typeof SSignUpScreenRoute
-  '/s/splash-screen': typeof SSplashScreenRoute
-  '/s/store-details-restaurant': typeof SStoreDetailsRestaurantRoute
-  '/s/welcome-screen': typeof SWelcomeScreenRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/branch/': typeof BranchIndexRoute
@@ -820,7 +561,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/screens': typeof ScreensRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/commissions': typeof AdminCommissionsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -877,41 +617,6 @@ export interface FileRoutesByTo {
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/settlements': typeof PartnerSettlementsRoute
   '/partner/staff': typeof PartnerStaffRoute
-  '/s/add-address': typeof SAddAddressRoute
-  '/s/admin-dashboard-overview-mobile': typeof SAdminDashboardOverviewMobileRoute
-  '/s/admin-orders-management-mobile': typeof SAdminOrdersManagementMobileRoute
-  '/s/business-type-selection': typeof SBusinessTypeSelectionRoute
-  '/s/checkout': typeof SCheckoutRoute
-  '/s/delivery-completed': typeof SDeliveryCompletedRoute
-  '/s/driver-earnings-dashboard': typeof SDriverEarningsDashboardRoute
-  '/s/driver-home-online': typeof SDriverHomeOnlineRoute
-  '/s/driver-operations-mobile': typeof SDriverOperationsMobileRoute
-  '/s/finance-payouts-mobile': typeof SFinancePayoutsMobileRoute
-  '/s/home-discovery': typeof SHomeDiscoveryRoute
-  '/s/location-selection': typeof SLocationSelectionRoute
-  '/s/login-screen': typeof SLoginScreenRoute
-  '/s/merchant-analytics': typeof SMerchantAnalyticsRoute
-  '/s/merchant-catalog-restaurant': typeof SMerchantCatalogRestaurantRoute
-  '/s/merchant-dashboard-restaurant': typeof SMerchantDashboardRestaurantRoute
-  '/s/merchant-management-mobile': typeof SMerchantManagementMobileRoute
-  '/s/merchant-orders-management': typeof SMerchantOrdersManagementRoute
-  '/s/my-orders': typeof SMyOrdersRoute
-  '/s/navigation-to-customer': typeof SNavigationToCustomerRoute
-  '/s/new-delivery-request': typeof SNewDeliveryRequestRoute
-  '/s/new-order-alert': typeof SNewOrderAlertRoute
-  '/s/order-success': typeof SOrderSuccessRoute
-  '/s/order-tracking': typeof SOrderTrackingRoute
-  '/s/otp-verification': typeof SOtpVerificationRoute
-  '/s/pharmacy-listing': typeof SPharmacyListingRoute
-  '/s/product-details-burger': typeof SProductDetailsBurgerRoute
-  '/s/profile': typeof SProfileRoute
-  '/s/restaurant-listing': typeof SRestaurantListingRoute
-  '/s/search': typeof SSearchRoute
-  '/s/shopping-cart': typeof SShoppingCartRoute
-  '/s/sign-up-screen': typeof SSignUpScreenRoute
-  '/s/splash-screen': typeof SSplashScreenRoute
-  '/s/store-details-restaurant': typeof SStoreDetailsRestaurantRoute
-  '/s/welcome-screen': typeof SWelcomeScreenRoute
   '/admin': typeof AdminIndexRoute
   '/app': typeof AppIndexRoute
   '/branch': typeof BranchIndexRoute
@@ -937,7 +642,6 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/driver': typeof DriverRouteWithChildren
   '/partner': typeof PartnerRouteWithChildren
-  '/screens': typeof ScreensRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/commissions': typeof AdminCommissionsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -994,41 +698,6 @@ export interface FileRoutesById {
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/settlements': typeof PartnerSettlementsRoute
   '/partner/staff': typeof PartnerStaffRoute
-  '/s/add-address': typeof SAddAddressRoute
-  '/s/admin-dashboard-overview-mobile': typeof SAdminDashboardOverviewMobileRoute
-  '/s/admin-orders-management-mobile': typeof SAdminOrdersManagementMobileRoute
-  '/s/business-type-selection': typeof SBusinessTypeSelectionRoute
-  '/s/checkout': typeof SCheckoutRoute
-  '/s/delivery-completed': typeof SDeliveryCompletedRoute
-  '/s/driver-earnings-dashboard': typeof SDriverEarningsDashboardRoute
-  '/s/driver-home-online': typeof SDriverHomeOnlineRoute
-  '/s/driver-operations-mobile': typeof SDriverOperationsMobileRoute
-  '/s/finance-payouts-mobile': typeof SFinancePayoutsMobileRoute
-  '/s/home-discovery': typeof SHomeDiscoveryRoute
-  '/s/location-selection': typeof SLocationSelectionRoute
-  '/s/login-screen': typeof SLoginScreenRoute
-  '/s/merchant-analytics': typeof SMerchantAnalyticsRoute
-  '/s/merchant-catalog-restaurant': typeof SMerchantCatalogRestaurantRoute
-  '/s/merchant-dashboard-restaurant': typeof SMerchantDashboardRestaurantRoute
-  '/s/merchant-management-mobile': typeof SMerchantManagementMobileRoute
-  '/s/merchant-orders-management': typeof SMerchantOrdersManagementRoute
-  '/s/my-orders': typeof SMyOrdersRoute
-  '/s/navigation-to-customer': typeof SNavigationToCustomerRoute
-  '/s/new-delivery-request': typeof SNewDeliveryRequestRoute
-  '/s/new-order-alert': typeof SNewOrderAlertRoute
-  '/s/order-success': typeof SOrderSuccessRoute
-  '/s/order-tracking': typeof SOrderTrackingRoute
-  '/s/otp-verification': typeof SOtpVerificationRoute
-  '/s/pharmacy-listing': typeof SPharmacyListingRoute
-  '/s/product-details-burger': typeof SProductDetailsBurgerRoute
-  '/s/profile': typeof SProfileRoute
-  '/s/restaurant-listing': typeof SRestaurantListingRoute
-  '/s/search': typeof SSearchRoute
-  '/s/shopping-cart': typeof SShoppingCartRoute
-  '/s/sign-up-screen': typeof SSignUpScreenRoute
-  '/s/splash-screen': typeof SSplashScreenRoute
-  '/s/store-details-restaurant': typeof SStoreDetailsRestaurantRoute
-  '/s/welcome-screen': typeof SWelcomeScreenRoute
   '/admin/': typeof AdminIndexRoute
   '/app/': typeof AppIndexRoute
   '/branch/': typeof BranchIndexRoute
@@ -1055,7 +724,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/driver'
     | '/partner'
-    | '/screens'
     | '/admin/audit-logs'
     | '/admin/commissions'
     | '/admin/customers'
@@ -1112,41 +780,6 @@ export interface FileRouteTypes {
     | '/partner/settings'
     | '/partner/settlements'
     | '/partner/staff'
-    | '/s/add-address'
-    | '/s/admin-dashboard-overview-mobile'
-    | '/s/admin-orders-management-mobile'
-    | '/s/business-type-selection'
-    | '/s/checkout'
-    | '/s/delivery-completed'
-    | '/s/driver-earnings-dashboard'
-    | '/s/driver-home-online'
-    | '/s/driver-operations-mobile'
-    | '/s/finance-payouts-mobile'
-    | '/s/home-discovery'
-    | '/s/location-selection'
-    | '/s/login-screen'
-    | '/s/merchant-analytics'
-    | '/s/merchant-catalog-restaurant'
-    | '/s/merchant-dashboard-restaurant'
-    | '/s/merchant-management-mobile'
-    | '/s/merchant-orders-management'
-    | '/s/my-orders'
-    | '/s/navigation-to-customer'
-    | '/s/new-delivery-request'
-    | '/s/new-order-alert'
-    | '/s/order-success'
-    | '/s/order-tracking'
-    | '/s/otp-verification'
-    | '/s/pharmacy-listing'
-    | '/s/product-details-burger'
-    | '/s/profile'
-    | '/s/restaurant-listing'
-    | '/s/search'
-    | '/s/shopping-cart'
-    | '/s/sign-up-screen'
-    | '/s/splash-screen'
-    | '/s/store-details-restaurant'
-    | '/s/welcome-screen'
     | '/admin/'
     | '/app/'
     | '/branch/'
@@ -1168,7 +801,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/screens'
     | '/admin/audit-logs'
     | '/admin/commissions'
     | '/admin/customers'
@@ -1225,41 +857,6 @@ export interface FileRouteTypes {
     | '/partner/settings'
     | '/partner/settlements'
     | '/partner/staff'
-    | '/s/add-address'
-    | '/s/admin-dashboard-overview-mobile'
-    | '/s/admin-orders-management-mobile'
-    | '/s/business-type-selection'
-    | '/s/checkout'
-    | '/s/delivery-completed'
-    | '/s/driver-earnings-dashboard'
-    | '/s/driver-home-online'
-    | '/s/driver-operations-mobile'
-    | '/s/finance-payouts-mobile'
-    | '/s/home-discovery'
-    | '/s/location-selection'
-    | '/s/login-screen'
-    | '/s/merchant-analytics'
-    | '/s/merchant-catalog-restaurant'
-    | '/s/merchant-dashboard-restaurant'
-    | '/s/merchant-management-mobile'
-    | '/s/merchant-orders-management'
-    | '/s/my-orders'
-    | '/s/navigation-to-customer'
-    | '/s/new-delivery-request'
-    | '/s/new-order-alert'
-    | '/s/order-success'
-    | '/s/order-tracking'
-    | '/s/otp-verification'
-    | '/s/pharmacy-listing'
-    | '/s/product-details-burger'
-    | '/s/profile'
-    | '/s/restaurant-listing'
-    | '/s/search'
-    | '/s/shopping-cart'
-    | '/s/sign-up-screen'
-    | '/s/splash-screen'
-    | '/s/store-details-restaurant'
-    | '/s/welcome-screen'
     | '/admin'
     | '/app'
     | '/branch'
@@ -1284,7 +881,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/driver'
     | '/partner'
-    | '/screens'
     | '/admin/audit-logs'
     | '/admin/commissions'
     | '/admin/customers'
@@ -1341,41 +937,6 @@ export interface FileRouteTypes {
     | '/partner/settings'
     | '/partner/settlements'
     | '/partner/staff'
-    | '/s/add-address'
-    | '/s/admin-dashboard-overview-mobile'
-    | '/s/admin-orders-management-mobile'
-    | '/s/business-type-selection'
-    | '/s/checkout'
-    | '/s/delivery-completed'
-    | '/s/driver-earnings-dashboard'
-    | '/s/driver-home-online'
-    | '/s/driver-operations-mobile'
-    | '/s/finance-payouts-mobile'
-    | '/s/home-discovery'
-    | '/s/location-selection'
-    | '/s/login-screen'
-    | '/s/merchant-analytics'
-    | '/s/merchant-catalog-restaurant'
-    | '/s/merchant-dashboard-restaurant'
-    | '/s/merchant-management-mobile'
-    | '/s/merchant-orders-management'
-    | '/s/my-orders'
-    | '/s/navigation-to-customer'
-    | '/s/new-delivery-request'
-    | '/s/new-order-alert'
-    | '/s/order-success'
-    | '/s/order-tracking'
-    | '/s/otp-verification'
-    | '/s/pharmacy-listing'
-    | '/s/product-details-burger'
-    | '/s/profile'
-    | '/s/restaurant-listing'
-    | '/s/search'
-    | '/s/shopping-cart'
-    | '/s/sign-up-screen'
-    | '/s/splash-screen'
-    | '/s/store-details-restaurant'
-    | '/s/welcome-screen'
     | '/admin/'
     | '/app/'
     | '/branch/'
@@ -1401,7 +962,6 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   DriverRoute: typeof DriverRouteWithChildren
   PartnerRoute: typeof PartnerRouteWithChildren
-  ScreensRoute: typeof ScreensRoute
   AppAddressRoute: typeof AppAddressRoute
   AppCartRoute: typeof AppCartRoute
   AppCheckoutRoute: typeof AppCheckoutRoute
@@ -1423,41 +983,6 @@ export interface RootRouteChildren {
   AuthWelcomeRoute: typeof AuthWelcomeRoute
   BranchDriversRoute: typeof BranchDriversRoute
   BranchInventoryRoute: typeof BranchInventoryRoute
-  SAddAddressRoute: typeof SAddAddressRoute
-  SAdminDashboardOverviewMobileRoute: typeof SAdminDashboardOverviewMobileRoute
-  SAdminOrdersManagementMobileRoute: typeof SAdminOrdersManagementMobileRoute
-  SBusinessTypeSelectionRoute: typeof SBusinessTypeSelectionRoute
-  SCheckoutRoute: typeof SCheckoutRoute
-  SDeliveryCompletedRoute: typeof SDeliveryCompletedRoute
-  SDriverEarningsDashboardRoute: typeof SDriverEarningsDashboardRoute
-  SDriverHomeOnlineRoute: typeof SDriverHomeOnlineRoute
-  SDriverOperationsMobileRoute: typeof SDriverOperationsMobileRoute
-  SFinancePayoutsMobileRoute: typeof SFinancePayoutsMobileRoute
-  SHomeDiscoveryRoute: typeof SHomeDiscoveryRoute
-  SLocationSelectionRoute: typeof SLocationSelectionRoute
-  SLoginScreenRoute: typeof SLoginScreenRoute
-  SMerchantAnalyticsRoute: typeof SMerchantAnalyticsRoute
-  SMerchantCatalogRestaurantRoute: typeof SMerchantCatalogRestaurantRoute
-  SMerchantDashboardRestaurantRoute: typeof SMerchantDashboardRestaurantRoute
-  SMerchantManagementMobileRoute: typeof SMerchantManagementMobileRoute
-  SMerchantOrdersManagementRoute: typeof SMerchantOrdersManagementRoute
-  SMyOrdersRoute: typeof SMyOrdersRoute
-  SNavigationToCustomerRoute: typeof SNavigationToCustomerRoute
-  SNewDeliveryRequestRoute: typeof SNewDeliveryRequestRoute
-  SNewOrderAlertRoute: typeof SNewOrderAlertRoute
-  SOrderSuccessRoute: typeof SOrderSuccessRoute
-  SOrderTrackingRoute: typeof SOrderTrackingRoute
-  SOtpVerificationRoute: typeof SOtpVerificationRoute
-  SPharmacyListingRoute: typeof SPharmacyListingRoute
-  SProductDetailsBurgerRoute: typeof SProductDetailsBurgerRoute
-  SProfileRoute: typeof SProfileRoute
-  SRestaurantListingRoute: typeof SRestaurantListingRoute
-  SSearchRoute: typeof SSearchRoute
-  SShoppingCartRoute: typeof SShoppingCartRoute
-  SSignUpScreenRoute: typeof SSignUpScreenRoute
-  SSplashScreenRoute: typeof SSplashScreenRoute
-  SStoreDetailsRestaurantRoute: typeof SStoreDetailsRestaurantRoute
-  SWelcomeScreenRoute: typeof SWelcomeScreenRoute
   AppIndexRoute: typeof AppIndexRoute
   BranchIndexRoute: typeof BranchIndexRoute
   AppCategoryIdRoute: typeof AppCategoryIdRoute
@@ -1496,13 +1021,6 @@ declare module '@tanstack/react-router' {
       path: '/partner'
       fullPath: '/partner'
       preLoaderRoute: typeof PartnerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/screens': {
-      id: '/screens'
-      path: '/screens'
-      fullPath: '/screens'
-      preLoaderRoute: typeof ScreensRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -1932,251 +1450,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerStaffRouteImport
       parentRoute: typeof PartnerRoute
     }
-    '/s/add-address': {
-      id: '/s/add-address'
-      path: '/s/add-address'
-      fullPath: '/s/add-address'
-      preLoaderRoute: typeof SAddAddressRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/admin-dashboard-overview-mobile': {
-      id: '/s/admin-dashboard-overview-mobile'
-      path: '/s/admin-dashboard-overview-mobile'
-      fullPath: '/s/admin-dashboard-overview-mobile'
-      preLoaderRoute: typeof SAdminDashboardOverviewMobileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/admin-orders-management-mobile': {
-      id: '/s/admin-orders-management-mobile'
-      path: '/s/admin-orders-management-mobile'
-      fullPath: '/s/admin-orders-management-mobile'
-      preLoaderRoute: typeof SAdminOrdersManagementMobileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/business-type-selection': {
-      id: '/s/business-type-selection'
-      path: '/s/business-type-selection'
-      fullPath: '/s/business-type-selection'
-      preLoaderRoute: typeof SBusinessTypeSelectionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/checkout': {
-      id: '/s/checkout'
-      path: '/s/checkout'
-      fullPath: '/s/checkout'
-      preLoaderRoute: typeof SCheckoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/delivery-completed': {
-      id: '/s/delivery-completed'
-      path: '/s/delivery-completed'
-      fullPath: '/s/delivery-completed'
-      preLoaderRoute: typeof SDeliveryCompletedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/driver-earnings-dashboard': {
-      id: '/s/driver-earnings-dashboard'
-      path: '/s/driver-earnings-dashboard'
-      fullPath: '/s/driver-earnings-dashboard'
-      preLoaderRoute: typeof SDriverEarningsDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/driver-home-online': {
-      id: '/s/driver-home-online'
-      path: '/s/driver-home-online'
-      fullPath: '/s/driver-home-online'
-      preLoaderRoute: typeof SDriverHomeOnlineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/driver-operations-mobile': {
-      id: '/s/driver-operations-mobile'
-      path: '/s/driver-operations-mobile'
-      fullPath: '/s/driver-operations-mobile'
-      preLoaderRoute: typeof SDriverOperationsMobileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/finance-payouts-mobile': {
-      id: '/s/finance-payouts-mobile'
-      path: '/s/finance-payouts-mobile'
-      fullPath: '/s/finance-payouts-mobile'
-      preLoaderRoute: typeof SFinancePayoutsMobileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/home-discovery': {
-      id: '/s/home-discovery'
-      path: '/s/home-discovery'
-      fullPath: '/s/home-discovery'
-      preLoaderRoute: typeof SHomeDiscoveryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/location-selection': {
-      id: '/s/location-selection'
-      path: '/s/location-selection'
-      fullPath: '/s/location-selection'
-      preLoaderRoute: typeof SLocationSelectionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/login-screen': {
-      id: '/s/login-screen'
-      path: '/s/login-screen'
-      fullPath: '/s/login-screen'
-      preLoaderRoute: typeof SLoginScreenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/merchant-analytics': {
-      id: '/s/merchant-analytics'
-      path: '/s/merchant-analytics'
-      fullPath: '/s/merchant-analytics'
-      preLoaderRoute: typeof SMerchantAnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/merchant-catalog-restaurant': {
-      id: '/s/merchant-catalog-restaurant'
-      path: '/s/merchant-catalog-restaurant'
-      fullPath: '/s/merchant-catalog-restaurant'
-      preLoaderRoute: typeof SMerchantCatalogRestaurantRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/merchant-dashboard-restaurant': {
-      id: '/s/merchant-dashboard-restaurant'
-      path: '/s/merchant-dashboard-restaurant'
-      fullPath: '/s/merchant-dashboard-restaurant'
-      preLoaderRoute: typeof SMerchantDashboardRestaurantRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/merchant-management-mobile': {
-      id: '/s/merchant-management-mobile'
-      path: '/s/merchant-management-mobile'
-      fullPath: '/s/merchant-management-mobile'
-      preLoaderRoute: typeof SMerchantManagementMobileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/merchant-orders-management': {
-      id: '/s/merchant-orders-management'
-      path: '/s/merchant-orders-management'
-      fullPath: '/s/merchant-orders-management'
-      preLoaderRoute: typeof SMerchantOrdersManagementRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/my-orders': {
-      id: '/s/my-orders'
-      path: '/s/my-orders'
-      fullPath: '/s/my-orders'
-      preLoaderRoute: typeof SMyOrdersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/navigation-to-customer': {
-      id: '/s/navigation-to-customer'
-      path: '/s/navigation-to-customer'
-      fullPath: '/s/navigation-to-customer'
-      preLoaderRoute: typeof SNavigationToCustomerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/new-delivery-request': {
-      id: '/s/new-delivery-request'
-      path: '/s/new-delivery-request'
-      fullPath: '/s/new-delivery-request'
-      preLoaderRoute: typeof SNewDeliveryRequestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/new-order-alert': {
-      id: '/s/new-order-alert'
-      path: '/s/new-order-alert'
-      fullPath: '/s/new-order-alert'
-      preLoaderRoute: typeof SNewOrderAlertRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/order-success': {
-      id: '/s/order-success'
-      path: '/s/order-success'
-      fullPath: '/s/order-success'
-      preLoaderRoute: typeof SOrderSuccessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/order-tracking': {
-      id: '/s/order-tracking'
-      path: '/s/order-tracking'
-      fullPath: '/s/order-tracking'
-      preLoaderRoute: typeof SOrderTrackingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/otp-verification': {
-      id: '/s/otp-verification'
-      path: '/s/otp-verification'
-      fullPath: '/s/otp-verification'
-      preLoaderRoute: typeof SOtpVerificationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/pharmacy-listing': {
-      id: '/s/pharmacy-listing'
-      path: '/s/pharmacy-listing'
-      fullPath: '/s/pharmacy-listing'
-      preLoaderRoute: typeof SPharmacyListingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/product-details-burger': {
-      id: '/s/product-details-burger'
-      path: '/s/product-details-burger'
-      fullPath: '/s/product-details-burger'
-      preLoaderRoute: typeof SProductDetailsBurgerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/profile': {
-      id: '/s/profile'
-      path: '/s/profile'
-      fullPath: '/s/profile'
-      preLoaderRoute: typeof SProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/restaurant-listing': {
-      id: '/s/restaurant-listing'
-      path: '/s/restaurant-listing'
-      fullPath: '/s/restaurant-listing'
-      preLoaderRoute: typeof SRestaurantListingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/search': {
-      id: '/s/search'
-      path: '/s/search'
-      fullPath: '/s/search'
-      preLoaderRoute: typeof SSearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/shopping-cart': {
-      id: '/s/shopping-cart'
-      path: '/s/shopping-cart'
-      fullPath: '/s/shopping-cart'
-      preLoaderRoute: typeof SShoppingCartRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/sign-up-screen': {
-      id: '/s/sign-up-screen'
-      path: '/s/sign-up-screen'
-      fullPath: '/s/sign-up-screen'
-      preLoaderRoute: typeof SSignUpScreenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/splash-screen': {
-      id: '/s/splash-screen'
-      path: '/s/splash-screen'
-      fullPath: '/s/splash-screen'
-      preLoaderRoute: typeof SSplashScreenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/store-details-restaurant': {
-      id: '/s/store-details-restaurant'
-      path: '/s/store-details-restaurant'
-      fullPath: '/s/store-details-restaurant'
-      preLoaderRoute: typeof SStoreDetailsRestaurantRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/welcome-screen': {
-      id: '/s/welcome-screen'
-      path: '/s/welcome-screen'
-      fullPath: '/s/welcome-screen'
-      preLoaderRoute: typeof SWelcomeScreenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/drivers/$id': {
       id: '/admin/drivers/$id'
       path: '/$id'
@@ -2461,7 +1734,6 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   DriverRoute: DriverRouteWithChildren,
   PartnerRoute: PartnerRouteWithChildren,
-  ScreensRoute: ScreensRoute,
   AppAddressRoute: AppAddressRoute,
   AppCartRoute: AppCartRoute,
   AppCheckoutRoute: AppCheckoutRoute,
@@ -2483,41 +1755,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthWelcomeRoute: AuthWelcomeRoute,
   BranchDriversRoute: BranchDriversRoute,
   BranchInventoryRoute: BranchInventoryRoute,
-  SAddAddressRoute: SAddAddressRoute,
-  SAdminDashboardOverviewMobileRoute: SAdminDashboardOverviewMobileRoute,
-  SAdminOrdersManagementMobileRoute: SAdminOrdersManagementMobileRoute,
-  SBusinessTypeSelectionRoute: SBusinessTypeSelectionRoute,
-  SCheckoutRoute: SCheckoutRoute,
-  SDeliveryCompletedRoute: SDeliveryCompletedRoute,
-  SDriverEarningsDashboardRoute: SDriverEarningsDashboardRoute,
-  SDriverHomeOnlineRoute: SDriverHomeOnlineRoute,
-  SDriverOperationsMobileRoute: SDriverOperationsMobileRoute,
-  SFinancePayoutsMobileRoute: SFinancePayoutsMobileRoute,
-  SHomeDiscoveryRoute: SHomeDiscoveryRoute,
-  SLocationSelectionRoute: SLocationSelectionRoute,
-  SLoginScreenRoute: SLoginScreenRoute,
-  SMerchantAnalyticsRoute: SMerchantAnalyticsRoute,
-  SMerchantCatalogRestaurantRoute: SMerchantCatalogRestaurantRoute,
-  SMerchantDashboardRestaurantRoute: SMerchantDashboardRestaurantRoute,
-  SMerchantManagementMobileRoute: SMerchantManagementMobileRoute,
-  SMerchantOrdersManagementRoute: SMerchantOrdersManagementRoute,
-  SMyOrdersRoute: SMyOrdersRoute,
-  SNavigationToCustomerRoute: SNavigationToCustomerRoute,
-  SNewDeliveryRequestRoute: SNewDeliveryRequestRoute,
-  SNewOrderAlertRoute: SNewOrderAlertRoute,
-  SOrderSuccessRoute: SOrderSuccessRoute,
-  SOrderTrackingRoute: SOrderTrackingRoute,
-  SOtpVerificationRoute: SOtpVerificationRoute,
-  SPharmacyListingRoute: SPharmacyListingRoute,
-  SProductDetailsBurgerRoute: SProductDetailsBurgerRoute,
-  SProfileRoute: SProfileRoute,
-  SRestaurantListingRoute: SRestaurantListingRoute,
-  SSearchRoute: SSearchRoute,
-  SShoppingCartRoute: SShoppingCartRoute,
-  SSignUpScreenRoute: SSignUpScreenRoute,
-  SSplashScreenRoute: SSplashScreenRoute,
-  SStoreDetailsRestaurantRoute: SStoreDetailsRestaurantRoute,
-  SWelcomeScreenRoute: SWelcomeScreenRoute,
   AppIndexRoute: AppIndexRoute,
   BranchIndexRoute: BranchIndexRoute,
   AppCategoryIdRoute: AppCategoryIdRoute,

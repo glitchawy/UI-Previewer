@@ -1,8 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq, gt, inArray, isNull, lt, lte, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import {
-  branchesTable,
   db,
   driverCommissionRulesTable,
   driverEarningsTable,
@@ -31,9 +30,10 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { lookupAuthorization } from "../lib/session";
+import { dispatchReadyOrder } from "../lib/driver-dispatch";
+import { logger } from "../lib/logger";
 
 const router = Router();
-const OFFER_TTL_MS = 45_000;
 const LOCATION_FRESH_MS = 2 * 60_000;
 const HEARTBEAT_FRESH_MS = 90_000;
 const LOCATION_HISTORY_INTERVAL_MS = 30_000;
@@ -266,54 +266,11 @@ router.get("/driver/orders/available", async (req, res: Response): Promise<void>
     res.json(GetAvailableDriverOrderResponse.parse(null));
     return;
   }
-  const offerResult = await db.transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(78242, ${driver.profile.id})`);
-    await tx.update(driverOrderOffersTable).set({ status: "expired", respondedAt: now })
-      .where(and(eq(driverOrderOffersTable.status, "pending"), lte(driverOrderOffersTable.expiresAt, now)));
-    const [ownOffer] = await tx.select({ offer: driverOrderOffersTable, order: ordersTable })
-      .from(driverOrderOffersTable).innerJoin(ordersTable, eq(ordersTable.id, driverOrderOffersTable.orderId))
-      .where(and(eq(driverOrderOffersTable.driverProfileId, driver.profile.id), eq(driverOrderOffersTable.status, "pending"), gt(driverOrderOffersTable.expiresAt, now)))
-      .orderBy(driverOrderOffersTable.expiresAt).limit(1);
-    if (ownOffer) return ownOffer;
-    const [order] = await tx.select().from(ordersTable).where(and(isNull(ordersTable.driverProfileId), eq(ordersTable.status, "ready")))
-      .orderBy(ordersTable.updatedAt, ordersTable.id).limit(1);
-    if (!order) return null;
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${order.id})`);
-    const [branch] = order.branchId ? await tx.select({ lat: branchesTable.lat, lng: branchesTable.lng }).from(branchesTable)
-      .where(eq(branchesTable.id, order.branchId)).limit(1) : [];
-    if (branch?.lat === null || branch?.lat === undefined || branch.lng === null) return null;
-    const prior = await tx.select({ driverProfileId: driverOrderOffersTable.driverProfileId }).from(driverOrderOffersTable)
-      .where(eq(driverOrderOffersTable.orderId, order.id));
-    const excluded = prior.map(row => row.driverProfileId);
-    const candidates = await tx.select({
-      id: driverProfilesTable.id, userId: driverProfilesTable.userId,
-      currentWorkload: driverProfilesTable.currentWorkload, serviceRadiusKm: driverProfilesTable.serviceRadiusKm,
-      dispatchLat: driverProfilesTable.dispatchLat, dispatchLng: driverProfilesTable.dispatchLng,
-    }).from(driverProfilesTable).where(and(
-      eq(driverProfilesTable.status, "APPROVED"), eq(driverProfilesTable.isOnline, true), eq(driverProfilesTable.isAvailable, true),
-      lte(driverProfilesTable.currentWorkload, 0), gt(driverProfilesTable.lastHeartbeatAt, new Date(now.getTime() - HEARTBEAT_FRESH_MS)),
-      gt(driverProfilesTable.dispatchLocationUpdatedAt, new Date(now.getTime() - LOCATION_FRESH_MS)),
-      excluded.length ? notInArray(driverProfilesTable.id, excluded) : undefined,
-    )).limit(100);
-    const eligible = candidates.flatMap(candidate => {
-      if (candidate.dispatchLat === null || candidate.dispatchLng === null) return [];
-      const distance = distanceKm(candidate.dispatchLat, candidate.dispatchLng, branch.lat!, branch.lng!);
-      return distance <= candidate.serviceRadiusKm ? [{ candidate, distance }] : [];
-    }).sort((a, b) => a.candidate.currentWorkload - b.candidate.currentWorkload || a.distance - b.distance || a.candidate.id - b.candidate.id);
-    const nearest = eligible[0];
-    if (!nearest) return null;
-    const [offer] = await tx.insert(driverOrderOffersTable).values({
-      orderId: order.id, driverProfileId: nearest.candidate.id, distanceKm: nearest.distance,
-      expiresAt: new Date(now.getTime() + OFFER_TTL_MS),
-    }).onConflictDoNothing().returning();
-    if (!offer) return null;
-    await tx.insert(notificationsTable).values({
-      userId: nearest.candidate.userId, eventType: "DRIVER_ORDER_OFFER", title: "عرض توصيل جديد",
-      body: `لديك عرض توصيل من ${order.restaurantName}`, entityType: "order", entityId: order.id,
-      deduplicationKey: `driver-offer:${offer.id}`,
-    }).onConflictDoNothing();
-    return nearest.candidate.id === driver.profile.id ? { offer, order } : null;
-  });
+  const [offerResult] = await db.select({ offer: driverOrderOffersTable, order: ordersTable })
+    .from(driverOrderOffersTable).innerJoin(ordersTable, eq(ordersTable.id, driverOrderOffersTable.orderId))
+    .where(and(eq(driverOrderOffersTable.driverProfileId, driver.profile.id),
+      eq(driverOrderOffersTable.status, "pending"), gt(driverOrderOffersTable.expiresAt, now)))
+    .orderBy(driverOrderOffersTable.expiresAt).limit(1);
   const order = offerResult?.order;
   res.json(GetAvailableDriverOrderResponse.parse(order ? {
     id: order.id,
@@ -392,6 +349,9 @@ router.post("/driver/orders/:id/reject", async (req, res: Response): Promise<voi
     eq(driverOrderOffersTable.status, "pending"), gt(driverOrderOffersTable.expiresAt, now),
   )).returning();
   if (!offer) { res.status(409).json({ error: "العرض منتهي أو تمت معالجته" }); return; }
+  await dispatchReadyOrder(id).catch((error) => {
+    logger.warn({ err: error, orderId: id }, "Immediate rejected-offer redispatch failed; worker will recover");
+  });
   res.json({ success: true });
 });
 

@@ -1,13 +1,19 @@
 import { Router, type Response } from "express";
-import { and, count, desc, eq, gte, inArray, lt, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNull, lt, sql, sum } from "drizzle-orm";
 import {
   db, deliveryPricingTiersTable, driverCommissionRulesTable, notificationOutboxTable,
+  notificationDeliveryAttemptsTable, operationsWorkerHeartbeatTable, paymobWebhookInboxTable,
+  authSessionsTable, notificationDeviceTokensTable, operationsAlertConditionsTable,
+  operationsAlertDeliveriesTable,
   orderReviewsTable, ordersTable, paymentSessionsTable, platformSettingsTable,
   refundRequestsTable, restaurantCommissionsTable, restaurantsTable,
   restaurantSettlementsTable, usersTable,
 } from "@workspace/db";
 import { requireAdminPermission, requireAuth, requireRole } from "../middleware/auth";
 import { recordBusinessAudit, requestIdForAudit } from "../lib/business-audit";
+import { logger } from "../lib/logger";
+import { notificationProviderConfiguration } from "../lib/notification-delivery";
+import { collectOperationsHealth } from "../lib/operations-health";
 
 const router = Router();
 const page = (q: Record<string, unknown>) => {
@@ -22,6 +28,53 @@ const audit = (req: Parameters<typeof requestIdForAudit>[0], action: string, ent
   recordBusinessAudit(db, { actorAdminId: req.authUser!.id, action, entityType, entityId, before, after, reason, requestId: requestIdForAudit(req) });
 
 router.use("/admin/operations", requireAuth, requireRole("admin"));
+
+router.get("/admin/operations/health", requireAdminPermission("settings.read"), async (_req, res: Response): Promise<void> => {
+  const now = new Date();
+  const [health, [notificationFailures], [activeDevices], [activeAlerts], [pendingAlerts], [deadAlerts]] = await Promise.all([
+    collectOperationsHealth(now),
+    db.select({ value: count() }).from(notificationDeliveryAttemptsTable)
+      .where(inArray(notificationDeliveryAttemptsTable.status, ["retry", "dead_letter"])),
+    db.select({ value: count() }).from(notificationDeviceTokensTable)
+      .innerJoin(authSessionsTable, eq(authSessionsTable.id, notificationDeviceTokensTable.sessionId))
+      .where(and(isNull(notificationDeviceTokensTable.revokedAt), isNull(authSessionsTable.revokedAt),
+        gt(authSessionsTable.absoluteExpiresAt, now), gt(authSessionsTable.idleExpiresAt, now))),
+    db.select({ value: count() }).from(operationsAlertConditionsTable)
+      .where(eq(operationsAlertConditionsTable.active, true)),
+    db.select({ value: count() }).from(operationsAlertDeliveriesTable)
+      .where(inArray(operationsAlertDeliveriesTable.status, ["pending", "retry", "processing"])),
+    db.select({ value: count() }).from(operationsAlertDeliveriesTable)
+      .where(eq(operationsAlertDeliveriesTable.status, "dead_letter")),
+  ]);
+  const metrics = {
+    ...health.metrics,
+    notificationFailures: Number(notificationFailures.value),
+  };
+  if (metrics.deadWebhookEvents || metrics.notificationFailures || metrics.staleReadyOrders) {
+    logger.warn({ operationalHealth: metrics }, "Operations health threshold exceeded");
+  }
+  res.json({
+    worker: health.worker ? {
+      lastStartedAt: health.worker.lastStartedAt,
+      lastSucceededAt: health.worker.lastSucceededAt,
+      lastErrorAt: health.worker.lastErrorAt,
+      lastHealthEvaluatedAt: health.worker.lastHealthEvaluatedAt,
+      healthy: !health.conditions.find((condition) => condition.key === "worker_stalled")?.active,
+    } : null,
+    ...metrics,
+    alerts: {
+      active: Number(activeAlerts.value),
+      pending: Number(pendingAlerts.value),
+      deadLetter: Number(deadAlerts.value),
+      lastEvaluationAt: health.worker?.lastHealthEvaluatedAt ?? null,
+    },
+    configuration: {
+      objectStorageConfigured: Boolean(process.env.PRIVATE_OBJECT_DIR || process.env.PUBLIC_OBJECT_SEARCH_PATHS),
+      ...notificationProviderConfiguration(),
+      expoPushReady: Number(activeDevices.value) > 0,
+    },
+  });
+});
 
 router.get("/admin/operations/payments", requireAdminPermission("payments.read"), async (req, res: Response): Promise<void> => {
   const p = page(req.query); if (!p) { res.status(400).json({ error: "صفحات غير صحيحة" }); return; }

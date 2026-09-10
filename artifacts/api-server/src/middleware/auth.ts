@@ -5,6 +5,7 @@ import {
   adminPermissionGroupsTable,
   db,
   usersTable,
+  authSessionsTable,
   type User,
 } from "@workspace/db";
 import { lookupAuthorization } from "../lib/session";
@@ -13,6 +14,7 @@ declare global {
   namespace Express {
     interface Request {
       authUser?: User;
+      authSession?: typeof authSessionsTable.$inferSelect;
     }
   }
 }
@@ -24,6 +26,7 @@ export const requireAuth: RequestHandler = async (req: Request, res: Response, n
   const auth = await lookupAuthorization(req.headers.authorization);
   if (!auth) { unauthorized(res); return; }
   req.authUser = auth.user;
+  req.authSession = auth.session;
   next();
 };
 

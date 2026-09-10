@@ -55,6 +55,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "expo-notifications": "~57.0.17",
     "expo-secure-store": "^57.0.3",
     "expo-task-manager": "^57.0.16"
   }

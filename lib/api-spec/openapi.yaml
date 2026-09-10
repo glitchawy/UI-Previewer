@@ -31,6 +31,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /readyz:
+    get:
+      operationId: readinessCheck
+      tags: [health]
+      summary: Database and operations-worker readiness check
+      responses:
+        "200":
+          description: Core services are ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+        "503":
+          description: A critical readiness condition is active
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  /auth/capabilities:
+    get:
+      operationId: getAuthCapabilities
+      tags: [auth]
+      summary: Read secret-free public authentication capabilities
+      description: Unauthenticated runtime capability discovery for the login UI.
+      responses:
+        "200":
+          description: Public authentication capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthCapabilities"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/request-otp:
     post:
       operationId: requestOtp
@@ -2109,12 +2146,59 @@ paths:
       responses:
         "200": { description: UTF-8 CSV file, content: { text/csv: { schema: { type: string } } } }
 
+  /notification-devices:
+    post:
+      operationId: registerNotificationDevice
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      summary: Register or reactivate an owned Expo push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, platform]
+              properties:
+                token: { type: string, minLength: 20, maxLength: 500 }
+                platform: { type: string, enum: [ios, android, web] }
+      responses:
+        "201": { description: Registered device metadata, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+        "400": { description: Invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /notification-devices/{id}:
+    delete:
+      operationId: revokeNotificationDevice
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200": { description: Revoked owned device, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+        "404": { description: Device is not owned, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /admin/operations/health:
+    get:
+      operationId: getAdminOperationsHealth
+      tags: [admin]
+      security: [{ bearerAuth: [] }]
+      summary: Read secret-free worker, queue, dispatch, storage, and provider health
+      responses:
+        "200": { description: Operational health, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   schemas:
+    AuthCapabilities:
+      type: object
+      additionalProperties: false
+      required: [publicTestLoginEnabled, deploymentProfile]
+      properties:
+        publicTestLoginEnabled: { type: boolean }
+        deploymentProfile:
+          type: string
+          enum: [unknown, customer, test]
     AdminObject:
       type: object
       additionalProperties: true

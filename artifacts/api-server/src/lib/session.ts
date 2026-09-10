@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { authSessionsTable, db, usersTable, type User } from "@workspace/db";
+import { authSessionsTable, db, notificationDeviceTokensTable, usersTable, type User } from "@workspace/db";
+import { runtimeCapabilities } from "./deployment-profile";
 
 const MIN_IDLE_SECONDS = 5 * 60;
 const MAX_IDLE_SECONDS = 30 * 24 * 60 * 60;
@@ -43,6 +44,9 @@ export type SessionLookup = {
 };
 
 export async function issueSession(user: User, replacementOfSessionId?: number) {
+  if (user.isDevelopmentFixture && !runtimeCapabilities().publicTestLoginEnabled) {
+    throw new Error("Authentication failed");
+  }
   const token = newToken();
   const now = new Date();
   const absoluteExpiresAt = new Date(now.getTime() + SESSION_ABSOLUTE_SECONDS * 1000);
@@ -75,6 +79,9 @@ export async function lookupSession(token: string): Promise<SessionLookup | null
       gt(authSessionsTable.idleExpiresAt, now),
     )).limit(1);
   if (!record) return null;
+  if (record.user.isDevelopmentFixture && !runtimeCapabilities().publicTestLoginEnabled) {
+    return null;
+  }
   const expected = Buffer.from(record.session.tokenHash, "hex");
   const supplied = Buffer.from(digest, "hex");
   if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return null;
@@ -100,12 +107,19 @@ export async function lookupAuthorization(authorization: string | undefined) {
 export async function revokeSession(token: string, reason = "logout") {
   const found = await lookupSession(token);
   if (!found) return false;
-  const rows = await db.update(authSessionsTable).set({
-    revokedAt: new Date(),
-    revocationReason: reason,
-  }).where(and(eq(authSessionsTable.id, found.session.id), isNull(authSessionsTable.revokedAt)))
-    .returning({ id: authSessionsTable.id });
-  return rows.length === 1;
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const rows = await tx.update(authSessionsTable).set({
+      revokedAt: now,
+      revocationReason: reason,
+    }).where(and(eq(authSessionsTable.id, found.session.id), isNull(authSessionsTable.revokedAt)))
+      .returning({ id: authSessionsTable.id });
+    if (rows.length) await tx.update(notificationDeviceTokensTable).set({
+      revokedAt: now, updatedAt: now,
+    }).where(and(eq(notificationDeviceTokensTable.sessionId, found.session.id),
+      isNull(notificationDeviceTokensTable.revokedAt)));
+    return rows.length === 1;
+  });
 }
 
 export async function revokeAllUserSessions(
@@ -113,10 +127,16 @@ export async function revokeAllUserSessions(
   reason: string,
   executor: Pick<typeof db, "update"> = db,
 ) {
-  return executor.update(authSessionsTable).set({
-    revokedAt: new Date(),
+  const now = new Date();
+  const revokedSessions = await executor.update(authSessionsTable).set({
+    revokedAt: now,
     revocationReason: reason,
   }).where(and(eq(authSessionsTable.userId, userId), isNull(authSessionsTable.revokedAt)));
+  await executor.update(notificationDeviceTokensTable).set({
+    revokedAt: now, updatedAt: now,
+  }).where(and(eq(notificationDeviceTokensTable.userId, userId),
+    isNull(notificationDeviceTokensTable.revokedAt)));
+  return revokedSessions;
 }
 
 export async function rotateSession(token: string) {
@@ -133,6 +153,7 @@ export async function rotateSession(token: string) {
     if (!old || !timingSafeEqual(Buffer.from(old.tokenHash, "hex"), Buffer.from(digest, "hex"))) return null;
     const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, old.userId)).limit(1);
     if (!user) return null;
+    if (user.isDevelopmentFixture && !runtimeCapabilities().publicTestLoginEnabled) return null;
     const rawToken = newToken();
     // Rotation is part of the same session chain and must never reset its
     // absolute lifetime.
@@ -145,6 +166,10 @@ export async function rotateSession(token: string) {
     await tx.update(authSessionsTable).set({
       revokedAt: now, revocationReason: "rotation", replacedBySessionId: replacement.id,
     }).where(and(eq(authSessionsTable.id, old.id), isNull(authSessionsTable.revokedAt)));
+    await tx.update(notificationDeviceTokensTable).set({
+      revokedAt: now, updatedAt: now,
+    }).where(and(eq(notificationDeviceTokensTable.sessionId, old.id),
+      isNull(notificationDeviceTokensTable.revokedAt)));
     return { token: rawToken, session: replacement, user };
   });
 }

@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 import { purgePreciseLocationQueue } from '@/utils/locationQueue';
+import { revokeCurrentPushDevice } from '@/utils/pushRegistration';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -53,11 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (account) {
             setToken(storedToken);
           } else {
+            await revokeCurrentPushDevice();
             await stopAndPurgeTracking();
             await removeToken();
           }
         } catch (err) {
           // Invalid, expired, non-driver, etc.
+          await revokeCurrentPushDevice();
           await stopAndPurgeTracking();
           await removeToken();
         }
@@ -68,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (session: AuthSession) => {
+    await revokeCurrentPushDevice();
     await stopAndPurgeTracking();
     await setStorageToken(session.token);
     setToken(session.token);
@@ -75,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      await revokeCurrentPushDevice();
       await apiLogout();
     } catch (e) {
       // ignore network error

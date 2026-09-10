@@ -93,6 +93,11 @@ const devLoginLimit = rateLimit({
   windowMs: 15 * 60_000,
   limit: Number(process.env["DEV_LOGIN_RATE_LIMIT_PER_15_MINUTES"]) || 60,
 });
+export const authCapabilitiesRateLimit = rateLimit({
+  prefix: "auth-capabilities",
+  windowMs: 60_000,
+  limit: 60,
+});
 const adminMutationLimit = rateLimit({
   prefix: "admin-mutation",
   windowMs: 60_000,

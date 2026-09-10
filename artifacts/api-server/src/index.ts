@@ -4,6 +4,8 @@ import { logger } from "./lib/logger";
 import { seedAdminUser, seedDevelopmentFixtures } from "./lib/seed-admin";
 import { startOperationsWorker } from "./lib/operations-worker";
 import type { Server } from "node:http";
+import { assertSafeDeploymentConfiguration } from "./lib/deployment-profile";
+import { assertCustomerDatabaseSafety } from "./lib/customer-database-safety";
 
 const rawPort = process.env["PORT"];
 
@@ -20,10 +22,13 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function main() {
+  assertSafeDeploymentConfiguration();
+
   // Apply versioned schema migrations before accepting traffic.
   await runMigrations();
   logger.info("Database migrations applied");
 
+  await assertCustomerDatabaseSafety();
   await seedAdminUser();
   await seedDevelopmentFixtures();
   const stopOperationsWorker = startOperationsWorker();

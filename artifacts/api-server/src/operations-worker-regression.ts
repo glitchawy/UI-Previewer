@@ -4,6 +4,7 @@ import { eq, inArray, like, sql } from "drizzle-orm";
 import {
   db,
   notificationOutboxTable,
+  notificationDeliveryAttemptsTable,
   notificationsTable,
   paymobWebhookInboxTable,
   pool,
@@ -12,6 +13,7 @@ import {
 import { runMigrations } from "@workspace/db/migrate";
 import app from "./app";
 import { processNotification } from "./lib/operations-worker";
+import { processNotificationDelivery } from "./lib/notification-delivery";
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
 process.env.PAYMOB_HMAC_SECRET = "operations-worker-regression-secret";
@@ -53,6 +55,7 @@ function signedPayload(value: typeof transaction) {
 const terminal = signedPayload(transaction);
 let fanoutUserIds: number[] = [];
 let fanoutOutboxId: number | undefined;
+let privacyNotificationId: number | undefined;
 const fanoutPrefix = `fanout-${Date.now()}-${process.pid}`;
 
 await runMigrations();
@@ -138,8 +141,47 @@ try {
   const delivered = await db.select({ value: sql<number>`count(*)` }).from(notificationsTable)
     .where(inArray(notificationsTable.userId, fanoutUserIds));
   assert.equal(Number(delivered[0]?.value), 501, "fanout must not truncate recipients at a fixed cap");
+
+  const [privacyUser] = fanoutUsers;
+  const [privacyNotification] = await db.insert(notificationsTable).values({
+    userId: privacyUser.id,
+    eventType: "PRIVACY_REGRESSION",
+    title: "privacy",
+    body: "privacy",
+    deduplicationKey: `${fanoutPrefix}:privacy`,
+  }).returning();
+  privacyNotificationId = privacyNotification.id;
+  const [privacyAttempt] = await db.insert(notificationDeliveryAttemptsTable).values({
+    notificationId: privacyNotification.id,
+    channel: "webhook",
+    status: "processing",
+    payload: { title: "privacy", body: "privacy" },
+    deduplicationKey: `${fanoutPrefix}:privacy:webhook`,
+  }).returning();
+  process.env.NOTIFICATION_WEBHOOK_URL = "https://notifications.invalid/delivery";
+  let outboundCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    outboundCalls += 1;
+    return new Response(null, { status: 204 });
+  };
+  try {
+    await processNotificationDelivery(privacyAttempt.id);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.NOTIFICATION_WEBHOOK_URL;
+  }
+  const [privacyResult] = await db.select().from(notificationDeliveryAttemptsTable)
+    .where(eq(notificationDeliveryAttemptsTable.id, privacyAttempt.id));
+  assert.equal(privacyResult.status, "skipped", "recipient without an active session must terminate as skipped");
+  assert.equal(privacyResult.lastError, "NO_ACTIVE_SESSION");
+  assert.equal(outboundCalls, 0, "inactive-session webhook delivery must not make outbound HTTP");
   console.log("operations worker regression passed");
 } finally {
+  if (privacyNotificationId) {
+    await db.delete(notificationDeliveryAttemptsTable)
+      .where(eq(notificationDeliveryAttemptsTable.notificationId, privacyNotificationId));
+  }
   await db.delete(notificationsTable)
     .where(like(notificationsTable.deduplicationKey, `${fanoutPrefix}:%`));
   if (fanoutOutboxId) {

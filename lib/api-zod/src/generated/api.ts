@@ -18,6 +18,24 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Database and operations-worker readiness check
+ */
+export const ReadinessCheckResponse = zod.object({
+  "status": zod.string()
+})
+
+
+/**
+ * Unauthenticated runtime capability discovery for the login UI.
+ * @summary Read secret-free public authentication capabilities
+ */
+export const GetAuthCapabilitiesResponse = zod.object({
+  "publicTestLoginEnabled": zod.boolean(),
+  "deploymentProfile": zod.enum(['unknown', 'customer', 'test'])
+})
+
+
+/**
  * @summary Request OTP for phone number
  */
 export const RequestOtpBody = zod.object({
@@ -1644,5 +1662,34 @@ export const ExportAdminOrdersCsvQueryParams = zod.object({
 })
 
 export const ExportAdminOrdersCsvResponse = zod.unknown()
+
+
+/**
+ * @summary Register or reactivate an owned Expo push token
+ */
+export const registerNotificationDeviceBodyTokenMin = 20;
+export const registerNotificationDeviceBodyTokenMax = 500;
+
+
+
+export const RegisterNotificationDeviceBody = zod.object({
+  "token": zod.string().min(registerNotificationDeviceBodyTokenMin).max(registerNotificationDeviceBodyTokenMax),
+  "platform": zod.enum(['ios', 'android', 'web'])
+})
+
+export const RegisterNotificationDeviceResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const RevokeNotificationDeviceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RevokeNotificationDeviceResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * @summary Read secret-free worker, queue, dispatch, storage, and provider health
+ */
+export const GetAdminOperationsHealthResponse = zod.record(zod.string(), zod.unknown())
 
 

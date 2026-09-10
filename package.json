@@ -13,7 +13,12 @@
     "test:operations-worker": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/operations-worker-regression.ts",
     "test:auth-onboarding": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/auth-onboarding-regression.ts",
     "test:payment-wallet-admin": "DB_MIGRATIONS_DIR=../lib/db/migrations pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/payment-wallet-admin-regression.ts",
-    "test:critical": "pnpm run test:api-security && pnpm run test:sessions && pnpm run test:auth-onboarding && pnpm run test:operations-worker && pnpm run test:payment-wallet-admin && pnpm run test:dispatch",
+    "test:static-surfaces": "pnpm --filter @workspace/tasweqet-ui run test:static-surfaces",
+    "test:critical": "pnpm run test:api-security && pnpm run test:sessions && pnpm run test:auth-onboarding && pnpm run test:operations-worker && pnpm run test:payment-wallet-admin && pnpm run test:dispatch && pnpm run test:static-surfaces",
+    "validate:storage": "pnpm --filter @workspace/scripts exec tsx object-storage-smoke.mts",
+    "validate:authevo": "node scripts/authevo-readiness.mjs",
+    "validate:paymob": "node scripts/paymob-readiness.mjs",
+    "validate:deployment": "node scripts/deployment-smoke.mjs",
     "test": "pnpm run test:critical"
   },
   "private": true,

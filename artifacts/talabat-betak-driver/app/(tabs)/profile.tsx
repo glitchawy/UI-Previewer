@@ -6,12 +6,14 @@ import { useAuth } from '@/ctx/AuthContext';
 import { useTracking } from '@/ctx/TrackingContext';
 import { useGetDriverAccount, useListDriverDocuments } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
+import { usePushNotifications } from '@/ctx/PushNotificationsContext';
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
   const { foregroundGranted, backgroundGranted, requestPermissions } = useTracking();
+  const { status: pushStatus, message: pushMessage, retry: retryPush } = usePushNotifications();
   
   const { data: account, isLoading: accountLoading, refetch: refetchAccount } = useGetDriverAccount();
   const { data: documents, isLoading: docsLoading, refetch: refetchDocs } = useListDriverDocuments();
@@ -79,6 +81,31 @@ export default function ProfileScreen() {
               )}
             </View>
             
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <View style={styles.permRow}>
+              <View style={styles.permIcon}>
+                <Feather name="bell" size={20} color={colors.foreground} />
+              </View>
+              <View style={styles.permInfo}>
+                <Text style={[styles.permTitle, { color: colors.foreground }]}>Order Notifications</Text>
+                <Text style={[styles.permSub, { color: colors.mutedForeground }]}>{pushMessage}</Text>
+              </View>
+              {pushStatus === 'registered' ? (
+                <Feather name="check" size={20} color={colors.success} />
+              ) : (
+                <TouchableOpacity
+                  onPress={() => { void retryPush(); }}
+                  disabled={pushStatus === 'registering'}
+                  style={[styles.permBtn, { backgroundColor: colors.primary, opacity: pushStatus === 'registering' ? 0.6 : 1 }]}
+                >
+                  <Text style={[styles.permBtnText, { color: colors.primaryForeground }]}>
+                    {pushStatus === 'registering' ? 'Enabling…' : 'Retry'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
             <View style={styles.permRow}>

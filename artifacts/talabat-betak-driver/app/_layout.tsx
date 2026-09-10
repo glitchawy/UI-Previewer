@@ -17,6 +17,7 @@ import { setBaseUrl, setAuthTokenGetter, updateDriverLocation, getDriverAccount,
 import { getToken } from '@/utils/storage';
 import { AuthProvider, useAuth } from '@/ctx/AuthContext';
 import { TrackingProvider } from '@/ctx/TrackingContext';
+import { PushNotificationsProvider } from '@/ctx/PushNotificationsContext';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 
@@ -155,13 +156,15 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <TrackingProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </TrackingProvider>
+            <PushNotificationsProvider>
+              <TrackingProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </TrackingProvider>
+            </PushNotificationsProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

@@ -24,6 +24,8 @@ export const driverOrderOffersTable = pgTable("driver_order_offers", {
   respondedAt: timestamp("responded_at", { withTimezone: true }),
 }, t => [
   uniqueIndex("driver_order_offer_attempt_uidx").on(t.orderId, t.driverProfileId),
+  uniqueIndex("driver_order_offer_pending_order_uidx").on(t.orderId).where(sql`${t.status} = 'pending'`),
+  uniqueIndex("driver_order_offer_pending_driver_uidx").on(t.driverProfileId).where(sql`${t.status} = 'pending'`),
   index("driver_order_offer_driver_status_idx").on(t.driverProfileId, t.status, t.expiresAt),
 ]);
 

@@ -5,6 +5,20 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type AuthCapabilitiesDeploymentProfile = typeof AuthCapabilitiesDeploymentProfile[keyof typeof AuthCapabilitiesDeploymentProfile];
+
+
+export const AuthCapabilitiesDeploymentProfile = {
+  unknown: 'unknown',
+  customer: 'customer',
+  test: 'test',
+} as const;
+
+export interface AuthCapabilities {
+  publicTestLoginEnabled: boolean;
+  deploymentProfile: AuthCapabilitiesDeploymentProfile;
+}
+
 export interface AdminObject { [key: string]: unknown }
 
 export interface AdminMutation { [key: string]: unknown }
@@ -1155,5 +1169,23 @@ q?: string;
 export type ExportAdminOrdersCsvParams = {
 start: string;
 end: string;
+};
+
+export type RegisterNotificationDeviceBodyPlatform = typeof RegisterNotificationDeviceBodyPlatform[keyof typeof RegisterNotificationDeviceBodyPlatform];
+
+
+export const RegisterNotificationDeviceBodyPlatform = {
+  ios: 'ios',
+  android: 'android',
+  web: 'web',
+} as const;
+
+export type RegisterNotificationDeviceBody = {
+  /**
+     * @minLength 20
+     * @maxLength 500
+     */
+  token: string;
+  platform: RegisterNotificationDeviceBodyPlatform;
 };
 
