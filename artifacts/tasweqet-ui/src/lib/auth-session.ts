@@ -14,7 +14,6 @@ export interface AuthUser {
 export interface AuthSession {
   token: string;
   user: AuthUser;
-  isDevMode?: boolean;
 }
 
 export function saveSession(session: AuthSession): void {
@@ -82,7 +81,7 @@ export async function validateWithServer(options?: { allowCachedOnNetworkError?:
       return null;
     }
     const user = (await res.json()) as AuthUser;
-    const updated: AuthSession = { token: session.token, user, isDevMode: session.isDevMode };
+    const updated: AuthSession = { token: session.token, user };
     saveSession(updated);
     return updated;
   } catch {

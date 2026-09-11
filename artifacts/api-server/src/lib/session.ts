@@ -1,7 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { authSessionsTable, db, notificationDeviceTokensTable, usersTable, type User } from "@workspace/db";
-import { runtimeCapabilities } from "./deployment-profile";
 
 const MIN_IDLE_SECONDS = 5 * 60;
 const MAX_IDLE_SECONDS = 30 * 24 * 60 * 60;
@@ -44,7 +43,7 @@ export type SessionLookup = {
 };
 
 export async function issueSession(user: User, replacementOfSessionId?: number) {
-  if (user.isDevelopmentFixture && !runtimeCapabilities().publicTestLoginEnabled) {
+  if (user.isDevelopmentFixture) {
     throw new Error("Authentication failed");
   }
   const token = newToken();
@@ -79,7 +78,7 @@ export async function lookupSession(token: string): Promise<SessionLookup | null
       gt(authSessionsTable.idleExpiresAt, now),
     )).limit(1);
   if (!record) return null;
-  if (record.user.isDevelopmentFixture && !runtimeCapabilities().publicTestLoginEnabled) {
+  if (record.user.isDevelopmentFixture) {
     return null;
   }
   const expected = Buffer.from(record.session.tokenHash, "hex");
@@ -153,7 +152,7 @@ export async function rotateSession(token: string) {
     if (!old || !timingSafeEqual(Buffer.from(old.tokenHash, "hex"), Buffer.from(digest, "hex"))) return null;
     const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, old.userId)).limit(1);
     if (!user) return null;
-    if (user.isDevelopmentFixture && !runtimeCapabilities().publicTestLoginEnabled) return null;
+    if (user.isDevelopmentFixture) return null;
     const rawToken = newToken();
     // Rotation is part of the same session chain and must never reset its
     // absolute lifetime.

@@ -2,30 +2,6 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import type { ChangeEventHandler, ReactNode } from "react";
 import { useCart } from "@/lib/tb/cart";
 import { getSession, logoutSession } from "@/lib/auth-session";
-import { useGetAuthCapabilities } from "@workspace/api-client-react";
-
-const DEV_ROLE_LABELS: Record<string, string> = {
-  customer: "عميل تجريبي",
-  partner: "صاحب مطعم تجريبي",
-  driver: "مندوب تجريبي",
-  admin: "مشرف تجريبي",
-};
-
-function DevIndicator() {
-  const session = getSession();
-  const capabilities = useGetAuthCapabilities();
-  if (!session?.isDevMode || capabilities.data?.publicTestLoginEnabled !== true) return null;
-  const roleLabel = DEV_ROLE_LABELS[session.user.role] ?? "حساب اختبار";
-  return (
-    <span
-      data-testid="status-dev-role"
-      className="pointer-events-none fixed left-2 top-2 z-50 rounded-full bg-error px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow"
-    >
-      DEV MODE · {roleLabel}
-    </span>
-  );
-}
-
 /* ============================== primitives ============================== */
 
 export function Icon({
@@ -353,7 +329,6 @@ export function MobileShell({
   return (
     <div dir="rtl" lang="ar" className="flex min-h-screen justify-center bg-surface-variant/40">
       <div className="tb-fade-up relative flex min-h-screen w-full max-w-full flex-col bg-surface sm:max-w-[480px] sm:shadow-[0_0_60px_rgba(94,60,26,0.12)]">
-        <DevIndicator />
         <div className="tb-tabbar-space min-w-0 flex-1">{children}</div>
         {fab}
         {tabs?.length ? (
@@ -425,7 +400,6 @@ export function DashboardShell({
   const navigate = useNavigate();
   return (
     <div dir="rtl" lang="ar" className="flex min-h-screen bg-surface-variant/40">
-      <DevIndicator />
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-l border-outline-variant bg-surface-container-lowest p-md lg:flex">
         <Link to="/" className="mb-md flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-full bg-primary-container text-on-primary-container">

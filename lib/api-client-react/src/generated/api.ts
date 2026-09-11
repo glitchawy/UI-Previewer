@@ -36,12 +36,10 @@ import type {
   ApplicantOnboardingStatus,
   ApplicationDetail,
   ApplicationStatusUpdate,
-  AuthCapabilities,
   AuthSession,
   CustomerAddress,
   CustomerAddressInput,
   CustomerWallet,
-  DevLoginInput,
   DispatchAdminOrder200,
   DispatchAdminOrderBody,
   DriverActiveOrder,
@@ -222,6 +220,13 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getReadinessCheckUrl = () => {
 
 
@@ -293,77 +298,12 @@ export function useReadinessCheck<TData = Awaited<ReturnType<typeof readinessChe
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getGetAuthCapabilitiesUrl = () => {
-
-
-
-
-  return `/api/auth/capabilities`
-}
-
-/**
- * Unauthenticated runtime capability discovery for the login UI.
- * @summary Read secret-free public authentication capabilities
- */
-export const getAuthCapabilities = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthCapabilities> => {
-
-  return customFetch<AuthCapabilities>(getGetAuthCapabilitiesUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
 
 
 
 
 
-export const getGetAuthCapabilitiesQueryKey = () => {
-    return [
-    `/api/auth/capabilities`
-    ] as const;
-    }
 
-
-export const getGetAuthCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getAuthCapabilities>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetAuthCapabilitiesQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthCapabilities>>> = ({ signal }) => getAuthCapabilities({ signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetAuthCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthCapabilities>>>
-export type GetAuthCapabilitiesQueryError = ErrorType<ErrorResponse>
-
-
-/**
- * @summary Read secret-free public authentication capabilities
- */
-
-export function useGetAuthCapabilities<TData = Awaited<ReturnType<typeof getAuthCapabilities>>, TError = ErrorType<ErrorResponse>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetAuthCapabilitiesQueryOptions(options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
 export const getRequestOtpUrl = () => {
 
 
@@ -433,78 +373,6 @@ export const useRequestOtp = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRequestOtpMutationOptions(options));
-    }
-
-export const getDevLoginUrl = () => {
-
-
-
-
-  return `/api/auth/dev-login`
-}
-
-/**
- * Available only when the complete public test-login capability is enabled. Selects a server-seeded fixture by role and returns the normal opaque bearer session.
- * @summary Create a development fixture session
- */
-export const devLogin = async (devLoginInput: DevLoginInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
-
-  return customFetch<AuthSession>(getDevLoginUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(devLoginInput)
-  }
-);}
-
-
-
-
-
-export const getDevLoginMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof devLogin>>, TError,{data: BodyType<DevLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof devLogin>>, TError,{data: BodyType<DevLoginInput>}, TContext> => {
-
-const mutationKey = ['devLogin'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof devLogin>>, {data: BodyType<DevLoginInput>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  devLogin(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DevLoginMutationResult = NonNullable<Awaited<ReturnType<typeof devLogin>>>
-    export type DevLoginMutationBody = BodyType<DevLoginInput>
-    export type DevLoginMutationError = ErrorType<ErrorResponse>
-
-    /**
- * @summary Create a development fixture session
- */
-export const useDevLogin = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof devLogin>>, TError,{data: BodyType<DevLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof devLogin>>,
-        TError,
-        {data: BodyType<DevLoginInput>},
-        TContext
-      > => {
-      return useMutation(getDevLoginMutationOptions(options));
     }
 
 export const getRegisterOtpUrl = () => {

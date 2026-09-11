@@ -26,16 +26,6 @@ export const ReadinessCheckResponse = zod.object({
 
 
 /**
- * Unauthenticated runtime capability discovery for the login UI.
- * @summary Read secret-free public authentication capabilities
- */
-export const GetAuthCapabilitiesResponse = zod.object({
-  "publicTestLoginEnabled": zod.boolean(),
-  "deploymentProfile": zod.enum(['unknown', 'customer', 'test'])
-})
-
-
-/**
  * @summary Request OTP for phone number
  */
 export const RequestOtpBody = zod.object({
@@ -46,29 +36,6 @@ export const RequestOtpBody = zod.object({
 export const RequestOtpResponse = zod.object({
   "success": zod.boolean(),
   "message": zod.string().optional()
-})
-
-
-/**
- * Available only when the complete public test-login capability is enabled. Selects a server-seeded fixture by role and returns the normal opaque bearer session.
- * @summary Create a development fixture session
- */
-export const DevLoginBody = zod.object({
-  "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
-})
-
-export const DevLoginResponse = zod.object({
-  "token": zod.string(),
-  "user": zod.object({
-  "id": zod.number(),
-  "phone": zod.string(),
-  "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
-  "name": zod.string().nullable(),
-  "lat": zod.number().nullable(),
-  "lng": zod.number().nullable(),
-  "addressText": zod.string().nullable(),
-  "addressDetails": zod.string().nullable()
-})
 })
 
 

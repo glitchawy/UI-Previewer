@@ -5,20 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export type AuthCapabilitiesDeploymentProfile = typeof AuthCapabilitiesDeploymentProfile[keyof typeof AuthCapabilitiesDeploymentProfile];
-
-
-export const AuthCapabilitiesDeploymentProfile = {
-  unknown: 'unknown',
-  customer: 'customer',
-  test: 'test',
-} as const;
-
-export interface AuthCapabilities {
-  publicTestLoginEnabled: boolean;
-  deploymentProfile: AuthCapabilitiesDeploymentProfile;
-}
-
 export type PaymentCapabilitiesStatus = typeof PaymentCapabilitiesStatus[keyof typeof PaymentCapabilitiesStatus];
 
 
@@ -496,20 +482,6 @@ export interface OtpRequest {
   /** Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form. */
   phone: string;
   role: OtpRequestRole;
-}
-
-export type DevLoginInputRole = typeof DevLoginInputRole[keyof typeof DevLoginInputRole];
-
-
-export const DevLoginInputRole = {
-  customer: 'customer',
-  partner: 'partner',
-  driver: 'driver',
-  admin: 'admin',
-} as const;
-
-export interface DevLoginInput {
-  role: DevLoginInputRole;
 }
 
 export interface OtpRequestResponse {

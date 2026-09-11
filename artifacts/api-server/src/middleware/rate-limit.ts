@@ -90,16 +90,6 @@ const otpLimit = rateLimit({
       : null,
   )}`,
 });
-const devLoginLimit = rateLimit({
-  prefix: "dev-login",
-  windowMs: 15 * 60_000,
-  limit: Number(process.env["DEV_LOGIN_RATE_LIMIT_PER_15_MINUTES"]) || 60,
-});
-export const authCapabilitiesRateLimit = rateLimit({
-  prefix: "auth-capabilities",
-  windowMs: 60_000,
-  limit: 60,
-});
 const adminMutationLimit = rateLimit({
   prefix: "admin-mutation",
   windowMs: 60_000,
@@ -127,8 +117,6 @@ export function preBodySensitiveRateLimit(req: Request, res: Response, next: Nex
 export function parsedSensitiveRateLimit(req: Request, res: Response, next: NextFunction): void {
   if (req.method === "POST" && ["/api/auth/request-otp", "/api/auth/register", "/api/auth/verify-otp"].includes(req.path)) {
     otpLimit(req, res, next);
-  } else if (req.method === "POST" && req.path === "/api/auth/dev-login") {
-    devLoginLimit(req, res, next);
   } else if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && /^\/api\/admin(?:\/|$)/.test(req.path)) {
     adminMutationLimit(req, res, next);
   } else {

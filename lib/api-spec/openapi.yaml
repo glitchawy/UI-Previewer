@@ -48,26 +48,6 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/HealthStatus" }
 
-  /auth/capabilities:
-    get:
-      operationId: getAuthCapabilities
-      tags: [auth]
-      summary: Read secret-free public authentication capabilities
-      description: Unauthenticated runtime capability discovery for the login UI.
-      responses:
-        "200":
-          description: Public authentication capabilities
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthCapabilities"
-        "429":
-          description: Too many requests
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /auth/request-otp:
     post:
       operationId: requestOtp
@@ -88,50 +68,6 @@ paths:
                 $ref: "#/components/schemas/OtpRequestResponse"
         "400":
           description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /auth/dev-login:
-    post:
-      operationId: devLogin
-      tags: [auth]
-      summary: Create a development fixture session
-      description: Available only when the complete public test-login capability is enabled. Selects a server-seeded fixture by role and returns the normal opaque bearer session.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DevLoginInput"
-      responses:
-        "200":
-          description: Development fixture session created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthSession"
-        "400":
-          description: Invalid fixture role
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Development login is unavailable outside the test deployment
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "429":
-          description: Too many development login attempts
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "503":
-          description: Requested fixture is not seeded
           content:
             application/json:
               schema:
@@ -2248,15 +2184,6 @@ components:
       type: http
       scheme: bearer
   schemas:
-    AuthCapabilities:
-      type: object
-      additionalProperties: false
-      required: [publicTestLoginEnabled, deploymentProfile]
-      properties:
-        publicTestLoginEnabled: { type: boolean }
-        deploymentProfile:
-          type: string
-          enum: [unknown, customer, test]
     PaymentCapabilities:
       type: object
       additionalProperties: false
@@ -2747,15 +2674,6 @@ components:
           type: string
           description: Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.
           examples: ["01012345678", "+201012345678"]
-        role:
-          type: string
-          enum: [customer, partner, driver, admin]
-
-    DevLoginInput:
-      type: object
-      additionalProperties: false
-      required: [role]
-      properties:
         role:
           type: string
           enum: [customer, partner, driver, admin]
