@@ -1,0 +1,513 @@
+I want you to implement REAL SERVER-SIDE MOCK AUTHENTICATION for development/testing.
+
+This is NOT a frontend mock.
+
+The mock login MUST create a REAL authenticated server session using the application's existing authentication/session infrastructure.
+
+DO NOT use localStorage, sessionStorage, frontend-only state, fake JWTs stored in localStorage, or a frontend-only "role" variable.
+
+==================================================
+GOAL
+==================================================
+
+I need to test the application as different real users without entering a phone number or receiving OTP.
+
+In DEVELOPMENT mode only, I want four buttons:
+
+[ Login as Customer ]
+[ Login as Restaurant ]
+[ Login as Driver ]
+[ Login as Admin ]
+
+When I click one, the backend should authenticate me as a real test user from the database and establish a real server-side authenticated session.
+
+==================================================
+VERY IMPORTANT
+==================================================
+
+FIRST inspect the existing application.
+
+Find and understand:
+
+- authentication implementation
+- login routes
+- OTP verification
+- session management
+- cookies
+- JWT/session tokens if used
+- authentication middleware
+- currentUser/user context
+- database user model
+- role enum
+- authorization middleware
+- protected API routes
+- logout implementation
+
+DO NOT replace the existing authentication system.
+
+Reuse the existing authentication/session mechanism.
+
+==================================================
+DATABASE TEST USERS
+==================================================
+
+Create or seed four development test users in the EXISTING database/user table.
+
+Use the application's existing user schema and role values.
+
+Suggested identities:
+
+Customer:
+test-customer-001
+
+Restaurant:
+test-restaurant-001
+
+Driver:
+test-driver-001
+
+Admin:
+test-admin-001
+
+Use valid database records.
+
+If the existing schema requires additional fields, populate them with safe test values.
+
+For example:
+
+- name
+- phone
+- email if required
+- role
+- status
+- restaurant/driver/customer relation if required
+
+Do NOT invent a new parallel authentication table unless absolutely necessary.
+
+If a test user already exists, reuse it instead of creating duplicates.
+
+Make the seed operation idempotent.
+
+Running the seed multiple times must NOT create duplicate users.
+
+==================================================
+SERVER-SIDE MOCK LOGIN
+==================================================
+
+Create a development-only backend endpoint.
+
+For example:
+
+POST /api/auth/mock-login
+
+Request:
+
+{
+  "role": "RESTAURANT"
+}
+
+The server must:
+
+1. Verify that the application is running in development/test mode.
+2. Validate the requested role.
+3. Find the corresponding test user in the database.
+4. Authenticate that database user.
+5. Create a REAL authenticated session using the same session mechanism used by the normal login.
+6. Set the same authentication cookie/session cookie used by the normal application.
+7. Return the authenticated user's basic information.
+8. Do NOT require phone number.
+9. Do NOT require OTP.
+10. Do NOT require password.
+
+Example response:
+
+{
+  "success": true,
+  "user": {
+    "id": "...",
+    "role": "RESTAURANT",
+    "name": "Test Restaurant"
+  }
+}
+
+The important part is that the authentication state exists on the SERVER.
+
+==================================================
+SESSION REQUIREMENT
+==================================================
+
+The mock login must use the application's existing session mechanism.
+
+For example, if the application currently does:
+
+login -> create session -> set httpOnly cookie -> middleware reads session
+
+then mock login must do exactly:
+
+mock-login -> find test user -> create session -> set httpOnly cookie -> middleware reads session
+
+DO NOT implement:
+
+mock-login -> return role -> localStorage.setItem("role", ...)
+
+DO NOT implement a fake frontend authentication state.
+
+DO NOT bypass authentication middleware.
+
+==================================================
+AUTHENTICATION MIDDLEWARE
+==================================================
+
+After mock login, the normal authentication middleware should resolve:
+
+currentUser = test user
+
+exactly as it would for a real login.
+
+Therefore:
+
+GET /api/me
+
+should return the test user.
+
+For example, after clicking Restaurant:
+
+GET /api/me
+
+should return something equivalent to:
+
+{
+  "id": "test-restaurant-001",
+  "role": "RESTAURANT",
+  "name": "Test Restaurant"
+}
+
+The rest of the application must not know or care that this was a mock login.
+
+==================================================
+ROLE AUTHORIZATION
+==================================================
+
+This is extremely important.
+
+Do NOT bypass role authorization.
+
+If the application has:
+
+requireRole("RESTAURANT")
+
+the test restaurant must pass it because its database user actually has the RESTAURANT role.
+
+If the application has:
+
+requireRole("ADMIN")
+
+the test restaurant must NOT pass it.
+
+Test this explicitly.
+
+The purpose is to test the real authorization system.
+
+==================================================
+DATABASE BEHAVIOR
+==================================================
+
+When logged in as Restaurant:
+
+database queries should use the test restaurant user's real database ID.
+
+For example, if restaurant orders are filtered by:
+
+restaurantId = currentUser.id
+
+the test restaurant should receive its own test data.
+
+When logged in as Driver:
+
+driver-specific queries should use the test driver's real database ID.
+
+When logged in as Customer:
+
+customer-specific queries should use the test customer's real database ID.
+
+Do NOT hardcode special-case behavior like:
+
+if (mockUser) return fakeOrders;
+
+That defeats the purpose.
+
+==================================================
+FRONTEND
+==================================================
+
+Modify the existing login page.
+
+In DEVELOPMENT mode, add a clearly visible section:
+
+"Development Test Login"
+
+Buttons:
+
+Customer
+Restaurant
+Driver
+Admin
+
+When a button is clicked:
+
+POST /api/auth/mock-login
+
+with the appropriate role.
+
+After successful response:
+
+- refresh/update the current user state
+- navigate to the correct dashboard
+- use the normal authenticated application flow
+
+Do NOT manually set the role in frontend state.
+
+The frontend should discover the authenticated user through the normal `/me` or equivalent endpoint.
+
+==================================================
+PERSISTENCE
+==================================================
+
+After mock login:
+
+1. Refresh the browser.
+2. The user must still be authenticated.
+3. The session cookie must remain valid.
+4. `/api/me` must still return the test user.
+5. Protected API requests must still work.
+
+If the application's existing session system is server-side, use it.
+
+If it uses signed/encrypted cookies or JWT authentication, use the same production authentication mechanism and cookie behavior, but ONLY allow creation of mock sessions in development/test mode.
+
+==================================================
+LOGOUT
+==================================================
+
+The existing logout button must work normally.
+
+After logout:
+
+- session must be invalidated
+- `/api/me` must no longer return the test user
+- protected endpoints must reject the request
+- clicking another test role should create a fresh session
+
+==================================================
+SECURITY
+==================================================
+
+This MUST be impossible to use in production.
+
+The backend must enforce:
+
+if production:
+    mock login = disabled
+
+Do NOT rely on hiding the UI.
+
+Even if somebody manually sends:
+
+POST /api/auth/mock-login
+
+in production, the backend must reject it.
+
+Return HTTP 403 or 404.
+
+Use an environment variable such as:
+
+MOCK_AUTH_ENABLED=true
+
+AND require the environment to be development/test.
+
+For example:
+
+MOCK_AUTH_ENABLED=true
+NODE_ENV=development
+
+Only then should mock authentication be allowed.
+
+Production must reject it regardless of the frontend.
+
+==================================================
+DEVELOPMENT INDICATOR
+==================================================
+
+Show a clear indicator after mock login:
+
+"DEV MODE — TEST CUSTOMER"
+
+or
+
+"DEV MODE — TEST RESTAURANT"
+
+etc.
+
+This indicator is only informational.
+
+Authentication must still be server-side.
+
+==================================================
+TEST DATA
+==================================================
+
+Create minimal realistic test data for each role only if required by the existing schema.
+
+For example:
+
+Customer:
+- test customer profile
+- test orders if orders are required
+
+Restaurant:
+- test restaurant profile
+- test menu/products if required
+- test orders if required
+
+Driver:
+- test driver profile
+- test delivery/order records if required
+
+Admin:
+- test admin profile
+
+Do NOT modify production data.
+
+Clearly mark development test records so they can be identified and removed later.
+
+==================================================
+TEST PLAN
+==================================================
+
+After implementation, test the following.
+
+CUSTOMER:
+
+1. Click Login as Customer.
+2. Verify backend creates session.
+3. Verify `/api/me`.
+4. Refresh browser.
+5. Verify still logged in.
+6. Open customer dashboard.
+7. Call protected customer APIs.
+8. Verify customer authorization works.
+9. Logout.
+
+RESTAURANT:
+
+1. Click Login as Restaurant.
+2. Verify backend creates session.
+3. Verify `/api/me`.
+4. Refresh browser.
+5. Open restaurant dashboard.
+6. Verify restaurant-specific database queries use the test restaurant ID.
+7. Verify restaurant authorization.
+8. Verify admin-only endpoint is rejected.
+9. Logout.
+
+DRIVER:
+
+Repeat the same process for Driver.
+
+ADMIN:
+
+Repeat the same process for Admin.
+
+==================================================
+IMPORTANT ARCHITECTURAL RULE
+==================================================
+
+The final architecture should conceptually be:
+
+REAL LOGIN:
+
+Phone
+  ↓
+OTP
+  ↓
+Find User
+  ↓
+Create Session
+  ↓
+HTTP-only Cookie
+  ↓
+Authentication Middleware
+  ↓
+Current User
+  ↓
+Authorization
+  ↓
+Database
+
+MOCK LOGIN:
+
+Select Test Role
+  ↓
+POST /api/auth/mock-login
+  ↓
+Find Test User in Database
+  ↓
+Create REAL Session
+  ↓
+HTTP-only Cookie
+  ↓
+Authentication Middleware
+  ↓
+Current User
+  ↓
+Authorization
+  ↓
+Database
+
+The ONLY difference should be how the user is initially authenticated.
+
+After the session is created, the application should treat the test user exactly like a normal authenticated user.
+
+==================================================
+DO NOT DO THESE THINGS
+==================================================
+
+Do NOT:
+
+- store the mock role in localStorage
+- store the mock user in sessionStorage
+- bypass authentication middleware
+- bypass authorization
+- create fake frontend-only sessions
+- hardcode fake API responses
+- add special mock branches throughout the application
+- disable authentication globally
+- remove OTP authentication
+- modify production authentication
+- allow mock login in production
+
+==================================================
+BEFORE FINISHING
+==================================================
+
+Inspect the existing code first.
+
+Then implement this using the existing architecture.
+
+After implementation, give me a concise report containing:
+
+1. Files changed
+2. Database changes
+3. Mock login endpoint
+4. Session mechanism used
+5. Test users created
+6. Environment variables required
+7. How to enable development mock login
+8. How to disable it
+9. Confirmation that production rejects mock login
+10. Confirmation that the session survives browser refresh
+11. Confirmation that role-based authorization still works
+
+Do not simply tell me that it is implemented.
+
+Actually inspect the codebase and implement it.

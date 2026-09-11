@@ -9,11 +9,13 @@ import {
   authSessionsTable,
   branchesTable,
   branchStaffTable,
+  categoriesTable,
   db,
   driverProfilesTable,
   notificationsTable,
   ordersTable,
   orderStatusEventsTable,
+  productsTable,
   pool,
   restaurantsTable,
   usersTable,
@@ -28,6 +30,7 @@ import {
   runtimeCapabilities,
 } from "./lib/deployment-profile";
 import { assertCustomerDatabaseSafety } from "./lib/customer-database-safety";
+import { DEVELOPMENT_FIXTURE_PHONE_BY_ROLE, seedDevelopmentFixtures } from "./lib/seed-admin";
 
 type Json = Record<string, any>;
 
@@ -205,6 +208,134 @@ try {
   process.env.DEPLOYMENT_PROFILE = "test";
   process.env.MOCK_AUTH_ENABLED = "true";
   process.env.PUBLIC_TEST_MODE_ENABLED = "true";
+
+  // The public test identities are real database users. Verify the complete
+  // fixture graph is idempotent before exercising each role through HTTP.
+  const fixtureGraphCounts = async () => ({
+    users: (await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.isDevelopmentFixture, true))).length,
+    restaurants: (await db.select({ id: restaurantsTable.id }).from(restaurantsTable)
+      .where(eq(restaurantsTable.isDevelopmentFixture, true))).length,
+    branches: (await db.select({ id: branchesTable.id }).from(branchesTable)
+      .where(eq(branchesTable.isDevelopmentFixture, true))).length,
+    staff: (await db.select({ id: branchStaffTable.id }).from(branchStaffTable)
+      .where(isNull(branchStaffTable.leftAt))).length,
+    categories: (await db.select({ id: categoriesTable.id }).from(categoriesTable)
+      .where(eq(categoriesTable.isDevelopmentFixture, true))).length,
+    products: (await db.select({ id: productsTable.id }).from(productsTable)
+      .where(eq(productsTable.isDevelopmentFixture, true))).length,
+    drivers: (await db.select({ id: driverProfilesTable.id }).from(driverProfilesTable)
+      .where(eq(driverProfilesTable.isDevelopmentFixture, true))).length,
+  });
+  await seedDevelopmentFixtures();
+  const fixtureCountsBefore = await fixtureGraphCounts();
+  await seedDevelopmentFixtures();
+  assert.deepEqual(await fixtureGraphCounts(), fixtureCountsBefore,
+    "development fixture seeding must be idempotent");
+
+  const fixtureLogins = new Map<string, { token: string; userId: number }>();
+  for (const role of ["customer", "partner", "driver", "admin"] as const) {
+    const login = await request(baseUrl, "/auth/dev-login", {
+      method: "POST", body: { role },
+    });
+    assert.equal(login.status, 200, `${role} fixture login must succeed`);
+    assert.equal(login.body.user.role, role);
+    assert.equal(typeof login.body.token, "string");
+    const token = login.body.token as string;
+    const userId = login.body.user.id as number;
+    const [sessionRow] = await db.select().from(authSessionsTable)
+      .where(and(eq(authSessionsTable.userId, userId), isNull(authSessionsTable.revokedAt)))
+      .orderBy(authSessionsTable.id);
+    assert.ok(sessionRow, `${role} login must create an active auth_sessions row`);
+    assert.notEqual(sessionRow.tokenHash, token, "only the token hash may be stored");
+    assert.equal(sessionRow.tokenHash.length, 64);
+    assert.equal((await request(baseUrl, "/auth/me", { token })).status, 200);
+    assert.equal((await request(baseUrl, "/auth/me", { token })).body.role, role,
+      `${role} bearer must persist across repeated /me calls`);
+    fixtureLogins.set(role, { token, userId });
+  }
+
+  const [fixturePartner] = await db.select().from(usersTable)
+    .where(and(eq(usersTable.id, fixtureLogins.get("partner")!.userId),
+      eq(usersTable.isDevelopmentFixture, true))).limit(1);
+  assert.ok(fixturePartner);
+  const [fixtureRestaurant] = await db.select().from(restaurantsTable)
+    .where(and(eq(restaurantsTable.ownerUserId, fixturePartner.id),
+      eq(restaurantsTable.isDevelopmentFixture, true))).limit(1);
+  assert.ok(fixtureRestaurant, "partner fixture must own its seeded restaurant");
+  const [fixtureBranch] = await db.select().from(branchesTable)
+    .where(and(eq(branchesTable.restaurantId, fixtureRestaurant.id),
+      eq(branchesTable.isDevelopmentFixture, true))).limit(1);
+  assert.ok(fixtureBranch);
+  assert.ok((await db.select({ id: branchStaffTable.id }).from(branchStaffTable).where(and(
+    eq(branchStaffTable.userId, fixturePartner.id),
+    eq(branchStaffTable.branchId, fixtureBranch.id),
+    isNull(branchStaffTable.leftAt),
+  ))).length === 1, "partner fixture must have active membership in its branch");
+  assert.equal((await request(baseUrl, "/partner/orders", {
+    token: fixtureLogins.get("partner")!.token,
+  })).status, 200, "partner fixture must resolve its branch-scoped order endpoint");
+
+  const [fixtureDriver] = await db.select().from(driverProfilesTable)
+    .where(eq(driverProfilesTable.userId, fixtureLogins.get("driver")!.userId)).limit(1);
+  assert.ok(fixtureDriver, "driver fixture must have its seeded driver profile");
+  assert.equal((await request(baseUrl, "/driver/account", {
+    token: fixtureLogins.get("driver")!.token,
+  })).status, 200, "driver fixture account must resolve its seeded profile");
+  assert.equal((await request(baseUrl, "/admin/core/overview", {
+    token: fixtureLogins.get("admin")!.token,
+  })).status, 200, "admin fixture must resolve a protected admin endpoint");
+  assert.equal((await request(baseUrl, "/customer/address", {
+    token: fixtureLogins.get("customer")!.token,
+  })).status, 200, "customer fixture must resolve its protected address endpoint");
+
+  const assertDenied = (status: number, message: string) => {
+    assert.ok([401, 403].includes(status), `${message} (expected 401/403, got ${status})`);
+  };
+  assertDenied((await request(baseUrl, "/admin/core/overview", {
+    token: fixtureLogins.get("customer")!.token,
+  })).status, "customer must be denied admin access");
+  assertDenied((await request(baseUrl, "/partner/orders", {
+    token: fixtureLogins.get("driver")!.token,
+  })).status, "driver must be denied partner access");
+  assertDenied((await request(baseUrl, "/driver/account", {
+    token: fixtureLogins.get("partner")!.token,
+  })).status, "partner must be denied driver access");
+  assertDenied((await request(baseUrl, "/customer/address", {
+    token: fixtureLogins.get("admin")!.token,
+  })).status, "admin must be denied customer access");
+
+  const invalidRole = await request(baseUrl, "/auth/dev-login", {
+    method: "POST", body: { role: "not-a-role" },
+  });
+  assert.equal(invalidRole.status, 400, "invalid fixture roles must be rejected");
+  const customerProfileDevLogin = await request(baseUrl, "/auth/dev-login", {
+    method: "POST", body: { role: "customer" },
+  });
+  assert.equal(customerProfileDevLogin.status, 200);
+
+  for (const [role, login] of fixtureLogins) {
+    assert.equal((await request(baseUrl, "/auth/logout", {
+      method: "POST", token: login.token,
+    })).status, 200, `${role} logout must succeed`);
+    assert.equal((await request(baseUrl, "/auth/me", { token: login.token })).status, 401,
+      `${role} logout must invalidate /me`);
+    const fresh = await request(baseUrl, "/auth/dev-login", {
+      method: "POST", body: { role },
+    });
+    assert.equal(fresh.status, 200);
+    assert.notEqual(fresh.body.token, login.token, `${role} login must create a fresh session`);
+  }
+
+  // The complete gate, not MOCK_AUTH_ENABLED alone, protects production/customer.
+  process.env.DEPLOYMENT_PROFILE = "customer";
+  process.env.MOCK_AUTH_ENABLED = "true";
+  process.env.PUBLIC_TEST_MODE_ENABLED = "true";
+  assert.equal((await request(baseUrl, "/auth/dev-login", {
+    method: "POST", body: { role: "customer" },
+  })).status, 404, "customer profile must reject dev login even with mock auth enabled");
+  process.env.DEPLOYMENT_PROFILE = "test";
+
   const [transitionAdmin] = await db.insert(usersTable).values({
     phone: phones[8]!,
     role: "admin",

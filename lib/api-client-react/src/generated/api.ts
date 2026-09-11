@@ -41,6 +41,7 @@ import type {
   CustomerAddress,
   CustomerAddressInput,
   CustomerWallet,
+  DevLoginInput,
   DispatchAdminOrder200,
   DispatchAdminOrderBody,
   DriverActiveOrder,
@@ -292,12 +293,6 @@ export function useReadinessCheck<TData = Awaited<ReturnType<typeof readinessChe
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-
-
-
-
-
-
 export const getGetAuthCapabilitiesUrl = () => {
 
 
@@ -369,13 +364,6 @@ export function useGetAuthCapabilities<TData = Awaited<ReturnType<typeof getAuth
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getRequestOtpUrl = () => {
 
 
@@ -445,6 +433,78 @@ export const useRequestOtp = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRequestOtpMutationOptions(options));
+    }
+
+export const getDevLoginUrl = () => {
+
+
+
+
+  return `/api/auth/dev-login`
+}
+
+/**
+ * Available only when the complete public test-login capability is enabled. Selects a server-seeded fixture by role and returns the normal opaque bearer session.
+ * @summary Create a development fixture session
+ */
+export const devLogin = async (devLoginInput: DevLoginInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getDevLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(devLoginInput)
+  }
+);}
+
+
+
+
+
+export const getDevLoginMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof devLogin>>, TError,{data: BodyType<DevLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof devLogin>>, TError,{data: BodyType<DevLoginInput>}, TContext> => {
+
+const mutationKey = ['devLogin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof devLogin>>, {data: BodyType<DevLoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  devLogin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DevLoginMutationResult = NonNullable<Awaited<ReturnType<typeof devLogin>>>
+    export type DevLoginMutationBody = BodyType<DevLoginInput>
+    export type DevLoginMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create a development fixture session
+ */
+export const useDevLogin = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof devLogin>>, TError,{data: BodyType<DevLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof devLogin>>,
+        TError,
+        {data: BodyType<DevLoginInput>},
+        TContext
+      > => {
+      return useMutation(getDevLoginMutationOptions(options));
     }
 
 export const getRegisterOtpUrl = () => {

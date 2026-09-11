@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
-import { useGetAuthCapabilities, useRequestOtp } from "@workspace/api-client-react";
+import { useDevLogin, useGetAuthCapabilities, useRequestOtp } from "@workspace/api-client-react";
 import { getSession, getRoleDashboard, saveSession, validateWithServer } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/login")({
@@ -63,6 +63,7 @@ function AuthLogin() {
       },
     },
   });
+  const devLogin = useDevLogin();
 
   function handleSubmit() {
     setTouched(true);
@@ -76,30 +77,15 @@ function AuthLogin() {
     setError("");
     setDevRolePending(testRole);
     try {
-      const response = await fetch("/api/auth/dev-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: testRole }),
-      });
-      const data = (await response.json().catch(() => null)) as
-        | {
-          token?: string;
-          user?: Parameters<typeof saveSession>[0]["user"];
-          error?: string | { message?: string };
-        }
-        | null;
-      if (!response.ok || !data?.token || !data.user) {
-        const apiMessage = typeof data?.error === "string"
-          ? data.error
-          : data?.error?.message;
-        throw new Error(apiMessage ?? "تعذر بدء جلسة الاختبار");
-      }
+      const data = await devLogin.mutateAsync({ data: { role: testRole } });
       saveSession({ token: data.token, user: data.user, isDevMode: true });
       const validated = await validateWithServer();
       if (!validated) throw new Error("تعذر التحقق من جلسة الاختبار");
       navigate({ to: getRoleDashboard(validated.user.role) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذر بدء جلسة الاختبار");
+      const apiError = err as { data?: { error?: string | { message?: string } } };
+      const raw = apiError.data?.error;
+      setError(typeof raw === "string" ? raw : raw?.message ?? (err instanceof Error ? err.message : "تعذر بدء جلسة الاختبار"));
     } finally {
       setDevRolePending(null);
     }
