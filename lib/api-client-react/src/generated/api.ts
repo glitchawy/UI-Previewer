@@ -36,6 +36,7 @@ import type {
   ApplicantOnboardingStatus,
   ApplicationDetail,
   ApplicationStatusUpdate,
+  AuthCapabilities,
   AuthSession,
   CustomerAddress,
   CustomerAddressInput,
@@ -220,13 +221,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getReadinessCheckUrl = () => {
 
 
@@ -292,6 +286,84 @@ export function useReadinessCheck<TData = Awaited<ReturnType<typeof readinessChe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getReadinessCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAuthCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/auth/capabilities`
+}
+
+/**
+ * Unauthenticated runtime capability discovery for the login UI.
+ * @summary Read secret-free public authentication capabilities
+ */
+export const getAuthCapabilities = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthCapabilities> => {
+
+  return customFetch<AuthCapabilities>(getGetAuthCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthCapabilitiesQueryKey = () => {
+    return [
+    `/api/auth/capabilities`
+    ] as const;
+    }
+
+
+export const getGetAuthCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getAuthCapabilities>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthCapabilities>>> = ({ signal }) => getAuthCapabilities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAuthCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthCapabilities>>>
+export type GetAuthCapabilitiesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Read secret-free public authentication capabilities
+ */
+
+export function useGetAuthCapabilities<TData = Awaited<ReturnType<typeof getAuthCapabilities>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAuthCapabilitiesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

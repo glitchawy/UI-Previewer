@@ -10,7 +10,9 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
-- Production launches should use an isolated database and set `DEPLOYMENT_PROFILE=customer`. Startup rejects unsupported deployment profiles and fixture-contaminated customer data.
+- This Replit deployment is intentionally a **public test environment**. Its production environment uses `DEPLOYMENT_PROFILE=test`, `MOCK_AUTH_ENABLED=true`, and `PUBLIC_TEST_MODE_ENABLED=true`, so the clearly labelled DEV MODE role buttons remain public.
+- Safe customer launch: provision a fresh isolated production database (never the shared test database), set exactly `DEPLOYMENT_PROFILE=customer`, and leave both `MOCK_AUTH_ENABLED` and `PUBLIC_TEST_MODE_ENABLED` unset. The API refuses to start if either test flag is true or if fixture identities, active fixture sessions, or fixture-derived active admin grants exist.
+- Test login and fixture seeding require all three explicit values: `DEPLOYMENT_PROFILE=test`, `MOCK_AUTH_ENABLED=true`, and `PUBLIC_TEST_MODE_ENABLED=true`. Missing or unknown profiles are closed.
 
 ## Stack
 

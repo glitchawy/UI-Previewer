@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
-import { useRequestOtp } from "@workspace/api-client-react";
-import { getSession, getRoleDashboard } from "@/lib/auth-session";
+import { useGetAuthCapabilities, useRequestOtp } from "@workspace/api-client-react";
+import { getSession, getRoleDashboard, saveSession, validateWithServer } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/login")({
   beforeLoad: () => {
@@ -42,10 +42,12 @@ function validateEgPhone(raw: string): string | null {
 
 function AuthLogin() {
   const navigate = useNavigate();
+  const capabilities = useGetAuthCapabilities();
   const [role, setRole] = useState<Role>("customer");
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
+  const [devRolePending, setDevRolePending] = useState<Role | null>(null);
 
   const cleaned = phone.replace(/[\s\-]/g, "");
   const inlineError = touched ? validateEgPhone(phone) : null;
@@ -68,6 +70,39 @@ function AuthLogin() {
     const validationError = validateEgPhone(phone);
     if (validationError) { setError(validationError); return; }
     requestOtp.mutate({ data: { phone: cleaned, role } });
+  }
+
+  async function handleDevLogin(testRole: Role) {
+    setError("");
+    setDevRolePending(testRole);
+    try {
+      const response = await fetch("/api/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: testRole }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+          token?: string;
+          user?: Parameters<typeof saveSession>[0]["user"];
+          error?: string | { message?: string };
+        }
+        | null;
+      if (!response.ok || !data?.token || !data.user) {
+        const apiMessage = typeof data?.error === "string"
+          ? data.error
+          : data?.error?.message;
+        throw new Error(apiMessage ?? "تعذر بدء جلسة الاختبار");
+      }
+      saveSession({ token: data.token, user: data.user, isDevMode: true });
+      const validated = await validateWithServer();
+      if (!validated) throw new Error("تعذر التحقق من جلسة الاختبار");
+      navigate({ to: getRoleDashboard(validated.user.role) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر بدء جلسة الاختبار");
+    } finally {
+      setDevRolePending(null);
+    }
   }
 
   return (
@@ -152,6 +187,36 @@ function AuthLogin() {
       <Link to="/auth/register">
         <Button variant="outline" className="w-full" icon="person_add">إنشاء حساب جديد</Button>
       </Link>
+
+      {capabilities.data?.publicTestLoginEnabled === true && (
+        <section className="flex flex-col gap-3 rounded-card border-2 border-dashed border-error/40 bg-error-container/40 p-md">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-label-lg text-label-lg text-on-error-container">تسجيل دخول الاختبار</p>
+              <p className="font-label-md text-label-md text-on-surface-variant">
+                حسابات قاعدة بيانات حقيقية — للاختبار عبر الويب
+              </p>
+            </div>
+            <span className="rounded-full bg-error px-2 py-1 text-[10px] font-bold tracking-wide text-white">
+              DEV MODE
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {loginRoles.map((testRole) => (
+              <Button
+                key={testRole.value}
+                type="button"
+                variant="outline"
+                icon={testRole.icon}
+                disabled={devRolePending !== null}
+                onClick={() => handleDevLogin(testRole.value)}
+              >
+                {devRolePending === testRole.value ? "جاري الدخول..." : testRole.label}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-md">
         <Icon name="sms" className="text-[18px] text-on-surface-variant" />

@@ -5,6 +5,20 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type AuthCapabilitiesDeploymentProfile = typeof AuthCapabilitiesDeploymentProfile[keyof typeof AuthCapabilitiesDeploymentProfile];
+
+
+export const AuthCapabilitiesDeploymentProfile = {
+  unknown: 'unknown',
+  customer: 'customer',
+  test: 'test',
+} as const;
+
+export interface AuthCapabilities {
+  publicTestLoginEnabled: boolean;
+  deploymentProfile: AuthCapabilitiesDeploymentProfile;
+}
+
 export type PaymentCapabilitiesStatus = typeof PaymentCapabilitiesStatus[keyof typeof PaymentCapabilitiesStatus];
 
 
@@ -479,7 +493,7 @@ export const OtpRequestRole = {
 } as const;
 
 export interface OtpRequest {
-  /** Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form. */
+  /** Egyptian mobile number. Accepted local and international forms are normalized by the server to 01XXXXXXXXX. */
   phone: string;
   role: OtpRequestRole;
 }
@@ -511,7 +525,7 @@ export const OtpVerifyType = {
 } as const;
 
 export interface OtpVerify {
-  /** Egyptian mobile number in any accepted local or international form; it is normalized to 01XXXXXXXXX before verification. */
+  /** Egyptian mobile number in any accepted local or international form; normalized before verification. */
   phone: string;
   /** 6-digit OTP code */
   otp: string;
@@ -520,30 +534,20 @@ export interface OtpVerify {
   type: OtpVerifyType;
 }
 
-export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
-
-
-export const AuthUserRole = {
-  customer: 'customer',
-  partner: 'partner',
-  driver: 'driver',
-  admin: 'admin',
-} as const;
-
 export interface AuthUser {
   id: number;
   phone: string;
-  role: AuthUserRole;
+  role: string;
   /** @nullable */
-  name: string | null;
+  name?: string | null;
   /** @nullable */
-  lat: number | null;
+  lat?: number | null;
   /** @nullable */
-  lng: number | null;
+  lng?: number | null;
   /** @nullable */
-  addressText: string | null;
+  addressText?: string | null;
   /** @nullable */
-  addressDetails: string | null;
+  addressDetails?: string | null;
 }
 
 export interface AuthSession {

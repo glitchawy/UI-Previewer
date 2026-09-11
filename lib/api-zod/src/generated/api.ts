@@ -26,10 +26,20 @@ export const ReadinessCheckResponse = zod.object({
 
 
 /**
+ * Unauthenticated runtime capability discovery for the login UI.
+ * @summary Read secret-free public authentication capabilities
+ */
+export const GetAuthCapabilitiesResponse = zod.object({
+  "publicTestLoginEnabled": zod.boolean(),
+  "deploymentProfile": zod.enum(['unknown', 'customer', 'test'])
+})
+
+
+/**
  * @summary Request OTP for phone number
  */
 export const RequestOtpBody = zod.object({
-  "phone": zod.string().describe('Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.'),
+  "phone": zod.string().describe('Egyptian mobile number in local or international form; normalized by the server to 01XXXXXXXXX'),
   "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
 })
 
@@ -43,7 +53,7 @@ export const RequestOtpResponse = zod.object({
  * @summary Request OTP for a new account (signup)
  */
 export const RegisterOtpBody = zod.object({
-  "phone": zod.string().describe('Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.'),
+  "phone": zod.string().describe('Egyptian mobile number in local or international form; normalized by the server to 01XXXXXXXXX'),
   "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
 })
 
@@ -57,7 +67,7 @@ export const RegisterOtpResponse = zod.object({
  * @summary Verify OTP and create session
  */
 export const VerifyOtpBody = zod.object({
-  "phone": zod.string().describe('Egyptian mobile number in any accepted local or international form; it is normalized to 01XXXXXXXXX before verification.'),
+  "phone": zod.string().describe('Egyptian mobile number in local or international form; normalized by the server to 01XXXXXXXXX'),
   "otp": zod.string().describe('6-digit OTP code'),
   "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
   "type": zod.enum(['login', 'register']).describe('login = existing user only; register = new user only')
@@ -68,12 +78,12 @@ export const VerifyOtpResponse = zod.object({
   "user": zod.object({
   "id": zod.number(),
   "phone": zod.string(),
-  "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
-  "name": zod.string().nullable(),
-  "lat": zod.number().nullable(),
-  "lng": zod.number().nullable(),
-  "addressText": zod.string().nullable(),
-  "addressDetails": zod.string().nullable()
+  "role": zod.string(),
+  "name": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "addressText": zod.string().nullish(),
+  "addressDetails": zod.string().nullish()
 })
 })
 
@@ -108,12 +118,12 @@ export const RotateSessionResponse = zod.object({
   "user": zod.object({
   "id": zod.number(),
   "phone": zod.string(),
-  "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
-  "name": zod.string().nullable(),
-  "lat": zod.number().nullable(),
-  "lng": zod.number().nullable(),
-  "addressText": zod.string().nullable(),
-  "addressDetails": zod.string().nullable()
+  "role": zod.string(),
+  "name": zod.string().nullish(),
+  "lat": zod.number().nullish(),
+  "lng": zod.number().nullish(),
+  "addressText": zod.string().nullish(),
+  "addressDetails": zod.string().nullish()
 })
 })
 

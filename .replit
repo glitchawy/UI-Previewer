@@ -25,7 +25,9 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.production]
-DEPLOYMENT_PROFILE = "customer"
+DEPLOYMENT_PROFILE = "test"
+MOCK_AUTH_ENABLED = "true"
+PUBLIC_TEST_MODE_ENABLED = "true"
 
 [userenv.shared]
 AUTHEVO_MODE = "sandbox"

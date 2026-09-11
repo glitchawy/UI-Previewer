@@ -34,10 +34,11 @@ test("real category and admin detail routes do not depend on presentation fixtur
   }
 });
 
-test("production login has no development authentication controls", () => {
+test("DEV MODE login is controlled by the server runtime capability", () => {
   const source = readFileSync(join(routes, "auth.login.tsx"), "utf8");
-  assert.doesNotMatch(source, /use(?:DevLogin|GetAuthCapabilities)/);
-  assert.doesNotMatch(source, /publicTestLoginEnabled|DEV MODE|fixture/i);
+  assert.match(source, /useGetAuthCapabilities/);
+  assert.match(source, /capabilities\.data\?\.publicTestLoginEnabled === true/);
+  assert.doesNotMatch(source, /import\.meta\.env.*(?:MOCK_AUTH|PUBLIC_TEST|DEPLOYMENT_PROFILE)/);
 });
 
 test("checkout defaults online payment to server-driven unavailable", () => {

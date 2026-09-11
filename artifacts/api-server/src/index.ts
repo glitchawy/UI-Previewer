@@ -1,7 +1,7 @@
 import { runMigrations } from "@workspace/db/migrate";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { seedAdminUser } from "./lib/seed-admin";
+import { seedAdminUser, seedDevelopmentFixtures } from "./lib/seed-admin";
 import { startOperationsWorker } from "./lib/operations-worker";
 import type { Server } from "node:http";
 import { assertSafeDeploymentConfiguration } from "./lib/deployment-profile";
@@ -30,6 +30,7 @@ async function main() {
 
   await assertCustomerDatabaseSafety();
   await seedAdminUser();
+  await seedDevelopmentFixtures();
   const stopOperationsWorker = startOperationsWorker();
 
   const server: Server = app.listen(port, () => {

@@ -5,6 +5,7 @@ import {
   db,
   usersTable,
 } from "@workspace/db";
+import { runtimeCapabilities } from "./deployment-profile";
 
 export type CustomerDatabaseSafetyState = {
   developmentFixtureUsers: number;
@@ -46,6 +47,7 @@ export async function assertCustomerDatabaseSafety(
   loadState: () => Promise<CustomerDatabaseSafetyState> =
     loadCustomerDatabaseSafetyState,
 ): Promise<void> {
+  if (runtimeCapabilities().deploymentProfile !== "customer") return;
   const state = await loadState();
   if (
     state.developmentFixtureUsers > 0 ||

@@ -48,6 +48,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/HealthStatus" }
 
+  /auth/capabilities:
+    get:
+      operationId: getAuthCapabilities
+      tags: [auth]
+      summary: Read secret-free public authentication capabilities
+      description: Unauthenticated runtime capability discovery for the login UI.
+      responses:
+        "200":
+          description: Public authentication capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthCapabilities"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/request-otp:
     post:
       operationId: requestOtp
@@ -2184,6 +2204,15 @@ components:
       type: http
       scheme: bearer
   schemas:
+    AuthCapabilities:
+      type: object
+      additionalProperties: false
+      required: [publicTestLoginEnabled, deploymentProfile]
+      properties:
+        publicTestLoginEnabled: { type: boolean }
+        deploymentProfile:
+          type: string
+          enum: [unknown, customer, test]
     PaymentCapabilities:
       type: object
       additionalProperties: false
@@ -2708,7 +2737,7 @@ components:
 
     AuthUser:
       type: object
-      required: [id, phone, role, name, lat, lng, addressText, addressDetails]
+      required: [id, phone, role]
       properties:
         id:
           type: number
@@ -2716,7 +2745,6 @@ components:
           type: string
         role:
           type: string
-          enum: [customer, partner, driver, admin]
         name:
           type: ["string", "null"]
         lat:
