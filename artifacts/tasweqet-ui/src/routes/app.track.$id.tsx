@@ -115,8 +115,9 @@ function AppTrackId() {
                  <p className="font-label-md text-label-md text-on-surface-variant">{t("الكابتن المسؤول عن التوصيل", "Driver responsible for delivery")}</p>
               </div>
               {order.driverPhone ? (
-                 <a href={`tel:${order.driverPhone}`} className="flex size-10 items-center justify-center rounded-full bg-secondary-container text-secondary" aria-label={t("اتصل بالكابتن", "Call driver")}>
+                 <a href={`tel:${order.driverPhone}`} className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-secondary-container px-3 text-secondary" aria-label={`${t("اتصل بالكابتن", "Call driver")}: ${order.driverPhone}`}>
                   <Icon name="call" className="text-[19px]" />
+                  <span dir="ltr" className="text-label-md">{order.driverPhone}</span>
                 </a>
               ) : null}
             </Card>

@@ -77,6 +77,7 @@ function AppOrderDetail() {
                key={id}
                id={id}
                driverName={orderQuery.data.driverName}
+               driverPhone={orderQuery.data.driverPhone}
                destination={{ lat: orderQuery.data.deliveryLat, lng: orderQuery.data.deliveryLng }}
              />
            ) : null}
