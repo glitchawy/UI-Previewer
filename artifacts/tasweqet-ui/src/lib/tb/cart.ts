@@ -2,6 +2,7 @@ import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useCallback, useEffect, useState } from "react";
 import { getSession, getToken } from "@/lib/auth-session";
 import { subscribeLocale } from "@/lib/i18n";
+import type { DeliveryEstimate } from "@/lib/tb/delivery-estimate";
 
 export type CartAddon = { id: number; name: string; price: number };
 export type CartItem = {
@@ -12,7 +13,7 @@ export type CartItem = {
 export type CartGroup = {
   restaurantId: number; restaurantName: string; deliveryType: string;
   acceptingOrders: boolean; acceptanceReason: string; nextOpeningSummary: string | null;
-  items: CartItem[]; subtotal: number;
+  items: CartItem[]; subtotal: number; deliveryEstimate?: DeliveryEstimate | null;
 };
 export type CartData = {
   restaurants: CartGroup[]; restaurantIds: number[]; itemCount: number; total: number;

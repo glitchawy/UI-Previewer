@@ -282,6 +282,63 @@ export const GetPaymentCapabilitiesResponse = zod.object({
 
 
 /**
+ * @summary Get the authenticated customer's cart with checkout delivery estimates
+ */
+export const getCartResponseRestaurantsItemDeliveryEstimateOnePreparationMinutesMin = 0;
+export const getCartResponseRestaurantsItemDeliveryEstimateOnePreparationMinutesMultipleOf = 1;
+
+export const getCartResponseRestaurantsItemDeliveryEstimateOneTravelMinutesMin = 0;
+export const getCartResponseRestaurantsItemDeliveryEstimateOneTravelMinutesMultipleOf = 1;
+
+export const getCartResponseRestaurantsItemDeliveryEstimateOneTotalMinutesMin = 0;
+export const getCartResponseRestaurantsItemDeliveryEstimateOneTotalMinutesMultipleOf = 1;
+
+export const getCartResponseRestaurantsItemDeliveryEstimateOneDistanceKmMin = 0;
+
+
+
+export const GetCartResponse = zod.object({
+  "restaurants": zod.array(zod.object({
+  "restaurantId": zod.number(),
+  "restaurantName": zod.string(),
+  "deliveryType": zod.string(),
+  "acceptingOrders": zod.boolean(),
+  "acceptanceReason": zod.string(),
+  "nextOpeningSummary": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "name": zod.string(),
+  "imageUrl": zod.string().nullable(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "subtotal": zod.number(),
+  "variant": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}),zod.null()]),
+  "addons": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number()
+}))
+})),
+  "subtotal": zod.number(),
+  "deliveryEstimate": zod.object({
+  "preparationMinutes": zod.number().min(getCartResponseRestaurantsItemDeliveryEstimateOnePreparationMinutesMin).multipleOf(getCartResponseRestaurantsItemDeliveryEstimateOnePreparationMinutesMultipleOf),
+  "travelMinutes": zod.number().min(getCartResponseRestaurantsItemDeliveryEstimateOneTravelMinutesMin).multipleOf(getCartResponseRestaurantsItemDeliveryEstimateOneTravelMinutesMultipleOf),
+  "totalMinutes": zod.number().min(getCartResponseRestaurantsItemDeliveryEstimateOneTotalMinutesMin).multipleOf(getCartResponseRestaurantsItemDeliveryEstimateOneTotalMinutesMultipleOf),
+  "distanceKm": zod.number().min(getCartResponseRestaurantsItemDeliveryEstimateOneDistanceKmMin),
+  "method": zod.enum(['distance'])
+}).nullable()
+})),
+  "restaurantIds": zod.array(zod.number()),
+  "itemCount": zod.number(),
+  "total": zod.number()
+})
+
+
+/**
  * @summary Convert the authenticated customer's cart into restaurant orders
  */
 export const placeOrderBodyNotesMax = 1000;
@@ -297,6 +354,28 @@ export const PlaceOrderBody = zod.object({
   "useWalletAmount": zod.number().min(placeOrderBodyUseWalletAmountMin).multipleOf(placeOrderBodyUseWalletAmountMultipleOf).optional()
 })
 
+export const placeOrderResponseOrdersItemDeliveryEstimateOnePreparationMinutesMin = 0;
+export const placeOrderResponseOrdersItemDeliveryEstimateOnePreparationMinutesMultipleOf = 1;
+
+export const placeOrderResponseOrdersItemDeliveryEstimateOneTravelMinutesMin = 0;
+export const placeOrderResponseOrdersItemDeliveryEstimateOneTravelMinutesMultipleOf = 1;
+
+export const placeOrderResponseOrdersItemDeliveryEstimateOneTotalMinutesMin = 0;
+export const placeOrderResponseOrdersItemDeliveryEstimateOneTotalMinutesMultipleOf = 1;
+
+export const placeOrderResponseOrdersItemDeliveryEstimateOneDistanceKmMin = 0;
+
+
+export const placeOrderResponseDeliveryEstimateOnePreparationMinutesMin = 0;
+export const placeOrderResponseDeliveryEstimateOnePreparationMinutesMultipleOf = 1;
+
+export const placeOrderResponseDeliveryEstimateOneTravelMinutesMin = 0;
+export const placeOrderResponseDeliveryEstimateOneTravelMinutesMultipleOf = 1;
+
+export const placeOrderResponseDeliveryEstimateOneTotalMinutesMin = 0;
+export const placeOrderResponseDeliveryEstimateOneTotalMinutesMultipleOf = 1;
+
+export const placeOrderResponseDeliveryEstimateOneDistanceKmMin = 0;
 
 
 
@@ -308,16 +387,43 @@ export const PlaceOrderResponse = zod.object({
   "total": zod.number(),
   "walletAmountUsed": zod.number(),
   "externalAmountDue": zod.number(),
-  "estimateMinutes": zod.string()
+  "estimateMinutes": zod.string(),
+  "deliveryEstimate": zod.object({
+  "preparationMinutes": zod.number().min(placeOrderResponseOrdersItemDeliveryEstimateOnePreparationMinutesMin).multipleOf(placeOrderResponseOrdersItemDeliveryEstimateOnePreparationMinutesMultipleOf),
+  "travelMinutes": zod.number().min(placeOrderResponseOrdersItemDeliveryEstimateOneTravelMinutesMin).multipleOf(placeOrderResponseOrdersItemDeliveryEstimateOneTravelMinutesMultipleOf),
+  "totalMinutes": zod.number().min(placeOrderResponseOrdersItemDeliveryEstimateOneTotalMinutesMin).multipleOf(placeOrderResponseOrdersItemDeliveryEstimateOneTotalMinutesMultipleOf),
+  "distanceKm": zod.number().min(placeOrderResponseOrdersItemDeliveryEstimateOneDistanceKmMin),
+  "method": zod.enum(['distance'])
+}).nullish()
 })).min(1),
   "paymentSessionId": zod.number().nullish().describe('Present when the checkout uses Paymob'),
-  "paymentUrl": zod.string().nullish().describe('Hosted Paymob checkout URL for card payments')
+  "paymentUrl": zod.string().nullish().describe('Hosted Paymob checkout URL for card payments'),
+  "deliveryEstimate": zod.object({
+  "preparationMinutes": zod.number().min(placeOrderResponseDeliveryEstimateOnePreparationMinutesMin).multipleOf(placeOrderResponseDeliveryEstimateOnePreparationMinutesMultipleOf),
+  "travelMinutes": zod.number().min(placeOrderResponseDeliveryEstimateOneTravelMinutesMin).multipleOf(placeOrderResponseDeliveryEstimateOneTravelMinutesMultipleOf),
+  "totalMinutes": zod.number().min(placeOrderResponseDeliveryEstimateOneTotalMinutesMin).multipleOf(placeOrderResponseDeliveryEstimateOneTotalMinutesMultipleOf),
+  "distanceKm": zod.number().min(placeOrderResponseDeliveryEstimateOneDistanceKmMin),
+  "method": zod.enum(['distance'])
+}).nullish()
 })
 
 
 /**
  * @summary List the authenticated customer's orders newest first
  */
+export const listCustomerOrdersResponseDeliveryEstimateOnePreparationMinutesMin = 0;
+export const listCustomerOrdersResponseDeliveryEstimateOnePreparationMinutesMultipleOf = 1;
+
+export const listCustomerOrdersResponseDeliveryEstimateOneTravelMinutesMin = 0;
+export const listCustomerOrdersResponseDeliveryEstimateOneTravelMinutesMultipleOf = 1;
+
+export const listCustomerOrdersResponseDeliveryEstimateOneTotalMinutesMin = 0;
+export const listCustomerOrdersResponseDeliveryEstimateOneTotalMinutesMultipleOf = 1;
+
+export const listCustomerOrdersResponseDeliveryEstimateOneDistanceKmMin = 0;
+
+
+
 export const ListCustomerOrdersResponseItem = zod.object({
   "id": zod.number(),
   "code": zod.string(),
@@ -328,6 +434,13 @@ export const ListCustomerOrdersResponseItem = zod.object({
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
   "total": zod.number(),
+  "deliveryEstimate": zod.object({
+  "preparationMinutes": zod.number().min(listCustomerOrdersResponseDeliveryEstimateOnePreparationMinutesMin).multipleOf(listCustomerOrdersResponseDeliveryEstimateOnePreparationMinutesMultipleOf),
+  "travelMinutes": zod.number().min(listCustomerOrdersResponseDeliveryEstimateOneTravelMinutesMin).multipleOf(listCustomerOrdersResponseDeliveryEstimateOneTravelMinutesMultipleOf),
+  "totalMinutes": zod.number().min(listCustomerOrdersResponseDeliveryEstimateOneTotalMinutesMin).multipleOf(listCustomerOrdersResponseDeliveryEstimateOneTotalMinutesMultipleOf),
+  "distanceKm": zod.number().min(listCustomerOrdersResponseDeliveryEstimateOneDistanceKmMin),
+  "method": zod.enum(['distance'])
+}).nullish(),
   "createdAt": zod.coerce.date()
 })
 export const ListCustomerOrdersResponse = zod.array(ListCustomerOrdersResponseItem)
@@ -340,6 +453,19 @@ export const GetCustomerOrderParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getCustomerOrderResponseOneDeliveryEstimateOnePreparationMinutesMin = 0;
+export const getCustomerOrderResponseOneDeliveryEstimateOnePreparationMinutesMultipleOf = 1;
+
+export const getCustomerOrderResponseOneDeliveryEstimateOneTravelMinutesMin = 0;
+export const getCustomerOrderResponseOneDeliveryEstimateOneTravelMinutesMultipleOf = 1;
+
+export const getCustomerOrderResponseOneDeliveryEstimateOneTotalMinutesMin = 0;
+export const getCustomerOrderResponseOneDeliveryEstimateOneTotalMinutesMultipleOf = 1;
+
+export const getCustomerOrderResponseOneDeliveryEstimateOneDistanceKmMin = 0;
+
+
+
 export const GetCustomerOrderResponse = zod.object({
   "id": zod.number(),
   "code": zod.string(),
@@ -350,6 +476,13 @@ export const GetCustomerOrderResponse = zod.object({
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
   "total": zod.number(),
+  "deliveryEstimate": zod.object({
+  "preparationMinutes": zod.number().min(getCustomerOrderResponseOneDeliveryEstimateOnePreparationMinutesMin).multipleOf(getCustomerOrderResponseOneDeliveryEstimateOnePreparationMinutesMultipleOf),
+  "travelMinutes": zod.number().min(getCustomerOrderResponseOneDeliveryEstimateOneTravelMinutesMin).multipleOf(getCustomerOrderResponseOneDeliveryEstimateOneTravelMinutesMultipleOf),
+  "totalMinutes": zod.number().min(getCustomerOrderResponseOneDeliveryEstimateOneTotalMinutesMin).multipleOf(getCustomerOrderResponseOneDeliveryEstimateOneTotalMinutesMultipleOf),
+  "distanceKm": zod.number().min(getCustomerOrderResponseOneDeliveryEstimateOneDistanceKmMin),
+  "method": zod.enum(['distance'])
+}).nullish(),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
   "deliveryAddressText": zod.string(),

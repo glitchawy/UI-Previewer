@@ -8,6 +8,7 @@ import {
   useGetCustomerOrder,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button, EmptyState } from "@/components/tb/shell";
+import { DeliveryEstimateCard } from "@/components/tb/delivery-estimate";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP, formatOrderDate, orderStatusLabels, orderStatusTones, paymentStatusLabels, paymentStatusTones } from "@/lib/tb/orders";
 import { translate, useTranslation } from "@/lib/i18n";
@@ -31,6 +32,7 @@ function AppOrderDetail() {
   const orderQuery = useGetCustomerOrder(id, {
     query: { enabled: id > 0, queryKey: getGetCustomerOrderQueryKey(id) },
   });
+  const orderEstimate = (orderQuery.data as unknown as { deliveryEstimate?: unknown } | undefined)?.deliveryEstimate;
   const cancelOrder = useCancelCustomerOrder({
     mutation: {
       onSuccess: async () => {
@@ -61,7 +63,15 @@ function AppOrderDetail() {
             </div>
           </Card>
 
-          <section>
+           {orderQuery.data && !["cancelled", "delivered"].includes(orderQuery.data.status) ? (
+             <DeliveryEstimateCard
+               estimate={orderEstimate}
+               title={t("المدة المتوقعة وقت تأكيد الطلب", "Estimated at order placement")}
+               testId="order-detail-delivery-estimate"
+             />
+           ) : null}
+
+           <section>
              <h2 className="mb-sm font-headline-md text-headline-md">{t("محتويات الطلب", "Order contents")}</h2>
             <Card className="divide-y divide-outline-variant px-md">
               {orderQuery.data.items.map((item) => (

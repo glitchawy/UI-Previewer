@@ -42,6 +42,14 @@ import {
 import { cancelPendingPaymentSession, expireLockedPaymentSession } from "../lib/payment-session-lifecycle";
 import { debitWallet, fromCents, toCents } from "../lib/wallet-ledger";
 import { evaluateRestaurantAcceptance } from "../lib/restaurant-acceptance";
+import {
+  calculateDeliveryEstimate,
+  deliveryEstimateFromStored,
+  haversineDistanceKm,
+  maxDeliveryEstimate,
+  selectCheckoutBranch,
+  type DeliveryEstimate,
+} from "../lib/delivery-estimate";
 
 const router = Router();
 export const DELIVERY_FEE_PER_RESTAURANT = 25;
@@ -51,11 +59,8 @@ function orderCode(id: number) {
   return `TB-${String(id).padStart(6, "0")}`;
 }
 
-function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
-  const rad = (n: number) => n * Math.PI / 180;
-  const dLat = rad(bLat - aLat), dLng = rad(bLng - aLng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+function estimateMinutesLabel(estimate: DeliveryEstimate | null) {
+  return estimate ? String(estimate.totalMinutes) : "unavailable";
 }
 
 type CheckoutAttachment =
@@ -152,9 +157,11 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       total: number;
       walletAmountUsed: number;
       externalAmountDue: number;
+      deliveryEstimate: DeliveryEstimate | null;
     }[];
     paymentSessionId: number | null;
     paymentUrl: string | null;
+    deliveryEstimate: DeliveryEstimate | null;
   };
   try {
     created = await db.transaction(async (tx) => {
@@ -206,9 +213,18 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         total: ordersTable.total,
         walletAmountUsed: ordersTable.walletAmountUsed,
         externalAmountDue: ordersTable.externalAmountDue,
+        estimatedPreparationMinutes: ordersTable.estimatedPreparationMinutes,
+        estimatedTravelMinutes: ordersTable.estimatedTravelMinutes,
+        estimatedTotalMinutes: ordersTable.estimatedTotalMinutes,
+        estimatedDistanceKm: ordersTable.estimatedDistanceKm,
+        estimatedDeliveryMethod: ordersTable.estimatedDeliveryMethod,
       }).from(ordersTable).where(eq(ordersTable.paymentSessionId, activePayment.id));
+      const activeOrdersWithEstimates = activeOrders.map((order) => ({
+        ...order,
+        deliveryEstimate: deliveryEstimateFromStored(order),
+      }));
       return {
-        orders: activeOrders.map((order) => ({
+        orders: activeOrdersWithEstimates.map((order) => ({
           ...order,
           total: Number(order.total),
           walletAmountUsed: Number(order.walletAmountUsed),
@@ -216,6 +232,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         })),
         paymentSessionId: activePayment.id,
         paymentUrl: activePayment.paymentUrl,
+        deliveryEstimate: maxDeliveryEstimate(activeOrdersWithEstimates.map((order) => order.deliveryEstimate)),
       };
     }
     const cartItems = await tx.select().from(cartItemsTable).where(eq(cartItemsTable.userId, customer.id));
@@ -242,8 +259,12 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     const addonMap = new Map(addons.map((row) => [row.id, row]));
     const branchMap = new Map<number, typeof branches[number]>();
     const restaurantsWithBranches = new Set(branches.map((branch) => branch.restaurantId));
-    for (const branch of branches) if (branch.isOpen && !branchMap.has(branch.restaurantId)) branchMap.set(branch.restaurantId, branch);
+    for (const restaurantId of restaurantIds) {
+      const branch = selectCheckoutBranch(branches.filter((candidate) => candidate.restaurantId === restaurantId));
+      if (branch) branchMap.set(restaurantId, branch);
+    }
     const deliveryFees = new Map<number, number>();
+    const deliveryEstimates = new Map<number, DeliveryEstimate | null>();
     for (const restaurantId of restaurantIds) {
       const branch = branchMap.get(restaurantId);
       const restaurant = restaurantMap.get(restaurantId);
@@ -254,6 +275,10 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       if (!restaurant || (!branch && restaurantsWithBranches.has(restaurantId))) {
         throw new Error("UNAVAILABLE_ITEM");
       }
+      const deliveryEstimate = branch
+        ? calculateDeliveryEstimate(branch.lat, branch.lng, deliveryLat, deliveryLng)
+        : calculateDeliveryEstimate(restaurant.lat, restaurant.lng, deliveryLat, deliveryLng);
+      deliveryEstimates.set(restaurantId, deliveryEstimate);
       if (!pricingTiers.length) {
         deliveryFees.set(restaurantId, DELIVERY_FEE_PER_RESTAURANT);
         continue;
@@ -261,7 +286,8 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       const originLat = branch?.lat ?? restaurant.lat;
       const originLng = branch?.lng ?? restaurant.lng;
       if (originLat === null || originLng === null) throw new Error("DELIVERY_UNAVAILABLE");
-      const distance = distanceKm(originLat, originLng, deliveryLat, deliveryLng);
+      const distance = haversineDistanceKm(originLat, originLng, deliveryLat, deliveryLng);
+      if (distance === null) throw new Error("DELIVERY_UNAVAILABLE");
       const tier = pricingTiers.find((candidate) => distance >= Number(candidate.fromKm) && distance < Number(candidate.toKm));
       if (!tier) throw new Error("DELIVERY_UNAVAILABLE");
       deliveryFees.set(restaurantId, Number(tier.price));
@@ -309,6 +335,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       total: number;
       walletAmountUsed: number;
       externalAmountDue: number;
+      deliveryEstimate: DeliveryEstimate | null;
     }[] = [];
     for (const restaurantId of restaurantIds) {
       const restaurant = restaurantMap.get(restaurantId)!;
@@ -337,6 +364,11 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         deliveryFee: deliveryFee.toFixed(2),
         subtotal: subtotal.toFixed(2),
         total: total.toFixed(2),
+        estimatedPreparationMinutes: deliveryEstimates.get(restaurantId)?.preparationMinutes ?? null,
+        estimatedTravelMinutes: deliveryEstimates.get(restaurantId)?.travelMinutes ?? null,
+        estimatedTotalMinutes: deliveryEstimates.get(restaurantId)?.totalMinutes ?? null,
+        estimatedDistanceKm: deliveryEstimates.get(restaurantId)?.distanceKm ?? null,
+        estimatedDeliveryMethod: deliveryEstimates.get(restaurantId)?.method ?? null,
         walletAmountUsed: fromCents(walletAmountCents),
         externalAmountDue: fromCents(externalAmountCents),
         notes: rawNotes || null,
@@ -386,6 +418,7 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
         total,
         walletAmountUsed: walletAmountCents / 100,
         externalAmountDue: externalAmountCents / 100,
+        deliveryEstimate: deliveryEstimates.get(restaurantId) ?? null,
       });
     }
 
@@ -426,7 +459,12 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
     if (paymentMethod === "cash" || (paymentMethod === "card" && !externalOrders.length)) {
       await tx.delete(cartItemsTable).where(eq(cartItemsTable.userId, customer.id));
     }
-    return { orders: results, paymentSessionId, paymentUrl };
+     return {
+       orders: results,
+       paymentSessionId,
+       paymentUrl,
+       deliveryEstimate: maxDeliveryEstimate(results.map((order) => order.deliveryEstimate)),
+     };
   });
   } catch (error) {
     if (error instanceof Error && error.message === "EMPTY_CART") {
@@ -512,10 +550,12 @@ router.post("/orders", async (req, res: Response): Promise<void> => {
       walletAmountUsed: order.walletAmountUsed,
       externalAmountDue: order.externalAmountDue,
       code: orderCode(order.id),
-      estimateMinutes: "30-40",
+       estimateMinutes: estimateMinutesLabel(order.deliveryEstimate),
+       deliveryEstimate: order.deliveryEstimate,
     })),
     paymentSessionId: created.paymentSessionId,
     paymentUrl: created.paymentUrl,
+     deliveryEstimate: created.deliveryEstimate,
   }));
 });
 
@@ -528,6 +568,7 @@ router.get("/orders", async (req, res: Response): Promise<void> => {
     id: order.id, code: orderCode(order.id), restaurantName: order.restaurantName, status: order.status,
     paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus,
     subtotal: Number(order.subtotal), deliveryFee: Number(order.deliveryFee), total: Number(order.total),
+     deliveryEstimate: deliveryEstimateFromStored(order),
     createdAt: order.createdAt,
   }))));
 });
@@ -588,6 +629,7 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
     driverLocationUpdatedAt: order.status === "picked_up" ? driver?.updatedAt ?? null : null,
     subtotal: Number(order.subtotal),
     deliveryFee: Number(order.deliveryFee), total: Number(order.total), notes: order.notes,
+     deliveryEstimate: deliveryEstimateFromStored(order),
     createdAt: order.createdAt,
     timeline: timeline.map((event) => ({ status: event.status, at: event.createdAt, label: statusLabels[event.status] })),
     items: items.map((item) => ({

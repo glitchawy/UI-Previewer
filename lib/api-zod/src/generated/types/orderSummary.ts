@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DeliveryEstimate } from './deliveryEstimate';
 import type { OrderStatus } from './orderStatus';
 import type { PaymentMethod } from './paymentMethod';
 import type { PaymentStatus } from './paymentStatus';
@@ -19,5 +20,6 @@ export interface OrderSummary {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  deliveryEstimate?: DeliveryEstimate | null;
   createdAt: Date;
 }

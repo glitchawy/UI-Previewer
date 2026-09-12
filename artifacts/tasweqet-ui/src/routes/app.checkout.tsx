@@ -9,6 +9,7 @@ import {
   usePlaceOrder,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button, MapCanvas, EmptyState } from "@/components/tb/shell";
+import { DeliveryEstimateLine, DeliveryEstimateSummary } from "@/components/tb/delivery-estimate";
 import { customerTabs } from "@/lib/tb/nav";
 import { resetCartAfterOrder, useCart } from "@/lib/tb/cart";
 import { EGP } from "@/lib/tb/orders";
@@ -174,7 +175,12 @@ function AppCheckout() {
             )}
           </section>
 
-          <section>
+           <DeliveryEstimateSummary
+             estimates={cart.restaurants.map((group) => group.deliveryEstimate)}
+             testId="checkout-delivery-estimate-summary"
+           />
+
+           <section>
              <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">{t("تفاصيل الطلب", "Order details")}</h2>
             <div className="flex flex-col gap-3">
               {cart.restaurants.map((group) => (
@@ -183,6 +189,9 @@ function AppCheckout() {
                     <p className="font-label-lg text-label-lg text-on-surface">{group.restaurantName}</p>
                      <Badge tone="info">{t("طلب منفصل", "Separate order")}</Badge>
                   </div>
+                   <div className="border-b border-outline-variant/40 px-3 py-3">
+                     <DeliveryEstimateLine estimate={group.deliveryEstimate} testId={`checkout-delivery-estimate-${group.restaurantId}`} />
+                   </div>
                   <div className="divide-y divide-outline-variant px-3">
                     {group.items.map((item) => (
                       <div key={item.id} className="flex items-start justify-between gap-3 py-3">

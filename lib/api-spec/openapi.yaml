@@ -475,6 +475,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaymentCapabilities"
 
+  /cart:
+    get:
+      operationId: getCart
+      tags: [cart]
+      summary: Get the authenticated customer's cart with checkout delivery estimates
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current cart grouped by restaurant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orders:
     post:
       operationId: placeOrder
@@ -2966,6 +2987,10 @@ components:
           type: number
         estimateMinutes:
           type: string
+        deliveryEstimate:
+          allOf:
+            - $ref: "#/components/schemas/DeliveryEstimate"
+          nullable: true
 
     OrderPlacementResult:
       type: object
@@ -2982,6 +3007,10 @@ components:
         paymentUrl:
           type: ["string", "null"]
           description: Hosted Paymob checkout URL for card payments
+        deliveryEstimate:
+          allOf:
+            - $ref: "#/components/schemas/DeliveryEstimate"
+          nullable: true
 
     PaymentSession:
       type: object
@@ -3019,6 +3048,10 @@ components:
           type: number
         total:
           type: number
+        deliveryEstimate:
+          allOf:
+            - $ref: "#/components/schemas/DeliveryEstimate"
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -3112,6 +3145,114 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/OrderLine"
+
+    DeliveryEstimate:
+      type: object
+      required: [preparationMinutes, travelMinutes, totalMinutes, distanceKm, method]
+      properties:
+        preparationMinutes:
+          type: number
+          minimum: 0
+          multipleOf: 1
+        travelMinutes:
+          type: number
+          minimum: 0
+          multipleOf: 1
+        totalMinutes:
+          type: number
+          minimum: 0
+          multipleOf: 1
+        distanceKm:
+          type: number
+          minimum: 0
+        method:
+          type: string
+          enum: [distance]
+
+    CartLine:
+      type: object
+      required: [id, productId, name, imageUrl, quantity, unitPrice, subtotal, variant, addons]
+      properties:
+        id:
+          type: number
+        productId:
+          type: number
+        name:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        subtotal:
+          type: number
+        variant:
+          oneOf:
+            - type: object
+              required: [id, name]
+              properties:
+                id:
+                  type: number
+                name:
+                  type: string
+            - type: "null"
+        addons:
+          type: array
+          items:
+            type: object
+            required: [id, name, price]
+            properties:
+              id:
+                type: number
+              name:
+                type: string
+              price:
+                type: number
+
+    CartRestaurant:
+      type: object
+      required: [restaurantId, restaurantName, deliveryType, acceptingOrders, acceptanceReason, nextOpeningSummary, items, subtotal, deliveryEstimate]
+      properties:
+        restaurantId:
+          type: number
+        restaurantName:
+          type: string
+        deliveryType:
+          type: string
+        acceptingOrders:
+          type: boolean
+        acceptanceReason:
+          type: string
+        nextOpeningSummary:
+          type: ["string", "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartLine"
+        subtotal:
+          type: number
+        deliveryEstimate:
+          allOf:
+            - $ref: "#/components/schemas/DeliveryEstimate"
+          nullable: true
+
+    CartResponse:
+      type: object
+      required: [restaurants, restaurantIds, itemCount, total]
+      properties:
+        restaurants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartRestaurant"
+        restaurantIds:
+          type: array
+          items:
+            type: number
+        itemCount:
+          type: number
+        total:
+          type: number
 
     OrderActionResult:
       type: object

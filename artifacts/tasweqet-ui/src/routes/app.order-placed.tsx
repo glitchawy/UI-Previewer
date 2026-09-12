@@ -7,6 +7,7 @@ import {
   useListCustomerOrders,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button } from "@/components/tb/shell";
+import { DeliveryEstimateLine, DeliveryEstimateSummary } from "@/components/tb/delivery-estimate";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP } from "@/lib/tb/orders";
 import { resetCartAfterOrder } from "@/lib/tb/cart";
@@ -53,6 +54,9 @@ function AppOrderPlaced() {
   const paymentStatus = paymentQuery.data?.status;
   const paymentFailed = hasPaymentSession && paymentStatus === "failed";
   const paymentPending = hasPaymentSession && (paymentStatus === "pending" || paymentQuery.isLoading);
+  const orderEstimates = orders.map((order) => (
+    (order as unknown as { deliveryEstimate?: unknown }).deliveryEstimate
+  ));
   const title = paymentFailed ? t("لم يكتمل الدفع", "Payment was not completed") : paymentPending ? t("جاري تأكيد الدفع", "Confirming payment") : hasPaymentSession ? t("تم الدفع بنجاح!", "Payment successful!") : t("تم إرسال طلبك بنجاح!", "Your order was sent successfully!");
   const subtitle = paymentFailed
     ? t("لم يتم خصم أي مبلغ مؤكد. يمكنك الرجوع للسلة والمحاولة مرة أخرى.", "No confirmed amount was charged. You can return to the cart and try again.")
@@ -75,15 +79,18 @@ function AppOrderPlaced() {
           <h1 className="font-headline-lg text-headline-lg text-on-surface">{title}</h1>
           <p className="mt-1 font-body-md text-body-md text-on-surface-variant">{subtitle}</p>
         </div>
-        {!paymentFailed ? <Badge tone={paymentPending ? "warn" : "info"} className="px-4 py-2"><Icon name="schedule" className="text-[16px]" />{paymentPending ? t("بانتظار تأكيد الدفع", "Awaiting payment confirmation") : t("الوقت المتوقع 30–40 دقيقة", "Estimated time: 30–40 minutes")}</Badge> : null}
+        {!paymentFailed && paymentPending ? <Badge tone="warn" className="px-4 py-2"><Icon name="schedule" className="text-[16px]" />{t("بانتظار تأكيد الدفع", "Awaiting payment confirmation")}</Badge> : null}
 
         {ordersQuery.isLoading ? <Icon name="progress_activity" className="animate-spin text-[32px] text-primary" /> : (
           <div className="w-full space-y-3 text-right">
+            {!paymentFailed && !paymentPending && orders.length > 0 ? (
+              <DeliveryEstimateSummary estimates={orderEstimates} testId="order-placed-delivery-estimate-summary" />
+            ) : null}
             {orders.map((order) => (
               <Link key={order.id} to="/app/orders/$id" params={{ id: String(order.id) }} className="block">
                 <Card className="flex items-center gap-3 p-md">
                   <span className="flex size-11 items-center justify-center rounded-full bg-primary-container text-on-primary-container"><Icon name="receipt_long" /></span>
-                  <span className="min-w-0 flex-1"><span className="block font-label-lg text-label-lg">{order.restaurantName}</span><span className="block font-label-md text-label-md text-on-surface-variant">{order.code}</span></span>
+                  <div className="min-w-0 flex-1"><span className="block font-label-lg text-label-lg">{order.restaurantName}</span><span className="block font-label-md text-label-md text-on-surface-variant">{order.code}</span><DeliveryEstimateLine estimate={(order as unknown as { deliveryEstimate?: unknown }).deliveryEstimate} testId={`order-placed-delivery-estimate-${order.id}`} /></div>
                   <span className="font-headline-md text-headline-md">{EGP(order.total)}</span>
                   <Icon name="chevron_left" className="text-outline" />
                 </Card>

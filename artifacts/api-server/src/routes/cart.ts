@@ -13,6 +13,12 @@ import {
 } from "@workspace/db";
 import { lookupAuthorization } from "../lib/session";
 import { evaluateRestaurantAcceptance } from "../lib/restaurant-acceptance";
+import {
+  calculateDeliveryEstimate,
+  selectCheckoutBranch,
+  type DeliveryEstimate,
+} from "../lib/delivery-estimate";
+import { GetCartResponse } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -35,7 +41,7 @@ type CartLine = {
   addons: { id: number; name: string; price: number }[];
 };
 
-export async function buildCart(userId: number) {
+export async function buildCart(userId: number, deliveryLat: number | null = null, deliveryLng: number | null = null) {
   const items = await db.select().from(cartItemsTable)
     .where(eq(cartItemsTable.userId, userId))
     .orderBy(desc(cartItemsTable.createdAt), desc(cartItemsTable.id));
@@ -65,6 +71,7 @@ export async function buildCart(userId: number) {
     nextOpeningSummary: string | null;
     items: CartLine[];
     subtotal: number;
+    deliveryEstimate: DeliveryEstimate | null;
   }>();
 
   for (const item of items) {
@@ -82,6 +89,13 @@ export async function buildCart(userId: number) {
       restaurant,
       branches.filter((branch) => branch.restaurantId === restaurant.id),
     );
+    const restaurantBranches = branches.filter((branch) => branch.restaurantId === restaurant.id);
+    const branch = selectCheckoutBranch(restaurantBranches);
+    const deliveryEstimate = branch
+      ? calculateDeliveryEstimate(branch.lat, branch.lng, deliveryLat, deliveryLng)
+      : restaurantBranches.length
+        ? null
+        : calculateDeliveryEstimate(restaurant.lat, restaurant.lng, deliveryLat, deliveryLng);
     const group = groups.get(restaurant.id) ?? {
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
@@ -89,6 +103,7 @@ export async function buildCart(userId: number) {
       ...acceptance,
       items: [],
       subtotal: 0,
+      deliveryEstimate,
     };
     group.items.push({
       id: item.id,
@@ -116,7 +131,7 @@ export async function buildCart(userId: number) {
 router.get("/cart", async (req, res: Response): Promise<void> => {
   const user = await getCustomer(req);
   if (!user) { res.status(401).json({ error: "غير مصرح" }); return; }
-  res.json(await buildCart(user.id));
+  res.json(GetCartResponse.parse(await buildCart(user.id, user.lat, user.lng)));
 });
 
 router.post("/cart/items", async (req, res: Response): Promise<void> => {
@@ -235,7 +250,7 @@ router.post("/cart/items", async (req, res: Response): Promise<void> => {
     }
     throw error;
   }
-  res.status(201).json(await buildCart(user.id));
+  res.status(201).json(GetCartResponse.parse(await buildCart(user.id, user.lat, user.lng)));
 });
 
 router.patch("/cart/items/:id", async (req, res: Response): Promise<void> => {
@@ -264,7 +279,7 @@ router.patch("/cart/items/:id", async (req, res: Response): Promise<void> => {
     }
     throw error;
   }
-  res.json(await buildCart(user.id));
+  res.json(GetCartResponse.parse(await buildCart(user.id, user.lat, user.lng)));
 });
 
 router.delete("/cart", async (req, res: Response): Promise<void> => {

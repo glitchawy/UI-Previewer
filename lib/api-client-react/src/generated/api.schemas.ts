@@ -680,6 +680,25 @@ export interface OrderPlacementInput {
   useWalletAmount?: number;
 }
 
+export type DeliveryEstimateMethod = typeof DeliveryEstimateMethod[keyof typeof DeliveryEstimateMethod];
+
+
+export const DeliveryEstimateMethod = {
+  distance: 'distance',
+} as const;
+
+export interface DeliveryEstimate {
+  /** @minimum 0 */
+  preparationMinutes: number;
+  /** @minimum 0 */
+  travelMinutes: number;
+  /** @minimum 0 */
+  totalMinutes: number;
+  /** @minimum 0 */
+  distanceKm: number;
+  method: DeliveryEstimateMethod;
+}
+
 export interface PlacedOrder {
   id: number;
   code: string;
@@ -688,6 +707,7 @@ export interface PlacedOrder {
   walletAmountUsed: number;
   externalAmountDue: number;
   estimateMinutes: string;
+  deliveryEstimate?: DeliveryEstimate | null;
 }
 
 export interface OrderPlacementResult {
@@ -703,6 +723,7 @@ export interface OrderPlacementResult {
      * @nullable
      */
   paymentUrl?: string | null;
+  deliveryEstimate?: DeliveryEstimate | null;
 }
 
 export interface PaymentSession {
@@ -722,6 +743,7 @@ export interface OrderSummary {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  deliveryEstimate?: DeliveryEstimate | null;
   createdAt: string;
 }
 
@@ -783,6 +805,50 @@ export type OrderDetail = OrderSummary & ({
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });
+
+export type CartLineVariant = {
+  id: number;
+  name: string;
+} | null;
+
+export type CartLineAddonsItem = {
+  id: number;
+  name: string;
+  price: number;
+};
+
+export interface CartLine {
+  id: number;
+  productId: number;
+  name: string;
+  /** @nullable */
+  imageUrl: string | null;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  variant: CartLineVariant;
+  addons: CartLineAddonsItem[];
+}
+
+export interface CartRestaurant {
+  restaurantId: number;
+  restaurantName: string;
+  deliveryType: string;
+  acceptingOrders: boolean;
+  acceptanceReason: string;
+  /** @nullable */
+  nextOpeningSummary: string | null;
+  items: CartLine[];
+  subtotal: number;
+  deliveryEstimate: DeliveryEstimate | null;
+}
+
+export interface CartResponse {
+  restaurants: CartRestaurant[];
+  restaurantIds: number[];
+  itemCount: number;
+  total: number;
+}
 
 export interface OrderActionResult {
   id: number;

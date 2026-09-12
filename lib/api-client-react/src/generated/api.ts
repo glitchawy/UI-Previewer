@@ -38,6 +38,7 @@ import type {
   ApplicationStatusUpdate,
   AuthCapabilities,
   AuthSession,
+  CartResponse,
   CustomerAddress,
   CustomerAddressInput,
   CustomerWallet,
@@ -1408,6 +1409,83 @@ export function useGetPaymentCapabilities<TData = Awaited<ReturnType<typeof getP
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPaymentCapabilitiesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCartUrl = () => {
+
+
+
+
+  return `/api/cart`
+}
+
+/**
+ * @summary Get the authenticated customer's cart with checkout delivery estimates
+ */
+export const getCart = async ( options?: Parameters<typeof customFetch>[1]): Promise<CartResponse> => {
+
+  return customFetch<CartResponse>(getGetCartUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCartQueryKey = () => {
+    return [
+    `/api/cart`
+    ] as const;
+    }
+
+
+export const getGetCartQueryOptions = <TData = Awaited<ReturnType<typeof getCart>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCartQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCart>>> = ({ signal }) => getCart({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCart>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCartQueryResult = NonNullable<Awaited<ReturnType<typeof getCart>>>
+export type GetCartQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the authenticated customer's cart with checkout delivery estimates
+ */
+
+export function useGetCart<TData = Awaited<ReturnType<typeof getCart>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCartQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -7915,3 +7993,10 @@ export function useGetAdminOperationsHealth<TData = Awaited<ReturnType<typeof ge
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+

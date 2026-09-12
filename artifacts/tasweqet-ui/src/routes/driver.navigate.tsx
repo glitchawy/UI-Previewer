@@ -231,7 +231,6 @@ function DriverNavigate() {
               <Icon name="payments" className="text-[15px]" />
                {order.paymentMethod === "cash" ? t(`حصّل ${formatCurrency(order.total, locale)}`, `Collect ${formatCurrency(order.total, locale)}`) : t("مدفوع أونلاين", "Paid online")}
             </Badge>
-             <span className="text-label-md text-on-surface-variant">{t("الوقت المتوقع: ٢٠–٣٠ دقيقة", "Estimated time: 20–30 minutes")}</span>
           </div>
 
           {statusMutation.isError ? <p className="rounded-button bg-error-container px-3 py-2 text-label-md text-on-error-container">{t("تعذر تحديث حالة الطلب. حاول مرة أخرى.", "Could not update order status. Try again.")}</p> : null}

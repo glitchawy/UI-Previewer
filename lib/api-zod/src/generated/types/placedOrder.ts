@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DeliveryEstimate } from './deliveryEstimate';
 
 export interface PlacedOrder {
   id: number;
@@ -14,4 +15,5 @@ export interface PlacedOrder {
   walletAmountUsed: number;
   externalAmountDue: number;
   estimateMinutes: string;
+  deliveryEstimate?: DeliveryEstimate | null;
 }

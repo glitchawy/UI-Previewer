@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DeliveryEstimate } from './deliveryEstimate';
 import type { PlacedOrder } from './placedOrder';
 
 export interface OrderPlacementResult {
@@ -20,4 +21,5 @@ export interface OrderPlacementResult {
      * @nullable
      */
   paymentUrl?: string | null;
+  deliveryEstimate?: DeliveryEstimate | null;
 }
