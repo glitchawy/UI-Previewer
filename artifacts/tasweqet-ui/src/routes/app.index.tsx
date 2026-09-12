@@ -7,6 +7,7 @@ import { getSession, logoutSession, getRoleDashboard, getToken } from "@/lib/aut
 import { FavButton } from "@/lib/tb/favorites";
 import { restaurantHoursSummary } from "@/lib/tb/restaurant-hours";
 import { translate, useTranslation } from "@/lib/i18n";
+import { personalGreeting } from "@/lib/personal-greeting";
 
 export const Route = createFileRoute("/app/")({
   beforeLoad: () => {
@@ -113,8 +114,7 @@ function AppIndex() {
         <div className="flex items-center gap-2 bg-surface-container-low px-md py-2">
           <Icon name="waving_hand" className="text-[18px] text-secondary" />
           <p className="font-label-md text-label-md text-on-surface-variant">
-            {t("أهلاً 👋", "Hello 👋")}{" "}
-            <span className="font-label-lg text-on-surface" dir="ltr">+20{session.user.phone}</span>
+            <bdi>{personalGreeting(t("أهلاً 👋", "Hello 👋"), session.user.name)}</bdi>
           </p>
         </div>
       )}

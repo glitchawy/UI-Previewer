@@ -15,6 +15,7 @@ import { getFreshForegroundFix, type DriverAccount, type DriverEarnings } from "
 import { useDriverData } from "@/lib/use-driver-data";
 import { useTranslation, translate } from "@/lib/i18n";
 import { formatCurrency } from "@/lib/tb/locale-format";
+import { personalGreeting } from "@/lib/personal-greeting";
 
 export const Route = createFileRoute("/driver/")({
   beforeLoad: () => {
@@ -152,7 +153,7 @@ function DriverIndex() {
   return (
     <MobileShell tabs={driverTabs}>
       <AppBar
-         title={`${t("أهلاً 👋", "Hello 👋")} +20${session?.user.phone ?? ""}`}
+         title={personalGreeting(t("أهلاً 👋", "Hello 👋"), session?.user.name)}
          subtitle={t("مندوب طلبات بيتك", "Talabat Betak driver")}
         right={
           <button

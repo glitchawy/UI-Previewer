@@ -5,6 +5,7 @@ import { AppBar, Icon, MobileShell } from "@/components/tb/shell";
 import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import { GateBlockedCard, GateLoadingCard, useApplicationGate } from "@/components/tb/approval-gate";
 import { useTranslation } from "@/lib/i18n";
+import { personalGreeting } from "@/lib/personal-greeting";
 
 export const Route = createFileRoute("/driver")({
   beforeLoad: () => {
@@ -36,7 +37,7 @@ function DriverLayout() {
   return (
     <MobileShell>
       <AppBar
-         title={`${t("أهلاً 👋", "Hello 👋")} +20${session?.user.phone ?? ""}`}
+         title={personalGreeting(t("أهلاً 👋", "Hello 👋"), session?.user.name)}
          subtitle={t("مندوب طلبات بيتك", "Talabat Betak driver")}
         right={
           <button
