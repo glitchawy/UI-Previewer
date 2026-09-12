@@ -11,6 +11,12 @@ Rate limiting must use the same canonical identity so formatting differences can
 
 **How to apply:** Use one shared server normalizer at every authentication boundary. Clients may normalize early for better feedback, but server normalization remains authoritative and stored phone identities remain canonical.
 
+Client validation must accept the same phone representations as the server, especially the 10 national digits when a +20 prefix is displayed.
+
+**Why:** Backend support alone did not fix login: duplicated web validators still required 11 digits and blocked valid input before any API request.
+
+**How to apply:** Keep client/server normalization parity tests. Treat local leading 0 as a trunk prefix omitted after +20, not an extra digit to append to the country code.
+
 Account type is a permanent signup decision tied to the phone identity, not a login option. Do not add account-type switching or allow a second role account on the same number.
 
 **Why:** The user explicitly requires one phone to identify one account type permanently; asking for type at login contradicts that product model.

@@ -4,6 +4,10 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useVerifyOtp } from "@workspace/api-client-react";
 import { saveSession, getSession, getRoleDashboard } from "@/lib/auth-session";
+import {
+  formatEgyptianMobileInternational,
+  normalizeEgyptianMobile,
+} from "@/lib/egyptian-phone";
 import { translate, useTranslation } from "@/lib/i18n";
 
 type Role = "customer" | "partner" | "driver" | "admin";
@@ -39,8 +43,9 @@ export const Route = createFileRoute("/auth/otp")({
     const p = typeof search["phone"] === "string" ? search["phone"] : "";
     const t = search["type"];
     const type = t === "register" ? "register" : "login";
+    const phone = normalizeEgyptianMobile(p) ?? p;
     return {
-      phone: p,
+      phone,
       type,
       // Login never carries a role, even if an old or malicious URL includes one.
       ...(type === "register" && role ? { role } : {}),
@@ -63,7 +68,9 @@ export const Route = createFileRoute("/auth/otp")({
 
 function AuthOtp() {
   const { t } = useTranslation();
-  const { role, phone, type } = Route.useSearch();
+  const { role, phone: searchPhone, type } = Route.useSearch();
+  const phone = normalizeEgyptianMobile(searchPhone) ?? searchPhone;
+  const internationalPhone = formatEgyptianMobileInternational(phone) ?? phone;
   const navigate = useNavigate();
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [error, setError] = useState("");
@@ -224,7 +231,7 @@ function AuthOtp() {
   const backTo = type === "register" ? "/auth/register" : "/auth/login";
 
   return (
-    <AuthShell title={t("تأكيد الكود", "Verify code")} subtitle={`${t("الكود اتبعت برسالة SMS لـ", "The code was sent by SMS to")} +20${phone}`} back={backTo}>
+     <AuthShell title={t("تأكيد الكود", "Verify code")} subtitle={`${t("الكود اتبعت برسالة SMS لـ", "The code was sent by SMS to")} ${internationalPhone}`} back={backTo}>
 
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
         <Icon name={type === "register" ? "person_add" : "login"} className="text-[18px] text-on-secondary-container" />

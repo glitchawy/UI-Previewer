@@ -4,6 +4,10 @@ import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-ro
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useGetAuthCapabilities, useRequestOtp } from "@workspace/api-client-react";
 import { getSession, getRoleDashboard, saveSession, validateWithServer } from "@/lib/auth-session";
+import {
+  getEgyptianMobileValidationMessage,
+  normalizeEgyptianMobile,
+} from "@/lib/egyptian-phone";
 import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/auth/login")({
@@ -32,18 +36,6 @@ const devRoles: { value: Role; ar: string; en: string; icon: string }[] = [
   { value: "admin", ar: "مشرف", en: "Admin", icon: "admin_panel_settings" },
 ];
 
-const EG_PHONE_RE = /^01[0125]\d{8}$/;
-
-function validateEgPhone(raw: string): string | null {
-  const cleaned = raw.replace(/[\s\-]/g, "");
-  if (!cleaned) return translate("أدخل رقم الموبايل", "Enter your mobile number");
-  if (!/^\d+$/.test(cleaned)) return translate("الرقم يجب أن يحتوي على أرقام فقط", "The number must contain digits only");
-  if (cleaned.length !== 11) return translate("رقم الموبايل يجب أن يكون 11 رقماً", "The mobile number must be 11 digits");
-  if (!cleaned.startsWith("01")) return translate("رقم الموبايل المصري يبدأ بـ 01", "Egyptian mobile numbers start with 01");
-  if (!EG_PHONE_RE.test(cleaned)) return translate("الشبكة غير معروفة — يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015", "Unknown network — the number must start with 010, 011, 012, or 015");
-  return null;
-}
-
 function apiErrorMessage(err: unknown): string | undefined {
   const data = (err as { data?: unknown } | null)?.data;
   if (typeof data === "object" && data !== null && "error" in data) {
@@ -62,12 +54,13 @@ function AuthLogin() {
   const [error, setError] = useState("");
   const [devRolePending, setDevRolePending] = useState<Role | null>(null);
 
-  const cleaned = phone.replace(/[\s\-]/g, "");
-  const inlineError = touched ? validateEgPhone(phone) : null;
+  const cleaned = normalizeEgyptianMobile(phone);
+  const inlineError = touched ? getEgyptianMobileValidationMessage(phone, t) : null;
 
   const requestOtp = useRequestOtp({
     mutation: {
       onSuccess: () => {
+        if (!cleaned) return;
         navigate({ to: "/auth/otp", search: { phone: cleaned, type: "login" } });
       },
       onError: (err: unknown) => {
@@ -80,8 +73,9 @@ function AuthLogin() {
   function handleSubmit() {
     setTouched(true);
     setError("");
-    const validationError = validateEgPhone(phone);
+    const validationError = getEgyptianMobileValidationMessage(phone, t);
     if (validationError) { setError(validationError); return; }
+    if (!cleaned) return;
     requestOtp.mutate({ data: { phone: cleaned } });
   }
 
@@ -125,21 +119,24 @@ function AuthLogin() {
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("رقم الموبايل", "Mobile number")}</span>
         <span className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${inlineError ? "border-error" : "border-outline-variant"}`}>
-          <span className="select-none font-label-lg text-label-lg text-on-surface-variant">+20</span>
+          <span dir="ltr" className="select-none font-label-lg text-label-lg text-on-surface-variant">+20</span>
           <span className="h-5 w-px bg-outline-variant" />
           <Icon name="call" className="text-[20px] text-outline" />
           <input
             type="tel"
             inputMode="numeric"
-            placeholder="01X XXXX XXXX"
+            placeholder="1X XXXX XXXX"
             value={phone}
             onChange={(e) => { setPhone(e.target.value); setError(""); }}
             onBlur={() => setTouched(true)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
-            maxLength={13}
+            maxLength={32}
             dir="ltr"
           />
+        </span>
+        <span className="font-label-md text-label-md text-on-surface-variant">
+          {t("اكتب 10 أرقام بعد +20 أو 11 رقمًا محليًا يبدأ بـ 01 — يمكنك لصق الرقم كاملًا", "Enter 10 digits after +20 or an 11-digit local number starting with 01 — you can paste the full number")}
         </span>
         {inlineError && !error && (
           <span className="flex items-center gap-1 font-label-md text-label-md text-error">
