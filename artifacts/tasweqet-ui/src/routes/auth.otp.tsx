@@ -1,5 +1,5 @@
 import { localizedFetch as fetch } from "@/lib/i18n-fetch";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useVerifyOtp } from "@workspace/api-client-react";
@@ -9,6 +9,14 @@ import {
   normalizeEgyptianMobile,
 } from "@/lib/egyptian-phone";
 import { translate, useTranslation } from "@/lib/i18n";
+import {
+  authApiErrorMessage,
+  parseAuthApiError,
+} from "@/lib/auth-errors";
+import {
+  AUTH_OTP_COOLDOWN_SECONDS,
+  useAuthCooldown,
+} from "@/hooks/use-auth-cooldown";
 
 type Role = "customer" | "partner" | "driver" | "admin";
 type FlowType = "login" | "register";
@@ -19,23 +27,12 @@ function parseRole(value: unknown): Role | null {
     : null;
 }
 
-function apiErrorMessage(err: unknown): string | undefined {
-  const data = (err as { data?: unknown } | null)?.data;
-  if (typeof data === "object" && data !== null && "error" in data) {
-    const message = (data as { error?: unknown }).error;
-    return typeof message === "string" ? message : undefined;
-  }
-  return typeof data === "string" ? data : undefined;
-}
-
 const roleLabels: Record<Role, [string, string]> = {
   customer: ["حساب عميل", "Customer account"],
   partner: ["حساب مطعم", "Restaurant account"],
   driver: ["حساب مندوب", "Driver account"],
   admin: ["حساب مشرف", "Admin account"],
 };
-
-const RESEND_SECONDS = 60;
 
 export const Route = createFileRoute("/auth/otp")({
   validateSearch: (search: Record<string, unknown>): { role?: Role; phone: string; type: FlowType } => {
@@ -74,9 +71,10 @@ function AuthOtp() {
   const navigate = useNavigate();
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const [error, setError] = useState("");
-  const [seconds, setSeconds] = useState(RESEND_SECONDS);
   const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const resendLock = useRef(false);
+  const cooldown = useAuthCooldown(type, phone);
 
   async function routeAfterLogin(
     actualRole: Role,
@@ -144,12 +142,6 @@ function AuthOtp() {
     navigate({ to: getRoleDashboard(actualRole) });
   }
 
-  useEffect(() => {
-    if (seconds <= 0) return;
-    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [seconds]);
-
   const verifyOtp = useVerifyOtp({
     mutation: {
       onSuccess: async (data) => {
@@ -181,8 +173,12 @@ function AuthOtp() {
         }
       },
       onError: (err: unknown) => {
-        const msg = apiErrorMessage(err);
-        setError(msg ?? t("الكود غير صحيح، حاول تاني", "The code is incorrect. Please try again."));
+        const details = parseAuthApiError(err);
+        if (details.retryAfterSeconds) cooldown.start(details.retryAfterSeconds);
+        setError(authApiErrorMessage(err, {
+          fallback: t("الكود غير صحيح، حاول تاني", "The code is incorrect. Please try again."),
+          tooManyAttemptsFallback: t("محاولات كثيرة، استنى شوية وحاول تاني", "Too many attempts. Please wait a little and try again."),
+        }));
         setDigits(Array(6).fill(""));
         inputRefs.current[0]?.focus();
       },
@@ -226,8 +222,8 @@ function AuthOtp() {
     });
   }
 
-  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const ss = String(seconds % 60).padStart(2, "0");
+  const mm = String(Math.floor(cooldown.seconds / 60)).padStart(2, "0");
+  const ss = String(cooldown.seconds % 60).padStart(2, "0");
   const backTo = type === "register" ? "/auth/register" : "/auth/login";
 
   return (
@@ -267,11 +263,13 @@ function AuthOtp() {
       {/* Resend row */}
       <div className="flex items-center justify-between">
         <span className="font-label-md text-label-md text-on-surface-variant">
-           {seconds > 0 ? t("إعادة الإرسال بعد {time}", "Resend in {time}", { time: `${mm}:${ss}` }) : t("يمكنك إعادة الإرسال الآن", "You can resend now")}
+           {cooldown.seconds > 0 ? t("إعادة الإرسال بعد {time}", "Resend in {time}", { time: `${mm}:${ss}` }) : t("يمكنك إعادة الإرسال الآن", "You can resend now")}
         </span>
         <button
-          disabled={seconds > 0 || resending}
+           disabled={cooldown.seconds > 0 || resending}
           onClick={async () => {
+             if (resendLock.current || cooldown.isActive) return;
+             resendLock.current = true;
             setResending(true);
             setError("");
             try {
@@ -285,19 +283,21 @@ function AuthOtp() {
                 headers: { "Content-Type": "application/json" },
                  body: JSON.stringify(type === "login" ? { phone } : { phone, role }),
               });
-              const data = await r.json() as { error?: string; retryAfterSeconds?: number };
+               const data = await r.json().catch(() => undefined);
+               const responseError = { status: r.status, data, headers: r.headers };
+               const details = parseAuthApiError(responseError);
               if (!r.ok) {
-                if (r.status === 429 && data.retryAfterSeconds) {
-                  setSeconds(data.retryAfterSeconds);
-                } else {
-                   setError(data.error ?? t("فشل إعادة الإرسال", "Resending failed"));
-                }
+                 if (details.retryAfterSeconds) cooldown.start(details.retryAfterSeconds);
+                 setError(authApiErrorMessage(responseError, {
+                   fallback: t("تعذر إرسال كود التحقق، حاول مرة أخرى", "Unable to send a verification code. Please try again."),
+                   tooManyAttemptsFallback: t("محاولات كثيرة، استنى شوية وحاول تاني", "Too many attempts. Please wait a little and try again."),
+                 }));
               } else {
-                setSeconds(RESEND_SECONDS);
+                 cooldown.start(details.retryAfterSeconds ?? AUTH_OTP_COOLDOWN_SECONDS);
                 setDigits(Array(6).fill(""));
               }
             } catch {
-               setError(t("خطأ في الاتصال — تأكد من اتصالك بالإنترنت", "Connection error — check your internet connection"));
+               setError(t("تعذر إرسال كود التحقق، حاول مرة أخرى", "Unable to send a verification code. Please try again."));
             } finally {
               setResending(false);
             }

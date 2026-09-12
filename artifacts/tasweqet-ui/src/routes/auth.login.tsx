@@ -1,5 +1,5 @@
 import { localizedFetch as fetch } from "@/lib/i18n-fetch";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useGetAuthCapabilities, useRequestOtp } from "@workspace/api-client-react";
@@ -9,6 +9,14 @@ import {
   normalizeEgyptianMobile,
 } from "@/lib/egyptian-phone";
 import { translate, useTranslation } from "@/lib/i18n";
+import {
+  authApiErrorMessage,
+  parseAuthApiError,
+} from "@/lib/auth-errors";
+import {
+  AUTH_OTP_COOLDOWN_SECONDS,
+  useAuthCooldown,
+} from "@/hooks/use-auth-cooldown";
 
 export const Route = createFileRoute("/auth/login")({
   beforeLoad: () => {
@@ -36,15 +44,6 @@ const devRoles: { value: Role; ar: string; en: string; icon: string }[] = [
   { value: "admin", ar: "مشرف", en: "Admin", icon: "admin_panel_settings" },
 ];
 
-function apiErrorMessage(err: unknown): string | undefined {
-  const data = (err as { data?: unknown } | null)?.data;
-  if (typeof data === "object" && data !== null && "error" in data) {
-    const message = (data as { error?: unknown }).error;
-    return typeof message === "string" ? message : undefined;
-  }
-  return typeof data === "string" ? data : undefined;
-}
-
 function AuthLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -53,30 +52,54 @@ function AuthLogin() {
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
   const [devRolePending, setDevRolePending] = useState<Role | null>(null);
+  const [canContinueToOtp, setCanContinueToOtp] = useState(false);
+  const loginLock = useRef(false);
 
   const cleaned = normalizeEgyptianMobile(phone);
   const inlineError = touched ? getEgyptianMobileValidationMessage(phone, t) : null;
+  const loginCooldown = useAuthCooldown("login", cleaned);
 
   const requestOtp = useRequestOtp({
     mutation: {
       onSuccess: () => {
         if (!cleaned) return;
+        loginCooldown.start(AUTH_OTP_COOLDOWN_SECONDS);
         navigate({ to: "/auth/otp", search: { phone: cleaned, type: "login" } });
       },
       onError: (err: unknown) => {
-        const msg = apiErrorMessage(err);
-        setError(msg ?? translate("اتاكد من رقم التليفون , او اعمل اكونت جديد", "Check your phone number or create a new account"));
+        const details = parseAuthApiError(err);
+        if (details.retryAfterSeconds) loginCooldown.start(details.retryAfterSeconds);
+        setCanContinueToOtp(details.isOtpAlreadyRequested);
+        setError(authApiErrorMessage(err, {
+          fallback: translate("تعذر إرسال كود التحقق، حاول مرة أخرى", "Unable to send a verification code. Please try again."),
+          tooManyAttemptsFallback: translate("محاولات كثيرة، استنى شوية وحاول تاني", "Too many attempts. Please wait a little and try again."),
+        }));
+      },
+      onSettled: () => {
+        loginLock.current = false;
       },
     },
   });
 
   function handleSubmit() {
+    if (loginLock.current) return;
     setTouched(true);
     setError("");
+    setCanContinueToOtp(false);
     const validationError = getEgyptianMobileValidationMessage(phone, t);
     if (validationError) { setError(validationError); return; }
     if (!cleaned) return;
+    if (loginCooldown.isActive) {
+      setError(t("استنى انتهاء العد التنازلي قبل طلب كود جديد", "Please wait for the countdown before requesting a new code."));
+      return;
+    }
+    loginLock.current = true;
     requestOtp.mutate({ data: { phone: cleaned } });
+  }
+
+  function continueToExistingOtp() {
+    if (!cleaned || !canContinueToOtp) return;
+    navigate({ to: "/auth/otp", search: { phone: cleaned, type: "login" } });
   }
 
   async function handleDevLogin(testRole: Role) {
@@ -106,7 +129,10 @@ function AuthLogin() {
       if (!validated) throw new Error(translate("تعذر التحقق من جلسة الاختبار", "Unable to verify the test session"));
       navigate({ to: getRoleDashboard(validated.user.role) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : translate("تعذر بدء جلسة الاختبار", "Unable to start the test session"));
+      setError(authApiErrorMessage(err, {
+        fallback: translate("تعذر بدء جلسة الاختبار", "Unable to start the test session"),
+        tooManyAttemptsFallback: translate("محاولات كثيرة، استنى شوية وحاول تاني", "Too many attempts. Please wait a little and try again."),
+      }));
     } finally {
       setDevRolePending(null);
     }
@@ -127,7 +153,7 @@ function AuthLogin() {
             inputMode="numeric"
             placeholder="1X XXXX XXXX"
             value={phone}
-            onChange={(e) => { setPhone(e.target.value); setError(""); }}
+            onChange={(e) => { setPhone(e.target.value); setError(""); setCanContinueToOtp(false); }}
             onBlur={() => setTouched(true)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
@@ -160,8 +186,28 @@ function AuthLogin() {
         </div>
       )}
 
-      <Button className="w-full" icon="arrow_forward" onClick={handleSubmit} disabled={requestOtp.isPending}>
-        {requestOtp.isPending ? t("جاري الإرسال...", "Sending...") : t("دخول", "Log in")}
+      {canContinueToOtp && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          icon="sms"
+          onClick={continueToExistingOtp}
+        >
+          {t("إدخال الكود الموجود", "Continue with the code already sent")}
+        </Button>
+      )}
+
+      {loginCooldown.isActive && (
+        <p role="status" className="text-center font-label-md text-label-md text-on-surface-variant">
+          {t("يمكن طلب كود جديد بعد {time}", "You can request a new code in {time}", {
+            time: `${String(Math.floor(loginCooldown.seconds / 60)).padStart(2, "0")}:${String(loginCooldown.seconds % 60).padStart(2, "0")}`,
+          })}
+        </p>
+      )}
+
+      <Button className="w-full" icon="arrow_forward" onClick={handleSubmit} disabled={requestOtp.isPending || loginCooldown.isActive}>
+        {requestOtp.isPending ? t("جاري الإرسال...", "Sending...") : loginCooldown.isActive ? t("استنى شوية...", "Please wait...") : t("دخول", "Log in")}
       </Button>
 
       {/* Divider */}

@@ -8,6 +8,14 @@ import {
   normalizeEgyptianMobile,
 } from "@/lib/egyptian-phone";
 import { translate, useTranslation } from "@/lib/i18n";
+import {
+  authApiErrorMessage,
+  parseAuthApiError,
+} from "@/lib/auth-errors";
+import {
+  AUTH_OTP_COOLDOWN_SECONDS,
+  useAuthCooldown,
+} from "@/hooks/use-auth-cooldown";
 
 export const Route = createFileRoute("/auth/register")({
   beforeLoad: () => {
@@ -31,15 +39,6 @@ const registerRoles: { value: Role; ar: string; en: string; icon: string; descAr
   { value: "driver", ar: "مندوب توصيل", en: "Delivery driver", icon: "two_wheeler", descAr: "وصّل الطلبات واكسب أكتر", descEn: "Deliver orders and earn more" },
 ];
 
-function apiErrorMessage(err: unknown): string | undefined {
-  const data = (err as { data?: unknown } | null)?.data;
-  if (typeof data === "object" && data !== null && "error" in data) {
-    const message = (data as { error?: unknown }).error;
-    return typeof message === "string" ? message : undefined;
-  }
-  return typeof data === "string" ? data : undefined;
-}
-
 function AuthRegister() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -54,16 +53,22 @@ function AuthRegister() {
 
   const cleaned = normalizeEgyptianMobile(phone);
   const inlineError = touched ? getEgyptianMobileValidationMessage(phone, t) : null;
+  const registerCooldown = useAuthCooldown("register", cleaned);
 
   const registerOtp = useRegisterOtp({
     mutation: {
       onSuccess: () => {
         if (!cleaned) return;
+        registerCooldown.start(AUTH_OTP_COOLDOWN_SECONDS);
         navigate({ to: "/auth/otp", search: { role, phone: cleaned, type: "register" } });
       },
       onError: (err: unknown) => {
-        const msg = apiErrorMessage(err);
-        setError(msg ?? translate("حصل خطأ، حاول تاني", "Something went wrong. Please try again."));
+        const details = parseAuthApiError(err);
+        if (details.retryAfterSeconds) registerCooldown.start(details.retryAfterSeconds);
+        setError(authApiErrorMessage(err, {
+          fallback: translate("تعذر إرسال كود التحقق، حاول مرة أخرى", "Unable to send a verification code. Please try again."),
+          tooManyAttemptsFallback: translate("محاولات كثيرة، استنى شوية وحاول تاني", "Too many attempts. Please wait a little and try again."),
+        }));
       },
       onSettled: () => {
         registerLock.current = false;
@@ -78,6 +83,10 @@ function AuthRegister() {
     const validationError = getEgyptianMobileValidationMessage(phone, t);
     if (validationError) { setError(validationError); return; }
     if (!cleaned) return;
+    if (registerCooldown.isActive) {
+      setError(t("استنى انتهاء العد التنازلي قبل طلب كود جديد", "Please wait for the countdown before requesting a new code."));
+      return;
+    }
     registerLock.current = true;
     registerOtp.mutate({ data: { phone: cleaned, role } });
   }
@@ -118,8 +127,10 @@ function AuthRegister() {
       else throw new Error(translate("دور حساب الاختبار غير صحيح", "The test account role is invalid"));
     } catch (err) {
       clearSession();
-      const message = apiErrorMessage(err);
-      setError(message ?? (err instanceof Error ? err.message : translate("تعذر إنشاء حساب الاختبار", "Unable to create the test account")));
+      setError(authApiErrorMessage(err, {
+        fallback: translate("تعذر إنشاء حساب الاختبار", "Unable to create the test account"),
+        tooManyAttemptsFallback: translate("محاولات كثيرة، استنى شوية وحاول تاني", "Too many attempts. Please wait a little and try again."),
+      }));
     } finally {
       devRegisterLock.current = false;
       setDevRolePending(null);
@@ -209,8 +220,16 @@ function AuthRegister() {
         </div>
       )}
 
-      <Button className="w-full" icon="person_add" onClick={handleSubmit} disabled={registerOtp.isPending}>
-        {registerOtp.isPending ? t("جاري الإنشاء...", "Creating...") : t("إنشاء الحساب", "Create account")}
+      {registerCooldown.isActive && (
+        <p role="status" className="text-center font-label-md text-label-md text-on-surface-variant">
+          {t("يمكن طلب كود جديد بعد {time}", "You can request a new code in {time}", {
+            time: `${String(Math.floor(registerCooldown.seconds / 60)).padStart(2, "0")}:${String(registerCooldown.seconds % 60).padStart(2, "0")}`,
+          })}
+        </p>
+      )}
+
+      <Button className="w-full" icon="person_add" onClick={handleSubmit} disabled={registerOtp.isPending || registerCooldown.isActive}>
+        {registerOtp.isPending ? t("جاري الإنشاء...", "Creating...") : registerCooldown.isActive ? t("استنى شوية...", "Please wait...") : t("إنشاء الحساب", "Create account")}
       </Button>
 
       {capabilities.data?.publicTestLoginEnabled === true && (

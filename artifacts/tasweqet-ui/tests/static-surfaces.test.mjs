@@ -67,6 +67,31 @@ test("normal web login is phone-only while DEV role shortcuts stay isolated", ()
   assert.match(register, /نوع الحساب مايتغيرش/);
 });
 
+test("auth submission cooldowns use safe shared errors and a synchronous login guard", () => {
+  const login = readFileSync(join(routes, "auth.login.tsx"), "utf8");
+  const register = readFileSync(join(routes, "auth.register.tsx"), "utf8");
+  const otp = readFileSync(join(routes, "auth.otp.tsx"), "utf8");
+  const errors = readFileSync(join(root, "src", "lib", "auth-errors.ts"), "utf8");
+  const cooldown = readFileSync(join(root, "src", "hooks", "use-auth-cooldown.ts"), "utf8");
+
+  assert.match(login, /loginLock\.current/);
+  assert.match(login, /authApiErrorMessage/);
+  assert.match(login, /parseAuthApiError/);
+  assert.match(login, /Continue with the code already sent/);
+  assert.match(login, /loginCooldown\.isActive/);
+  assert.match(register, /registerCooldown\.isActive/);
+  assert.match(register, /authApiErrorMessage/);
+  assert.match(otp, /parseAuthApiError/);
+  assert.match(otp, /Retry-After|retryAfterSeconds/);
+  assert.match(otp, /cooldown\.start/);
+  assert.match(otp, /resendLock\.current/);
+  assert.match(errors, /errorRecord\?\.message/);
+  assert.match(errors, /Retry-After/);
+  assert.match(errors, /tooManyAttemptsFallback/);
+  assert.match(cooldown, /sessionStorage/);
+  assert.match(cooldown, /authCooldownStorageKey/);
+});
+
 test("checkout defaults online payment to server-driven unavailable", () => {
   const source = readFileSync(join(routes, "app.checkout.tsx"), "utf8");
   assert.match(source, /useGetPaymentCapabilities/);
