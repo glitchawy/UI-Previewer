@@ -10,6 +10,7 @@ import { AppBar, MobileShell, Icon, Card, Badge, Button } from "@/components/tb/
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP } from "@/lib/tb/orders";
 import { resetCartAfterOrder } from "@/lib/tb/cart";
+import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/order-placed")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -18,14 +19,15 @@ export const Route = createFileRoute("/app/order-placed")({
   }),
   head: () => ({
     meta: [
-      { title: "طلبات بيتك | تم الطلب" },
-      { name: "description", content: "تم استلام طلبك بنجاح وجاري تأكيده" },
+      { title: translate("طلبات بيتك | تم الطلب", "Talabat Betak | Order placed") },
+      { name: "description", content: translate("تم استلام طلبك بنجاح وجاري تأكيده", "Your order was received and is being confirmed") },
     ],
   }),
   component: AppOrderPlaced,
 });
 
 function AppOrderPlaced() {
+  const { t } = useTranslation();
   const { ids } = Route.useSearch();
   const { paymentSession: rawPaymentSession } = Route.useSearch();
   const paymentSessionId = Number(rawPaymentSession);
@@ -51,19 +53,19 @@ function AppOrderPlaced() {
   const paymentStatus = paymentQuery.data?.status;
   const paymentFailed = hasPaymentSession && paymentStatus === "failed";
   const paymentPending = hasPaymentSession && (paymentStatus === "pending" || paymentQuery.isLoading);
-  const title = paymentFailed ? "لم يكتمل الدفع" : paymentPending ? "جاري تأكيد الدفع" : hasPaymentSession ? "تم الدفع بنجاح!" : "تم إرسال طلبك بنجاح!";
+  const title = paymentFailed ? t("لم يكتمل الدفع", "Payment was not completed") : paymentPending ? t("جاري تأكيد الدفع", "Confirming payment") : hasPaymentSession ? t("تم الدفع بنجاح!", "Payment successful!") : t("تم إرسال طلبك بنجاح!", "Your order was sent successfully!");
   const subtitle = paymentFailed
-    ? "لم يتم خصم أي مبلغ مؤكد. يمكنك الرجوع للسلة والمحاولة مرة أخرى."
+    ? t("لم يتم خصم أي مبلغ مؤكد. يمكنك الرجوع للسلة والمحاولة مرة أخرى.", "No confirmed amount was charged. You can return to the cart and try again.")
     : paymentPending
-      ? "بنتأكد من Paymob دلوقتي. هتتحدث الحالة تلقائياً."
-      : "كل مطعم استلم طلب مستقل وهيبدأ تأكيده دلوقتي";
+      ? t("بنتأكد من Paymob دلوقتي. هتتحدث الحالة تلقائياً.", "Paymob is confirming your payment. The status will update automatically.")
+      : t("كل مطعم استلم طلب مستقل وهيبدأ تأكيده دلوقتي", "Each restaurant received a separate order and will start confirming it now");
   useEffect(() => {
     if (paymentStatus === "paid") resetCartAfterOrder();
   }, [paymentStatus]);
 
   return (
     <MobileShell tabs={customerTabs}>
-      <AppBar title="تم الطلب" />
+       <AppBar title={t("تم الطلب", "Order placed")} />
       <div className="tb-fade-up flex flex-col items-center gap-lg p-lg text-center">
         <div className="relative flex size-24 items-center justify-center">
           {!paymentFailed ? <span className="tb-ping absolute inset-0 rounded-full bg-success/20" /> : null}
@@ -73,7 +75,7 @@ function AppOrderPlaced() {
           <h1 className="font-headline-lg text-headline-lg text-on-surface">{title}</h1>
           <p className="mt-1 font-body-md text-body-md text-on-surface-variant">{subtitle}</p>
         </div>
-        {!paymentFailed ? <Badge tone={paymentPending ? "warn" : "info"} className="px-4 py-2"><Icon name="schedule" className="text-[16px]" />{paymentPending ? "بانتظار تأكيد الدفع" : "الوقت المتوقع 30–40 دقيقة"}</Badge> : null}
+        {!paymentFailed ? <Badge tone={paymentPending ? "warn" : "info"} className="px-4 py-2"><Icon name="schedule" className="text-[16px]" />{paymentPending ? t("بانتظار تأكيد الدفع", "Awaiting payment confirmation") : t("الوقت المتوقع 30–40 دقيقة", "Estimated time: 30–40 minutes")}</Badge> : null}
 
         {ordersQuery.isLoading ? <Icon name="progress_activity" className="animate-spin text-[32px] text-primary" /> : (
           <div className="w-full space-y-3 text-right">
@@ -89,10 +91,10 @@ function AppOrderPlaced() {
             ))}
           </div>
         )}
-        {!ordersQuery.isLoading && orders.length === 0 ? <p className="font-label-md text-label-md text-on-surface-variant">تقدر تلاقي الطلب في صفحة طلباتي.</p> : null}
+        {!ordersQuery.isLoading && orders.length === 0 ? <p className="font-label-md text-label-md text-on-surface-variant">{t("تقدر تلاقي الطلب في صفحة طلباتي.", "You can find the order on your Orders page.")}</p> : null}
         <div className="flex w-full flex-col gap-2">
-          <Link to={paymentFailed ? "/app/cart" : "/app/orders"}><Button className="w-full" icon={paymentFailed ? "shopping_cart" : "receipt_long"}>{paymentFailed ? "الرجوع للسلة" : "عرض طلباتي"}</Button></Link>
-          <Link to="/app"><Button variant="outline" className="w-full" icon="restaurant_menu">العودة للرئيسية</Button></Link>
+          <Link to={paymentFailed ? "/app/cart" : "/app/orders"}><Button className="w-full" icon={paymentFailed ? "shopping_cart" : "receipt_long"}>{paymentFailed ? t("الرجوع للسلة", "Back to cart") : t("عرض طلباتي", "View my orders")}</Button></Link>
+          <Link to="/app"><Button variant="outline" className="w-full" icon="restaurant_menu">{t("العودة للرئيسية", "Back to home")}</Button></Link>
         </div>
       </div>
     </MobileShell>

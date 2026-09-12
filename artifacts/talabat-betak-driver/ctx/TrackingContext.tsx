@@ -6,6 +6,8 @@ import { useAuth } from './AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGetDriverAccount, useUpdateDriverAvailability, getGetDriverAccountQueryKey, useGetActiveDriverOrder, getGetActiveDriverOrderQueryKey, getGetAvailableDriverOrderQueryKey, updateDriverDispatchLocation, updateDriverLocation } from '@workspace/api-client-react';
 import { purgePreciseLocationQueue } from '@/utils/locationQueue';
+import { translate } from '@/lib/i18n';
+import { useLocale } from '@/ctx/LocaleContext';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -19,6 +21,11 @@ interface TrackingState {
   requestPermissions: () => Promise<void>;
   toggleOnline: (online: boolean) => Promise<void>;
 }
+
+type TrackingErrorKey =
+  | 'tracking.permissionRequired'
+  | 'tracking.staleLocation'
+  | 'tracking.positionFailed';
 
 const TrackingContext = createContext<TrackingState>({
   isOnline: false,
@@ -37,13 +44,17 @@ export function useTracking() {
 
 export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
+  const { t, locale } = useLocale();
   
   const [isOnline, setIsOnline] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationErrorKey, setLocationErrorKey] = useState<TrackingErrorKey | null>(null);
+  const locationError = locationErrorKey ? t(locationErrorKey) : null;
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const dispatchFlightRef = useRef<Promise<boolean> | null>(null);
   const queryClient = useQueryClient();
   const previousActiveOrderId = useRef<number | null>(null);
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const [foregroundStatus, requestForeground] = Location.useForegroundPermissions();
   const [backgroundStatus, requestBackground] = Location.useBackgroundPermissions();
 
@@ -154,8 +165,8 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
                 distanceInterval: 50,
                 deferredUpdatesInterval: 10000,
                 foregroundService: {
-                  notificationTitle: 'Talabat Betak Driver',
-                  notificationBody: 'Live location is on while you are working.',
+                  notificationTitle: translate(localeRef.current, 'tracking.notificationTitle'),
+                  notificationBody: translate(localeRef.current, 'tracking.notificationBody'),
                   notificationColor: '#705d00',
                 },
               });
@@ -217,12 +228,12 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const refreshDispatchLocation = useCallback(() => {
     if (dispatchFlightRef.current) return dispatchFlightRef.current;
     const flight = (async () => {
-      setLocationError(null);
+      setLocationErrorKey(null);
       try {
         const currentForeground = await Location.getForegroundPermissionsAsync();
         if (!currentForeground.granted) {
           setLocationPermissionDenied(true);
-          setLocationError('Location permission is required to receive delivery offers.');
+          setLocationErrorKey('tracking.permissionRequired');
           return false;
         }
         let location = await Location.getCurrentPositionAsync({
@@ -248,9 +259,9 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
         const status = typeof error === 'object' && error && 'status' in error
           ? Number((error as { status: unknown }).status)
           : null;
-        setLocationError(status === 400
-          ? 'You are online, but the location was stale, invalid, or outside Egypt.'
-          : 'You are online, but location permission or positioning failed.');
+        setLocationErrorKey(status === 400
+          ? 'tracking.staleLocation'
+          : 'tracking.positionFailed');
         return false;
       } finally {
         dispatchFlightRef.current = null;
@@ -258,7 +269,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     })();
     dispatchFlightRef.current = flight;
     return flight;
-  }, [queryClient]);
+  }, [queryClient, t]);
 
   useEffect(() => {
     if (!isOnline || hasActiveOrder || locationPermissionDenied) return;
@@ -281,7 +292,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline, hasActiveOrder, locationPermissionDenied, refreshDispatchLocation]);
 
   const toggleOnline = async (online: boolean) => {
-    setLocationError(null);
+    setLocationErrorKey(null);
     setLocationPermissionDenied(false);
     if (online) {
       const foreground = await Location.getForegroundPermissionsAsync();

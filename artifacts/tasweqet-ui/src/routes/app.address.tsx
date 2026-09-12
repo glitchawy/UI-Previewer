@@ -11,6 +11,7 @@ import {
   useReverseGeocode,
   searchAddress,
 } from "@workspace/api-client-react";
+import { translate, useTranslation } from "@/lib/i18n";
 
 // Fix Leaflet default icon paths broken by Vite bundling
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -23,8 +24,8 @@ L.Icon.Default.mergeOptions({
 export const Route = createFileRoute("/app/address")({
   head: () => ({
     meta: [
-      { title: "طلبات بيتك | عنوان التوصيل" },
-      { name: "description", content: "أدر عنوان التوصيل الخاص بك" },
+      { title: translate("طلبات بيتك | عنوان التوصيل", "Talabat Betak | Delivery address") },
+      { name: "description", content: translate("أدر عنوان التوصيل الخاص بك", "Manage your delivery address") },
     ],
   }),
   component: AppAddress,
@@ -42,6 +43,7 @@ function FlyTo({ lat, lng }: { lat: number; lng: number }) {
 }
 
 function AppAddress() {
+  const { t, dir, locale } = useTranslation();
   const navigate = useNavigate();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [details, setDetails] = useState("");
@@ -71,7 +73,7 @@ function AppAddress() {
 
   function detectLocation() {
     if (!navigator.geolocation) {
-      setGeoError("المتصفح لا يدعم تحديد الموقع");
+       setGeoError(t("المتصفح لا يدعم تحديد الموقع", "Your browser does not support location services"));
       return;
     }
     setGeoLoading(true);
@@ -97,11 +99,11 @@ function AppAddress() {
       },
       (err) => {
         const msgs: Record<number, string> = {
-          1: "تم رفض الإذن — اسمح للمتصفح بالوصول للموقع من الإعدادات",
-          2: "تعذر تحديد الموقع، حاول مرة أخرى",
-          3: "انتهت مهلة التحديد، حاول مرة أخرى",
+          1: t("تم رفض الإذن — اسمح للمتصفح بالوصول للموقع من الإعدادات", "Permission denied — allow your browser to access your location in settings"),
+          2: t("تعذر تحديد الموقع، حاول مرة أخرى", "Unable to determine your location. Please try again"),
+          3: t("انتهت مهلة التحديد، حاول مرة أخرى", "Location request timed out. Please try again"),
         };
-        setGeoError(msgs[err.code] ?? "خطأ غير معروف");
+        setGeoError(msgs[err.code] ?? t("خطأ غير معروف", "Unknown error"));
         setGeoLoading(false);
       },
       { timeout: 12000, maximumAge: 0, enableHighAccuracy: true },
@@ -110,7 +112,8 @@ function AppAddress() {
 
   const latestQuery = useRef("");
   const doSearch = useCallback(async (q: string) => {
-    latestQuery.current = q;
+    const requestKey = `${locale}:${q}`;
+    latestQuery.current = requestKey;
     if (q.trim().length < 3) {
       setResults([]);
       return;
@@ -118,12 +121,19 @@ function AppAddress() {
     setSearching(true);
     try {
       const r = await searchAddress({ q });
-      if (latestQuery.current === q) setResults(r as SearchResult[]);
+      if (latestQuery.current === requestKey) setResults(r as SearchResult[]);
     } catch {
-      if (latestQuery.current === q) setResults([]);
+      if (latestQuery.current === requestKey) setResults([]);
     }
-    if (latestQuery.current === q) setSearching(false);
-  }, []);
+    if (latestQuery.current === requestKey) setSearching(false);
+  }, [locale]);
+
+  useEffect(() => {
+    if (search.trim().length >= 3) void doSearch(search);
+    // Refresh localized search labels on locale changes while preserving
+    // the current query, selected address, and form details.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
   function handleSearchChange(val: string) {
     setSearch(val);
@@ -155,7 +165,7 @@ function AppAddress() {
 
   return (
     <MobileShell tabs={customerTabs}>
-      <AppBar title="عنوان التوصيل" back="/app" />
+       <AppBar title={t("عنوان التوصيل", "Delivery address")} back="/app" />
       <div className="flex flex-col gap-lg p-md">
         {/* Map */}
         <div className="relative overflow-hidden rounded-card border border-outline-variant" style={{ height: 260 }}>
@@ -181,7 +191,7 @@ function AppAddress() {
             <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-surface/70 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-2">
                 <span className="material-symbols-outlined animate-spin text-[32px] text-secondary">my_location</span>
-                <p className="font-label-md text-label-md text-on-surface">جاري تحديد الموقع...</p>
+                 <p className="font-label-md text-label-md text-on-surface">{t("جاري تحديد الموقع...", "Locating...")}</p>
               </div>
             </div>
           )}
@@ -194,21 +204,21 @@ function AppAddress() {
           onClick={detectLocation}
           disabled={geoLoading}
         >
-          {geoLoading ? "جاري التحديد..." : "تحديد موقعي الحالي"}
+           {geoLoading ? t("جاري التحديد...", "Locating...") : t("تحديد موقعي الحالي", "Use my current location")}
         </Button>
 
         {/* Search */}
         <div className="relative flex flex-col gap-1.5">
-          <span className="font-label-lg text-label-lg text-on-surface-variant">أو ابحث عن عنوانك</span>
+           <span className="font-label-lg text-label-lg text-on-surface-variant">{t("أو ابحث عن عنوانك", "Or search for your address")}</span>
           <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary">
             <Icon name="search" className="text-[20px] text-outline" />
             <input
               type="text"
-              placeholder="مثال: المعادي، شارع ٩..."
+               placeholder={t("مثال: المعادي، شارع ٩...", "Example: Maadi, Street 9...")}
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
-              dir="rtl"
+               dir={dir}
             />
             {searching && (
               <span className="material-symbols-outlined animate-spin text-[18px] text-outline">progress_activity</span>
@@ -238,7 +248,7 @@ function AppAddress() {
             <Icon name="place" className="mt-0.5 text-[18px] text-secondary" />
             <div>
               <p className="font-body-md text-body-md text-on-surface">{picked.label}</p>
-              <p className="font-label-md text-label-md text-on-surface-variant">العنوان المحدد</p>
+               <p className="font-label-md text-label-md text-on-surface-variant">{t("العنوان المحدد", "Selected address")}</p>
             </div>
           </div>
         )}
@@ -253,32 +263,32 @@ function AppAddress() {
         {/* Details */}
         <div className="flex flex-col gap-1.5">
           <span className="font-label-lg text-label-lg text-on-surface-variant">
-            تفاصيل إضافية (رقم العقار، الدور، الشقة، علامة مميزة)
+             {t("تفاصيل إضافية (رقم العقار، الدور، الشقة، علامة مميزة)", "Additional details (building, floor, apartment, landmark)")}
           </span>
           <textarea
             value={details}
             onChange={(e) => setDetails(e.target.value)}
-            placeholder="مثال: عمارة ٧، الدور ٣، شقة ٦ — بجوار صيدلية"
+             placeholder={t("مثال: عمارة ٧، الدور ٣، شقة ٦ — بجوار صيدلية", "Example: Building 7, floor 3, apartment 6 — next to a pharmacy")}
             rows={2}
-            dir="rtl"
+             dir={dir}
             className="w-full rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 font-body-md text-body-md text-on-surface outline-none placeholder:text-outline focus:border-secondary"
           />
         </div>
 
         <Card className="flex items-center gap-2 bg-secondary-container p-3 text-on-secondary-container">
           <Icon name="info" className="text-[18px]" />
-          <span className="font-label-md text-label-md">طلبات بيتك بتدعم عنوان واحد محفوظ فقط — الحفظ يستبدل العنوان السابق</span>
+           <span className="font-label-md text-label-md">{t("طلبات بيتك بتدعم عنوان واحد محفوظ فقط — الحفظ يستبدل العنوان السابق", "Talabat Betak supports one saved address — saving replaces the previous address")}</span>
         </Card>
 
         {save.isError && (
           <div className="flex items-start gap-2 rounded-card bg-error-container p-md">
             <Icon name="error" className="mt-0.5 text-[18px] text-on-error-container" />
-            <p className="font-label-md text-label-md text-on-error-container">تعذر حفظ العنوان — حاول مرة أخرى</p>
+             <p className="font-label-md text-label-md text-on-error-container">{t("تعذر حفظ العنوان — حاول مرة أخرى", "Unable to save the address — please try again")}</p>
           </div>
         )}
 
         <Button className="w-full" icon="save" onClick={handleSave} disabled={!picked || save.isPending}>
-          {save.isPending ? "جاري الحفظ..." : "حفظ العنوان"}
+           {save.isPending ? t("جاري الحفظ...", "Saving...") : t("حفظ العنوان", "Save address")}
         </Button>
       </div>
     </MobileShell>

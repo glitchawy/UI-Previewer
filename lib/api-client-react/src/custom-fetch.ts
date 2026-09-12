@@ -17,6 +17,12 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _localeGetter: (() => "ar" | "en") | null = null;
+
+/** Supplies the selected interface language without changing API identities or data. */
+export function setLocaleGetter(getter: (() => "ar" | "en") | null): void {
+  _localeGetter = getter;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -336,6 +342,9 @@ export async function customFetch<T = unknown>(
   }
 
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+  if (_localeGetter && !headers.has("accept-language")) {
+    headers.set("accept-language", _localeGetter());
+  }
 
   if (
     typeof init.body === "string" &&

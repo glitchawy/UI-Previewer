@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DashboardShell, Card, SectionTitle, Stat, Table, Td, Button } from "@/components/tb/shell";
-import { partnerNav } from "@/lib/tb/nav";
+import { usePartnerNav } from "@/lib/tb/nav";
 import { usePartnerResource } from "@/lib/partner-api";
+import { useTranslation } from "@/lib/i18n";
+import { formatCurrency, formatNumber } from "@/lib/tb/locale-format";
 
 export const Route = createFileRoute("/partner/analytics")({ component: PartnerAnalytics });
 type Analytics = {
@@ -13,27 +15,27 @@ type Analytics = {
   worstProducts: { name: string; orders: number; revenue: number }[];
   branches: { branchId: number; name: string; orders: number; revenue: number }[];
 };
-const egp = (n: number) => `${n.toLocaleString("ar-EG", { maximumFractionDigits: 2 })} ج.م`;
-
 function PartnerAnalytics() {
+  const { t, locale } = useTranslation();
+  const partnerNav = usePartnerNav();
   const [days, setDays] = useState(30);
   const query = usePartnerResource<Analytics>(`/api/partner/operations/analytics?days=${days}`);
   const data = query.data;
-  return <DashboardShell brand="طلبات بيتك" role="صاحب المطعم" nav={partnerNav} title="التحليلات">
+  return <DashboardShell brand={t("طلبات بيتك", "Talabat Betak")} role={t("صاحب المطعم", "Restaurant owner")} nav={partnerNav} title={t("التحليلات", "Analytics")}>
     <div className="flex flex-col gap-lg">
-      <div className="flex gap-2">{[7, 30, 90].map(value => <Button key={value} variant={days === value ? "primary" : "outline"} onClick={() => setDays(value)}>{value} يوم</Button>)}</div>
-      {query.loading ? <Card className="p-md">جارٍ التحميل...</Card> : query.error ? <Card className="p-md text-error">{query.error}<Button className="mt-2" onClick={query.reload}>إعادة المحاولة</Button></Card> : data ? <>
+      <div className="flex gap-2">{[7, 30, 90].map(value => <Button key={value} variant={days === value ? "primary" : "outline"} onClick={() => setDays(value)}>{t(`${value} يوم`, `${value} days`, { value })}</Button>)}</div>
+      {query.loading ? <Card className="p-md">{t("جارٍ التحميل...", "Loading…")}</Card> : query.error ? <Card className="p-md text-error">{query.error}<Button className="mt-2" onClick={query.reload}>{t("إعادة المحاولة", "Try again")}</Button></Card> : data ? <>
         <div className="grid grid-cols-2 gap-sm lg:grid-cols-4">
-          <Stat label="الإيرادات المسلّمة" value={egp(data.summary.revenue)} icon="payments" tone="success" />
-          <Stat label="الطلبات" value={String(data.summary.orders)} icon="receipt_long" tone="info" />
-          <Stat label="متوسط الطلب" value={egp(data.summary.averageOrderValue)} icon="shopping_basket" />
-          <Stat label="عملاء متكررون" value={`${data.customers.repeat} / ${data.customers.unique}`} icon="repeat" />
+          <Stat label={t("الإيرادات المسلّمة", "Delivered revenue")} value={formatCurrency(data.summary.revenue, locale)} icon="payments" tone="success" />
+          <Stat label={t("الطلبات", "Orders")} value={formatNumber(data.summary.orders, locale)} icon="receipt_long" tone="info" />
+          <Stat label={t("متوسط الطلب", "Average order")} value={formatCurrency(data.summary.averageOrderValue, locale)} icon="shopping_basket" />
+          <Stat label={t("عملاء متكررون", "Returning customers")} value={`${formatNumber(data.customers.repeat, locale)} / ${formatNumber(data.customers.unique, locale)}`} icon="repeat" />
         </div>
-        <Card className="p-md"><SectionTitle title="الأداء اليومي" icon="calendar_month" />
-          {data.series.length ? <Table head={["اليوم", "الطلبات المسلّمة", "الإيراد"]}>{data.series.map(row => <tr key={row.date}><Td>{row.date}</Td><Td>{row.orders}</Td><Td>{egp(row.revenue)}</Td></tr>)}</Table> : <p>لا توجد بيانات في الفترة.</p>}
+        <Card className="p-md"><SectionTitle title={t("الأداء اليومي", "Daily performance")} icon="calendar_month" />
+          {data.series.length ? <Table head={[t("اليوم", "Date"), t("الطلبات المسلّمة", "Delivered orders"), t("الإيراد", "Revenue")]}>{data.series.map(row => <tr key={row.date}><Td>{row.date}</Td><Td>{formatNumber(row.orders, locale)}</Td><Td>{formatCurrency(row.revenue, locale)}</Td></tr>)}</Table> : <p>{t("لا توجد بيانات في الفترة.", "No data for this period.")}</p>}
         </Card>
-        <Card className="p-md"><SectionTitle title="مقارنة الفروع" icon="store" />
-          {data.branches.length ? <Table head={["الفرع", "الطلبات", "الإيراد"]}>{data.branches.map(row => <tr key={row.branchId}><Td>{row.name}</Td><Td>{row.orders}</Td><Td>{egp(row.revenue)}</Td></tr>)}</Table> : <p>لا توجد فروع.</p>}
+        <Card className="p-md"><SectionTitle title={t("مقارنة الفروع", "Branch comparison")} icon="store" />
+          {data.branches.length ? <Table head={[t("الفرع", "Branch"), t("الطلبات", "Orders"), t("الإيراد", "Revenue")]}>{data.branches.map(row => <tr key={row.branchId}><Td>{row.name}</Td><Td>{formatNumber(row.orders, locale)}</Td><Td>{formatCurrency(row.revenue, locale)}</Td></tr>)}</Table> : <p>{t("لا توجد فروع.", "No branches yet.")}</p>}
         </Card>
       </> : null}
     </div>

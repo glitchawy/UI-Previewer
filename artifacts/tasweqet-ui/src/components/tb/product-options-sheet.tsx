@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Icon } from "@/components/tb/shell";
 import { addCartItem, useCart } from "@/lib/tb/cart";
 import { runSingleSubmission } from "@/lib/tb/single-submission";
+import { formatCurrency, formatNumber, useTranslation } from "@/lib/i18n";
 
 export type OptionVariant = { id: number; name: string; priceDelta: string; isDefault: boolean };
 export type OptionAddon = { id: number; name: string; price: string; isAvailable: boolean };
@@ -9,12 +10,13 @@ export type OptionProduct = {
   id: number; restaurantId: number; name: string; description: string | null;
   imageUrl: string | null; basePrice: string; variants: OptionVariant[]; addons: OptionAddon[];
 };
-const EGP = (value: number | string) => `${Number(value).toLocaleString("ar-EG")} ج.م`;
+const EGP = (value: number | string) => formatCurrency(value);
 
 export function ProductOptionsSheet({ product, onClose, onAdded }: {
   product: OptionProduct | null; onClose: () => void; onAdded?: () => void;
 }) {
   const { cart } = useCart();
+  const { t, locale } = useTranslation();
   const [variantId, setVariantId] = useState<number | null>(null);
   const [addonIds, setAddonIds] = useState<number[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -45,7 +47,10 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
   const addingAnotherRestaurant = cart.restaurantIds.length > 0 && !cart.restaurantIds.includes(product.restaurantId);
 
   async function submit(replaceOtherRestaurants = false) {
-    if (currentProduct.variants.length && variantId === null) { setError("اختار الحجم أولاً"); return; }
+    if (currentProduct.variants.length && variantId === null) {
+      setError(t("اختار الحجم أولاً", "Choose a size first"));
+      return;
+    }
     if (addingAnotherRestaurant && !confirmMode) { setConfirmMode(true); return; }
     await runSingleSubmission({
       lock: submissionLock,
@@ -65,7 +70,7 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
         onClose();
       },
       onError: (cause) => {
-        setError(cause instanceof Error ? cause.message : "تعذر الإضافة للسلة");
+        setError(cause instanceof Error ? cause.message : t("تعذر الإضافة للسلة", "Could not add to cart"));
       },
       onSettled: () => setPending(false),
     });
@@ -83,7 +88,7 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
       >
         <div className="absolute top-3 left-1/2 -translate-x-1/2 h-1.5 w-12 rounded-full bg-outline-variant/50 sm:hidden z-10" />
         
-        <button type="button" onClick={handleClose} aria-label="إغلاق" className="absolute top-4 right-4 z-10 flex size-9 items-center justify-center rounded-full bg-surface-container-lowest/80 text-on-surface shadow-sm backdrop-blur transition-transform hover:scale-105 active:scale-95">
+        <button type="button" onClick={handleClose} aria-label={t("إغلاق", "Close")} className="absolute top-4 end-4 z-10 flex size-9 items-center justify-center rounded-full bg-surface-container-lowest/80 text-on-surface shadow-sm backdrop-blur transition-transform hover:scale-105 active:scale-95">
           <Icon name="close" className="text-[20px]" />
         </button>
 
@@ -114,9 +119,9 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
                 <div className="flex items-center justify-between">
                   <p className="flex items-center gap-2 font-headline-md text-[17px] text-on-surface">
                     <Icon name="straighten" className="text-[20px] text-on-surface-variant" />
-                    اختار الحجم
+                    {t("اختار الحجم", "Choose a size")}
                   </p>
-                  <span className="text-[12px] font-medium text-error bg-error-container px-2 py-0.5 rounded-sm">إجباري</span>
+                  <span className="text-[12px] font-medium text-error bg-error-container px-2 py-0.5 rounded-sm">{t("إجباري", "Required")}</span>
                 </div>
                 <div className="flex flex-col gap-2">
                   {product.variants.map((variant) => (
@@ -129,7 +134,7 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
                         <span className="font-label-lg text-[15px] text-on-surface group-hover:text-primary transition-colors">{variant.name}</span>
                       </div>
                       <span className="font-label-md text-[14px] text-on-surface-variant font-medium">
-                        {Number(variant.priceDelta) ? `+${EGP(variant.priceDelta)}` : "بدون زيادة"}
+                        {Number(variant.priceDelta) ? `+${EGP(variant.priceDelta)}` : t("بدون زيادة", "No extra charge")}
                       </span>
                     </label>
                   ))}
@@ -142,9 +147,9 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
                 <div className="flex items-center justify-between">
                   <p className="flex items-center gap-2 font-headline-md text-[17px] text-on-surface">
                     <Icon name="add_circle" className="text-[20px] text-on-surface-variant" />
-                    إضافات اختيارية
+                    {t("إضافات اختيارية", "Optional add-ons")}
                   </p>
-                  <span className="text-[12px] font-medium text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-sm">اختياري</span>
+                  <span className="text-[12px] font-medium text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-sm">{t("اختياري", "Optional")}</span>
                 </div>
                 <div className="flex flex-col gap-2">
                   {availableAddons.map((addon) => (
@@ -175,17 +180,20 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
               <div className="rounded-card border-2 border-secondary bg-secondary-container/30 p-4 shadow-sm animate-[tb-fade-up_0.3s_ease-out]">
                 <div className="flex items-center gap-2 mb-2 text-on-secondary-container">
                   <Icon name="warning" className="text-[24px] text-secondary" />
-                  <h3 className="font-headline-md text-[17px] font-bold">إضافة مطعم جديد للسلة؟</h3>
+                  <h3 className="font-headline-md text-[17px] font-bold">{t("إضافة مطعم جديد للسلة؟", "Add another restaurant to cart?")}</h3>
                 </div>
                 <p className="font-body-md text-[14px] text-on-secondary-container mb-4 leading-relaxed">
-                  السلة فيها طلبات من مطعم تاني. تحب تدمج الطلبين في سلة واحدة، ولا نبدأ سلة جديدة للمطعم ده ونمسح القديم؟
+                  {t(
+                    "السلة فيها طلبات من مطعم تاني. تحب تدمج الطلبين في سلة واحدة، ولا نبدأ سلة جديدة للمطعم ده ونمسح القديم؟",
+                    "Your cart has items from another restaurant. Merge the orders or start a new cart for this restaurant?",
+                  )}
                 </p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Button variant="outline" onClick={() => submit(true)} disabled={pending} className="bg-surface-container-lowest">
-                    ابدأ سلة جديدة
+                    {t("ابدأ سلة جديدة", "Start a new cart")}
                   </Button>
                   <Button onClick={() => submit(false)} disabled={pending} className="bg-secondary text-white hover:brightness-110">
-                    ادمج الطلبات
+                    {t("ادمج الطلبات", "Merge orders")}
                   </Button>
                 </div>
               </div>
@@ -199,7 +207,7 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
               <button type="button" onClick={() => setQuantity((v) => Math.max(1, v - 1))} className="flex size-[44px] items-center justify-center rounded-[10px] bg-surface-container-lowest shadow-sm text-on-surface hover:bg-surface transition-all active:scale-95 disabled:opacity-50">
                 <Icon name="remove" className="text-[20px]" />
               </button>
-              <span className="w-6 text-center font-headline-md text-[16px]">{quantity.toLocaleString("ar-EG")}</span>
+              <span className="w-6 text-center font-headline-md text-[16px]">{formatNumber(quantity, undefined, locale)}</span>
               <button type="button" onClick={() => setQuantity((v) => Math.min(99, v + 1))} className="flex size-[44px] items-center justify-center rounded-[10px] bg-primary-container text-on-primary-container shadow-sm hover:brightness-105 transition-all active:scale-95">
                 <Icon name="add" className="text-[20px]" />
               </button>
@@ -209,7 +217,7 @@ export function ProductOptionsSheet({ product, onClose, onAdded }: {
                 <span className="flex w-full items-center justify-between">
                   <span className="flex items-center gap-2">
                     <Icon name={pending ? "sync" : "add_shopping_cart"} className={`text-[20px] ${pending ? 'animate-spin' : ''}`} />
-                    <span className="font-label-lg text-[16px]">{pending ? "جاري الإضافة..." : "أضف للسلة"}</span>
+                    <span className="font-label-lg text-[16px]">{pending ? t("جاري الإضافة...", "Adding…") : t("أضف للسلة", "Add to cart")}</span>
                   </span>
                   <span className="font-headline-md text-[16px] bg-white/20 px-2 py-0.5 rounded-sm">{EGP(unitTotal * quantity)}</span>
                 </span>

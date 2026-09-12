@@ -1,17 +1,19 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useState, useEffect, useRef } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useVerifyOtp } from "@workspace/api-client-react";
 import { saveSession, getSession, getRoleDashboard } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 type Role = "customer" | "partner" | "driver" | "admin";
 type FlowType = "login" | "register";
 
-const roleLabels: Record<Role, string> = {
-  customer: "حساب عميل",
-  partner: "حساب مطعم",
-  driver: "حساب مندوب",
-  admin: "حساب مشرف",
+const roleLabels: Record<Role, [string, string]> = {
+  customer: ["حساب عميل", "Customer account"],
+  partner: ["حساب مطعم", "Restaurant account"],
+  driver: ["حساب مندوب", "Driver account"],
+  admin: ["حساب مشرف", "Admin account"],
 };
 
 const RESEND_SECONDS = 60;
@@ -35,12 +37,13 @@ export const Route = createFileRoute("/auth/otp")({
     if (!search.phone) throw redirect({ to: "/auth/login" });
   },
   head: () => ({
-    meta: [{ title: "تأكيد الكود | طلبات بيتك" }],
+    meta: [{ title: translate("تأكيد الكود | طلبات بيتك", "Verify code | Talabat Betak") }],
   }),
   component: AuthOtp,
 });
 
 function AuthOtp() {
+  const { t } = useTranslation();
   const { role, phone, type } = Route.useSearch();
   const navigate = useNavigate();
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
@@ -98,7 +101,7 @@ function AuthOtp() {
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        setError(msg ?? "الكود غير صحيح، حاول تاني");
+        setError(msg ?? t("الكود غير صحيح، حاول تاني", "The code is incorrect. Please try again."));
         setDigits(Array(6).fill(""));
         inputRefs.current[0]?.focus();
       },
@@ -130,7 +133,7 @@ function AuthOtp() {
 
   function handleConfirm() {
     const code = digits.join("");
-    if (code.length < 6) { setError("أدخل الكود كامل (6 أرقام)"); return; }
+    if (code.length < 6) { setError(t("أدخل الكود كامل (6 أرقام)", "Enter the complete 6-digit code")); return; }
     verifyOtp.mutate({ data: { phone, otp: code, role, type } });
   }
 
@@ -139,12 +142,12 @@ function AuthOtp() {
   const backTo = type === "register" ? "/auth/register" : "/auth/login";
 
   return (
-    <AuthShell title="تأكيد الكود" subtitle={`الكود اتبعت برسالة SMS لـ +20${phone}`} back={backTo}>
+    <AuthShell title={t("تأكيد الكود", "Verify code")} subtitle={`${t("الكود اتبعت برسالة SMS لـ", "The code was sent by SMS to")} +20${phone}`} back={backTo}>
 
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
         <Icon name={type === "register" ? "person_add" : "login"} className="text-[18px] text-on-secondary-container" />
-        <p className="font-label-md text-label-md text-on-secondary-container">
-          {type === "register" ? "إنشاء" : "دخول"} {roleLabels[role]} — أدخل الكود لتأكيد رقمك
+         <p className="font-label-md text-label-md text-on-secondary-container">
+           {type === "register" ? t("إنشاء", "Create") : t("دخول", "Log in")} {t(...roleLabels[role])} — {t("أدخل الكود لتأكيد رقمك", "Enter the code to verify your number")}
         </p>
       </div>
 
@@ -170,7 +173,7 @@ function AuthOtp() {
       {/* Resend row */}
       <div className="flex items-center justify-between">
         <span className="font-label-md text-label-md text-on-surface-variant">
-          {seconds > 0 ? `إعادة الإرسال بعد ${mm}:${ss}` : "يمكنك إعادة الإرسال الآن"}
+           {seconds > 0 ? t("إعادة الإرسال بعد {time}", "Resend in {time}", { time: `${mm}:${ss}` }) : t("يمكنك إعادة الإرسال الآن", "You can resend now")}
         </span>
         <button
           disabled={seconds > 0 || resending}
@@ -189,27 +192,27 @@ function AuthOtp() {
                 if (r.status === 429 && data.retryAfterSeconds) {
                   setSeconds(data.retryAfterSeconds);
                 } else {
-                  setError(data.error ?? "فشل إعادة الإرسال");
+                   setError(data.error ?? t("فشل إعادة الإرسال", "Resending failed"));
                 }
               } else {
                 setSeconds(RESEND_SECONDS);
                 setDigits(Array(6).fill(""));
               }
             } catch {
-              setError("خطأ في الاتصال — تأكد من اتصالك بالإنترنت");
+               setError(t("خطأ في الاتصال — تأكد من اتصالك بالإنترنت", "Connection error — check your internet connection"));
             } finally {
               setResending(false);
             }
           }}
           className="rounded-button px-3 py-1.5 font-label-lg text-label-lg text-secondary disabled:text-outline"
         >
-          {resending ? "جاري الإرسال..." : "إعادة الإرسال"}
+           {resending ? t("جاري الإرسال...", "Sending...") : t("إعادة الإرسال", "Resend")}
         </button>
       </div>
 
       <div className="flex items-center rounded-card bg-surface-container-low p-md">
         <Icon name="lock_clock" className="text-[18px] text-on-surface-variant" />
-        <span className="mr-1.5 font-label-md text-label-md text-on-surface-variant">الكود صالح 5 دقايق</span>
+         <span className="mr-1.5 font-label-md text-label-md text-on-surface-variant">{t("الكود صالح 5 دقايق", "The code is valid for 5 minutes")}</span>
       </div>
 
       {error && (
@@ -220,11 +223,11 @@ function AuthOtp() {
       )}
 
       <Button className="w-full" icon="check_circle" onClick={handleConfirm} disabled={verifyOtp.isPending}>
-        {verifyOtp.isPending ? "جاري التأكيد..." : "تأكيد"}
+         {verifyOtp.isPending ? t("جاري التأكيد...", "Verifying...") : t("تأكيد", "Verify")}
       </Button>
 
       <button onClick={() => navigate({ to: backTo })} className="text-center font-body-md text-body-md text-secondary hover:underline">
-        {type === "register" ? "تغيير الرقم أو نوع الحساب" : "تغيير الرقم"}
+         {type === "register" ? t("تغيير الرقم أو نوع الحساب", "Change number or account type") : t("تغيير الرقم", "Change number")}
       </button>
     </AuthShell>
   );

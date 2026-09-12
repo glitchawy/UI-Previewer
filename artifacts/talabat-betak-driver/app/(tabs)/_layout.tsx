@@ -8,29 +8,31 @@ import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { useTracking } from '@/ctx/TrackingContext';
+import { useLocale } from '@/ctx/LocaleContext';
 
 function NativeTabLayout() {
+  const { t } = useLocale();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Icon sf={{ default: 'dot.radiowaves.left.and.right', selected: 'dot.radiowaves.left.and.right' }} />
-        <NativeTabs.Trigger.Label>Status</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.status')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="offers">
         <NativeTabs.Trigger.Icon sf={{ default: 'bell', selected: 'bell.fill' }} />
-        <NativeTabs.Trigger.Label>Offers</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.offers')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="delivery">
         <NativeTabs.Trigger.Icon sf={{ default: 'map', selected: 'map.fill' }} />
-        <NativeTabs.Trigger.Label>Active</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.active')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="earnings">
         <NativeTabs.Trigger.Icon sf={{ default: 'banknote', selected: 'banknote' }} />
-        <NativeTabs.Trigger.Label>Earnings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.earnings')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <NativeTabs.Trigger.Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>{t('tabs.profile')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -43,10 +45,12 @@ function ClassicTabLayout() {
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
   const { isOnline } = useTracking();
+  const { t, direction } = useLocale();
 
   return (
     <Tabs
       screenOptions={{
+        tabBarLabelStyle: { direction },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
@@ -78,7 +82,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Status',
+           title: t('tabs.status'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="dot.radiowaves.left.and.right" tintColor={color} size={24} />
@@ -90,7 +94,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="offers"
         options={{
-          title: 'Offers',
+           title: t('tabs.offers'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="bell" tintColor={color} size={24} />
@@ -102,7 +106,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="delivery"
         options={{
-          title: 'Active',
+           title: t('tabs.active'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="map" tintColor={color} size={24} />
@@ -114,7 +118,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="earnings"
         options={{
-          title: 'Earnings',
+           title: t('tabs.earnings'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="banknote" tintColor={color} size={24} />
@@ -126,7 +130,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+           title: t('tabs.profile'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="person" tintColor={color} size={24} />

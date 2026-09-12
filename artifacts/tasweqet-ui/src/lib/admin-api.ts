@@ -1,4 +1,6 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { getToken } from "./auth-session";
+import { translate } from "@/lib/i18n";
 
 export async function adminApi<T>(path: string, signal?: AbortSignal): Promise<T> {
   return adminRequest<T>(`/admin/core${path}`, { signal });
@@ -6,13 +8,13 @@ export async function adminApi<T>(path: string, signal?: AbortSignal): Promise<T
 
 export async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  if (!token) throw new Error("يجب تسجيل الدخول أولاً");
+  if (!token) throw new Error(translate("يجب تسجيل الدخول أولاً", "You must sign in first"));
   const response = await fetch(`/api${path}`, {
     ...options,
     headers: { Authorization: `Bearer ${token}`, ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers },
   });
   const body = await response.json().catch(() => null) as ({ error?: string } & T) | null;
-  if (!response.ok) throw new Error(body?.error || "تعذر تحميل البيانات");
+  if (!response.ok) throw new Error(body?.error || translate("تعذر تحميل البيانات", "Unable to load data"));
   return body as T;
 }
 

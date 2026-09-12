@@ -1,5 +1,8 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
+
 // Fetch helpers for real onboarding applications stored in the database.
 import { getToken } from "@/lib/auth-session";
+import { getLocale, translate } from "@/lib/i18n";
 
 export interface RestaurantApplication {
   id: number;
@@ -51,6 +54,10 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function adminAuthHeaders(): HeadersInit {
+  return { ...authHeaders(), "Accept-Language": getLocale() };
+}
+
 export interface ApplicationList<T> {
   items: T[];
   page: number;
@@ -94,26 +101,26 @@ function queryString(params?: { q?: string; status?: string; reuploaded?: boolea
 }
 
 export async function fetchRestaurantApplications(params?: Parameters<typeof queryString>[0]): Promise<ApplicationList<RestaurantApplication>> {
-  const res = await fetch(`/api/admin/restaurants${queryString(params)}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("Failed to load restaurant applications");
+  const res = await fetch(`/api/admin/restaurants${queryString(params)}`, { headers: adminAuthHeaders() });
+  if (!res.ok) throw new Error(translate("تعذر تحميل طلبات المطاعم", "Failed to load restaurant applications"));
   return (await res.json()) as ApplicationList<RestaurantApplication>;
 }
 
 export async function fetchDriverApplications(params?: Parameters<typeof queryString>[0]): Promise<ApplicationList<DriverApplication>> {
-  const res = await fetch(`/api/admin/drivers${queryString(params)}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("Failed to load driver applications");
+  const res = await fetch(`/api/admin/drivers${queryString(params)}`, { headers: adminAuthHeaders() });
+  if (!res.ok) throw new Error(translate("تعذر تحميل طلبات المندوبين", "Failed to load driver applications"));
   return (await res.json()) as ApplicationList<DriverApplication>;
 }
 
 export async function fetchRestaurantApplication(id: number): Promise<{ application: RestaurantApplication; documents: ApplicationDocument[]; decisions: ApplicationDecision[] }> {
-  const res = await fetch(`/api/admin/restaurants/${id}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("تعذر تحميل بيانات الطلب");
+  const res = await fetch(`/api/admin/restaurants/${id}`, { headers: adminAuthHeaders() });
+  if (!res.ok) throw new Error(translate("تعذر تحميل بيانات الطلب", "Failed to load application details"));
   return res.json();
 }
 
 export async function fetchDriverApplication(id: number): Promise<{ application: DriverApplication; documents: ApplicationDocument[]; decisions: ApplicationDecision[] }> {
-  const res = await fetch(`/api/admin/drivers/${id}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("تعذر تحميل بيانات الطلب");
+  const res = await fetch(`/api/admin/drivers/${id}`, { headers: adminAuthHeaders() });
+  if (!res.ok) throw new Error(translate("تعذر تحميل بيانات الطلب", "Failed to load application details"));
   const result = await res.json() as { application: { profile: DriverApplication; phone: string | null }; documents: ApplicationDocument[]; decisions: ApplicationDecision[] };
   return { application: { ...result.application.profile, phone: result.application.phone }, documents: result.documents, decisions: result.decisions };
 }
@@ -121,12 +128,12 @@ export async function fetchDriverApplication(id: number): Promise<{ application:
 export async function updateRestaurantStatus(id: number, status: string, reason?: string): Promise<void> {
   const res = await fetch(`/api/admin/restaurants/${id}/status`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
     body: JSON.stringify({ status, reason }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? "Failed to update restaurant status");
+    throw new Error(body?.error ?? translate("تعذر تحديث حالة المطعم", "Failed to update restaurant status"));
   }
 }
 /** ids of stored applications are routed as "db-<id>" to distinguish from demo data */
@@ -151,11 +158,11 @@ export async function fetchMyApplicationStatus(): Promise<string | null> {
 export async function updateDriverStatus(id: number, status: string, reason?: string): Promise<void> {
   const res = await fetch(`/api/admin/drivers/${id}/status`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
     body: JSON.stringify({ status, reason }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? "Failed to update driver status");
+    throw new Error(body?.error ?? translate("تعذر تحديث حالة المندوب", "Failed to update driver status"));
   }
 }

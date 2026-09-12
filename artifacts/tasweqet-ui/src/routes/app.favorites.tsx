@@ -1,27 +1,30 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppBar, MobileShell, Icon, Card } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
 import { getToken } from "@/lib/auth-session";
 import { FavButton, useFavoriteIds } from "@/lib/tb/favorites";
+import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/favorites")({
   head: () => ({
     meta: [
-      { title: "طلبات بيتك | المفضلة" },
-      { name: "description", content: "مطاعمك ومنتجاتك المفضلة في مكان واحد" },
+      { title: translate("طلبات بيتك | المفضلة", "Talabat Betak | Favorites") },
+      { name: "description", content: translate("مطاعمك ومنتجاتك المفضلة في مكان واحد", "Your favorite restaurants and products in one place") },
     ],
   }),
   component: AppFavorites,
 });
 
-const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minimumFractionDigits: 0 })} ج.م`;
+const EGP = (n: string | number) => `${Number(n).toLocaleString(translate("ar-EG", "en-EG"), { minimumFractionDigits: 0 })} ${translate("ج.م", "EGP")}`;
 
 type FavRestaurant = { id: number; name: string; description: string | null; category: string | null; logoUrl: string | null; coverUrl: string | null; deliveryType: string };
 type FavProduct = { id: number; name: string; description: string | null; imageUrl: string | null; basePrice: string; restaurantId: number; isAvailable: boolean };
 type FavData = { restaurants: FavRestaurant[]; products: FavProduct[] };
 
 function AppFavorites() {
+  const { t, locale } = useTranslation();
   const [data, setData] = useState<FavData>({ restaurants: [], products: [] });
   const [loading, setLoading] = useState(true);
   const { isFav } = useFavoriteIds();
@@ -29,12 +32,15 @@ function AppFavorites() {
   useEffect(() => {
     const token = getToken();
     if (!token) { setLoading(false); return; }
-    fetch("/api/customer/favorites", { headers: { Authorization: `Bearer ${token}` } })
+    const controller = new AbortController();
+    setLoading(true);
+    fetch("/api/customer/favorites", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((d: FavData) => setData({ restaurants: d.restaurants, products: d.products }))
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [locale]);
 
   // Hide items un-hearted since load so removal is reflected immediately
   const shownRestaurants = data.restaurants.filter((r) => isFav("restaurant", r.id));
@@ -43,7 +49,7 @@ function AppFavorites() {
 
   return (
     <MobileShell tabs={customerTabs}>
-      <AppBar title="المفضلة" back="/app/profile" />
+       <AppBar title={t("المفضلة", "Favorites")} back="/app/profile" />
       <div className="flex flex-col gap-lg p-md">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
@@ -53,15 +59,15 @@ function AppFavorites() {
           <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-outline-variant py-xl text-center">
             <Icon name="favorite" className="text-[48px] text-outline" />
             <p className="font-body-md text-body-md text-on-surface-variant">
-              لسه مفيش مفضلات — دوس على القلب ❤️ على أي مطعم أو منتج
+               {t("لسه مفيش مفضلات — دوس على القلب ❤️ على أي مطعم أو منتج", "No favorites yet — tap the heart ❤️ on any restaurant or product")}
             </p>
-            <Link to="/app" className="font-label-lg text-label-lg text-secondary">تصفح المطاعم</Link>
+             <Link to="/app" className="font-label-lg text-label-lg text-secondary">{t("تصفح المطاعم", "Browse restaurants")}</Link>
           </div>
         ) : (
           <>
             {shownRestaurants.length > 0 && (
               <section>
-                <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">المطاعم المفضلة</h2>
+                 <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">{t("المطاعم المفضلة", "Favorite restaurants")}</h2>
                 <div className="tb-stagger flex flex-col gap-3">
                   {shownRestaurants.map((r) => (
                     <Link key={r.id} to="/app/restaurant/$id" params={{ id: String(r.id) }}>
@@ -87,7 +93,7 @@ function AppFavorites() {
 
             {shownProducts.length > 0 && (
               <section>
-                <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">المنتجات المفضلة</h2>
+                 <h2 className="mb-sm font-headline-md text-headline-md text-on-surface">{t("المنتجات المفضلة", "Favorite products")}</h2>
                 <div className="tb-stagger grid grid-cols-2 gap-3">
                   {shownProducts.map((p) => (
                     <Link key={p.id} to="/app/product/$id" params={{ id: String(p.id) }}>

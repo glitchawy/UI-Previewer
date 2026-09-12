@@ -11,31 +11,32 @@ import {
   useResolveAdminPaymentRefund,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Button, Badge, EmptyState } from "@/components/tb/shell";
-import { EGP, formatOrderDate } from "@/lib/tb/orders";
+import { adminCurrency, adminDateTime } from "@/lib/admin-i18n";
+import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/admin/refunds")({
   head: () => ({
     meta: [
-      { title: "طلبات بيتك | مراجعة الاستردادات" },
-      { name: "description", content: "مراجعة واعتماد طلبات استرداد العملاء وتسوية استردادات Paymob" },
+      { title: translate("طلبات بيتك | مراجعة الاستردادات", "Talabat Betak | Refund review") },
+      { name: "description", content: translate("مراجعة واعتماد طلبات استرداد العملاء وتسوية استردادات Paymob", "Review and approve customer refunds and reconcile Paymob refunds") },
     ],
   }),
   component: AdminRefunds,
 });
 
-const statusLabel = {
-  pending: "قيد المراجعة",
-  processing: "جاري التنفيذ",
-  approved: "تمت الموافقة",
-  rejected: "مرفوض",
-  failed: "تعذر التنفيذ",
-} as const;
-
-function errorMessage(error: unknown) {
-  return (error as { data?: { error?: string } } | null)?.data?.error || "تعذر تنفيذ القرار";
+function errorMessage(error: unknown, fallback: string) {
+  return (error as { data?: { error?: string } } | null)?.data?.error || fallback;
 }
 
 function AdminRefunds() {
+  const { t, locale } = useTranslation();
+  const statusLabel = (status: string) => ({
+    pending: t("قيد المراجعة", "Pending review"),
+    processing: t("جاري التنفيذ", "Processing"),
+    approved: t("تمت الموافقة", "Approved"),
+    rejected: t("مرفوض", "Rejected"),
+    failed: t("تعذر التنفيذ", "Failed"),
+  }[status] ?? status);
   const queryClient = useQueryClient();
   const refunds = useListAdminRefunds();
   const paymentRefunds = useListAdminPaymentRefunds();
@@ -51,23 +52,23 @@ function AdminRefunds() {
 
   return (
     <MobileShell>
-      <AppBar title="طلبات الاسترداد" subtitle="مراجعة مالية" back="/admin" right={<Icon name="account_balance_wallet" className="text-secondary" />} />
+      <AppBar title={t("طلبات الاسترداد", "Refund requests")} subtitle={t("مراجعة مالية", "Financial review")} back="/admin" right={<Icon name="account_balance_wallet" className="text-secondary" />} />
       <div className="flex flex-col gap-xl p-md">
         <section>
           <div className="mb-sm flex items-center justify-between">
             <div>
-              <h2 className="font-headline-md text-headline-md">طلبات العملاء</h2>
-              <p className="font-label-md text-label-md text-on-surface-variant">الموافقة تضيف المبلغ للمحفظة مرة واحدة</p>
+              <h2 className="font-headline-md text-headline-md">{t("طلبات العملاء", "Customer requests")}</h2>
+              <p className="font-label-md text-label-md text-on-surface-variant">{t("الموافقة تضيف المبلغ للمحفظة مرة واحدة", "Approval adds the amount to the wallet once")}</p>
             </div>
-            <Badge tone="warn">{(refunds.data?.filter((item) => item.status === "pending").length ?? 0).toLocaleString("ar-EG")} معلّق</Badge>
+            <Badge tone="warn">{(refunds.data?.filter((item) => item.status === "pending").length ?? 0).toLocaleString(locale === "ar" ? "ar-EG" : "en-EG")} {t("معلّق", "pending")}</Badge>
           </div>
 
           {refunds.isLoading ? (
             <div className="flex h-44 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[34px] text-primary" /></div>
           ) : refunds.isError ? (
-            <EmptyState icon="error" title="تعذر تحميل الطلبات" body="حاول مرة أخرى بعد قليل" />
+            <EmptyState icon="error" title={t("تعذر تحميل الطلبات", "Unable to load requests")} body={t("حاول مرة أخرى بعد قليل", "Try again shortly")} />
           ) : refunds.data?.length === 0 ? (
-            <EmptyState icon="task_alt" title="مفيش طلبات استرداد" body="طلبات العملاء الجديدة هتظهر هنا" />
+             <EmptyState icon="task_alt" title={t("لا توجد طلبات استرداد", "No refund requests")} body={t("ستظهر طلبات العملاء الجديدة هنا", "New customer requests will appear here")} />
           ) : (
             <div className="flex flex-col gap-3">
               {refunds.data?.map((refund) => {
@@ -78,29 +79,29 @@ function AdminRefunds() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-headline-md text-headline-md">{refund.orderCode}</p>
-                        <p className="font-label-md text-label-md text-on-surface-variant">{refund.restaurantName} · {formatOrderDate(refund.createdAt)}</p>
+                        <p className="font-label-md text-label-md text-on-surface-variant">{refund.restaurantName} · {adminDateTime(refund.createdAt, locale)}</p>
                       </div>
-                      <Badge tone={refund.status === "approved" ? "success" : refund.status === "rejected" || refund.status === "failed" ? "danger" : "warn"}>{statusLabel[refund.status]}</Badge>
+                       <Badge tone={refund.status === "approved" ? "success" : refund.status === "rejected" || refund.status === "failed" ? "danger" : "warn"}>{statusLabel(refund.status)}</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-2 rounded-card bg-surface-container p-3 text-label-md">
-                      <span className="text-on-surface-variant">العميل</span><strong>{refund.customerName || refund.customerPhone}</strong>
-                      <span className="text-on-surface-variant">المبلغ</span><strong>{EGP(refund.amount)}</strong>
-                      <span className="text-on-surface-variant">السبب</span><strong>{refund.reason}</strong>
+                       <span className="text-on-surface-variant">{t("العميل", "Customer")}</span><strong>{refund.customerName || refund.customerPhone}</strong>
+                       <span className="text-on-surface-variant">{t("المبلغ", "Amount")}</span><strong>{adminCurrency(refund.amount, locale)}</strong>
+                       <span className="text-on-surface-variant">{t("السبب", "Reason")}</span><strong>{refund.reason}</strong>
                     </div>
-                    {refund.resolutionNote ? <p className="rounded-button bg-surface-container p-2 text-label-md text-on-surface-variant">ملاحظة الإدارة: {refund.resolutionNote}</p> : null}
+                     {refund.resolutionNote ? <p className="rounded-button bg-surface-container p-2 text-label-md text-on-surface-variant">{t("ملاحظة الإدارة: ", "Admin note: ")}{refund.resolutionNote}</p> : null}
                     {pending ? (
                       <>
                         <textarea value={note} onChange={(event) => setNotes((current) => ({ ...current, [refund.id]: event.target.value }))}
-                          maxLength={1000} placeholder="ملاحظة القرار (مطلوبة عند الرفض)"
+                           maxLength={1000} aria-label={t("ملاحظة القرار", "Decision note")} placeholder={t("ملاحظة القرار (مطلوبة عند الرفض)", "Decision note (required when rejecting)")}
                           className="min-h-20 w-full rounded-card border border-outline-variant bg-surface-container-lowest p-3 outline-none focus:border-primary" />
                         <div className="grid grid-cols-2 gap-2">
                           <Button icon="check" disabled={approve.isPending || reject.isPending}
                             onClick={() => approve.mutate({ id: refund.id, data: note.trim() ? { note: note.trim() } : {} })}>
-                            موافقة
+                             {t("موافقة", "Approve")}
                           </Button>
                           <Button variant="danger" icon="close" disabled={!note.trim() || approve.isPending || reject.isPending}
                             onClick={() => reject.mutate({ id: refund.id, data: { note: note.trim() } })}>
-                            رفض
+                             {t("رفض", "Reject")}
                           </Button>
                         </div>
                       </>
@@ -108,22 +109,22 @@ function AdminRefunds() {
                   </Card>
                 );
               })}
-              {(approve.isError || reject.isError) ? <p className="rounded-button bg-error-container p-3 text-center text-label-md text-error">{errorMessage(approve.error || reject.error)}</p> : null}
+               {(approve.isError || reject.isError) ? <p className="rounded-button bg-error-container p-3 text-center text-label-md text-error">{errorMessage(approve.error || reject.error, t("تعذر تنفيذ القرار", "Unable to apply decision"))}</p> : null}
             </div>
           )}
         </section>
 
         <section>
           <div className="mb-sm">
-            <h2 className="font-headline-md text-headline-md">تسوية Paymob اليدوية</h2>
-            <p className="font-label-md text-label-md text-on-surface-variant">راجع لوحة Paymob أولاً. الأزرار هنا تسجل النتيجة فقط ولا ترسل استرداداً جديداً.</p>
+            <h2 className="font-headline-md text-headline-md">{t("تسوية Paymob اليدوية", "Manual Paymob reconciliation")}</h2>
+            <p className="font-label-md text-label-md text-on-surface-variant">{t("راجع لوحة Paymob أولاً. الأزرار هنا تسجل النتيجة فقط ولا ترسل استرداداً جديداً.", "Check the Paymob dashboard first. These buttons record the outcome only; they do not send a new refund.")}</p>
           </div>
           {paymentRefunds.isLoading ? (
             <div className="flex h-32 items-center justify-center"><Icon name="progress_activity" className="animate-spin text-[30px] text-primary" /></div>
           ) : paymentRefunds.isError ? (
-            <EmptyState icon="error" title="تعذر تحميل تسويات Paymob" body="حاول مرة أخرى بعد قليل" />
+            <EmptyState icon="error" title={t("تعذر تحميل تسويات Paymob", "Unable to load Paymob reconciliations")} body={t("حاول مرة أخرى بعد قليل", "Try again shortly")} />
           ) : paymentRefunds.data?.length === 0 ? (
-            <Card className="flex items-center gap-3 p-md"><Icon name="verified" className="text-success" /><span className="font-label-lg text-label-lg">لا توجد عمليات غامضة تحتاج مراجعة</span></Card>
+            <Card className="flex items-center gap-3 p-md"><Icon name="verified" className="text-success" /><span className="font-label-lg text-label-lg">{t("لا توجد عمليات غامضة تحتاج مراجعة", "No ambiguous transactions need review")}</span></Card>
           ) : (
             <div className="flex flex-col gap-3">
               {paymentRefunds.data?.map((claim) => {
@@ -131,32 +132,32 @@ function AdminRefunds() {
                 return (
                   <Card key={claim.id} className="space-y-3 border-warning/30 p-md">
                     <div className="flex items-start justify-between">
-                      <div><p className="font-headline-md text-headline-md">{claim.orderCode}</p><p className="font-label-md text-label-md text-on-surface-variant">عملية Paymob: {claim.transactionId}</p></div>
-                      <Badge tone="danger">{claim.status === "ambiguous" ? "نتيجة غامضة" : "تعذر تلقائياً"}</Badge>
+                       <div><p className="font-headline-md text-headline-md">{claim.orderCode}</p><p className="font-label-md text-label-md text-on-surface-variant">{t("عملية Paymob: ", "Paymob transaction: ")}{claim.transactionId}</p></div>
+                       <Badge tone="danger">{claim.status === "ambiguous" ? t("نتيجة غامضة", "Ambiguous result") : t("تعذر تلقائياً", "Automatic processing failed")}</Badge>
                     </div>
-                    <div className="flex justify-between rounded-button bg-surface-container p-3"><span>{claim.customerPhone}</span><strong>{EGP(claim.amount)}</strong></div>
+                    <div className="flex justify-between rounded-button bg-surface-container p-3"><span>{claim.customerPhone}</span><strong>{adminCurrency(claim.amount, locale)}</strong></div>
                     <textarea value={note} onChange={(event) => setClaimNotes((current) => ({ ...current, [claim.id]: event.target.value }))}
-                      maxLength={1000} placeholder="اكتب مرجع أو ملاحظة التحقق من لوحة Paymob"
+                       maxLength={1000} aria-label={t("ملاحظة التحقق", "Verification note")} placeholder={t("اكتب مرجع أو ملاحظة التحقق من لوحة Paymob", "Enter a reference or verification note from the Paymob dashboard")}
                       className="min-h-20 w-full rounded-card border border-outline-variant bg-surface-container-lowest p-3 outline-none focus:border-primary" />
                     <div className="grid grid-cols-2 gap-2">
                       <Button icon="verified" disabled={note.trim().length < 3 || resolve.isPending}
                         onClick={() => resolve.mutate({ id: claim.id, data: { outcome: "refunded", note: note.trim() } })}>
-                        تأكد الاسترداد
+                         {t("تأكد الاسترداد", "Confirm refund")}
                       </Button>
                       <Button variant="outline" icon="money_off" disabled={note.trim().length < 3 || resolve.isPending}
                         onClick={() => resolve.mutate({ id: claim.id, data: { outcome: "not_refunded", note: note.trim() } })}>
-                        لم يُسترد
+                         {t("لم يُسترد", "Not refunded")}
                       </Button>
                     </div>
                   </Card>
                 );
               })}
-              {resolve.isError ? <p className="rounded-button bg-error-container p-3 text-center text-label-md text-error">{errorMessage(resolve.error)}</p> : null}
+               {resolve.isError ? <p className="rounded-button bg-error-container p-3 text-center text-label-md text-error">{errorMessage(resolve.error, t("تعذر تنفيذ القرار", "Unable to apply decision"))}</p> : null}
             </div>
           )}
         </section>
 
-        {isLoading ? <span className="sr-only">جاري التحميل</span> : null}
+         {isLoading ? <span className="sr-only">{t("جاري التحميل", "Loading")}</span> : null}
       </div>
     </MobileShell>
   );

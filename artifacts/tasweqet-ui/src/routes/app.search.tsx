@@ -1,8 +1,10 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppBar, MobileShell, Icon, Card, SectionTitle } from "@/components/tb/shell";
 import { customerTabs } from "@/lib/tb/nav";
 import { FavButton } from "@/lib/tb/favorites";
+import { getLocale, translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/search")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -10,14 +12,14 @@ export const Route = createFileRoute("/app/search")({
   }),
   head: () => ({
     meta: [
-      { title: "طلبات بيتك | البحث" },
-      { name: "description", content: "دور على مطاعم وأكلات وفئات في طلبات بيتك" },
+      { title: translate("طلبات بيتك | البحث", "Talabat Betak | Search") },
+      { name: "description", content: translate("دور على مطاعم وأكلات وفئات في طلبات بيتك", "Search restaurants, dishes, and categories on Talabat Betak") },
     ],
   }),
   component: AppSearch,
 });
 
-const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minimumFractionDigits: 0 })} ج.م`;
+const EGP = (n: string | number) => `${Number(n).toLocaleString(getLocale() === "ar" ? "ar-EG" : "en-EG", { minimumFractionDigits: 0 })} ${translate("ج.م", "EGP")}`;
 
 type SearchRestaurant = { id: number; name: string; description: string | null; category: string | null; logoUrl: string | null };
 type SearchProduct = { id: number; name: string; description: string | null; imageUrl: string | null; basePrice: string; restaurantId: number; restaurantName: string };
@@ -37,6 +39,7 @@ function pushRecent(q: string) {
 }
 
 function AppSearch() {
+  const { t, dir, locale } = useTranslation();
   const { q: initialQ } = Route.useSearch();
   const [query, setQuery] = useState(initialQ ?? "");
   const [data, setData] = useState<SearchData>(EMPTY);
@@ -70,9 +73,11 @@ function AppSearch() {
 
   // Initial query from URL (e.g. category chip link)
   useEffect(() => {
-    if (initialQ) runSearch(initialQ, false);
+    if (query.trim().length >= 2) runSearch(query, false);
+    // Re-run the current search when the API's localized fields change.
+    // Keep query, suggestions, and recent-search state intact.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [locale]);
 
   function handleChange(val: string) {
     setQuery(val);
@@ -90,18 +95,18 @@ function AppSearch() {
 
   return (
     <MobileShell tabs={customerTabs}>
-      <AppBar title="البحث" back="/app" />
+       <AppBar title={t("البحث", "Search")} back="/app" />
       <div className="flex flex-col gap-lg p-md">
         <div className="relative">
           <div className="flex items-center gap-2 rounded-button border border-secondary bg-surface-container-lowest px-3 py-3">
             <Icon name="search" className="text-on-surface-variant" />
             <input
               className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
-              placeholder="دور على مطعم، أكلة أو فئة..."
+               placeholder={t("دور على مطعم، أكلة أو فئة...", "Search for a restaurant, dish, or category...")}
               value={query}
               onChange={(e) => handleChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") submit(query); }}
-              dir="rtl"
+               dir={dir}
               autoFocus
             />
             {loading && <span className="material-symbols-outlined animate-spin text-[18px] text-outline">progress_activity</span>}
@@ -124,7 +129,7 @@ function AppSearch() {
 
         {!hasResults && recent.length > 0 && (
           <section>
-            <SectionTitle title="عمليات بحث سابقة" icon="history" />
+             <SectionTitle title={t("عمليات بحث سابقة", "Recent searches")} icon="history" />
             <div className="flex flex-wrap gap-2">
               {recent.map((r) => (
                 <button key={r} type="button" onClick={() => submit(r)}
@@ -139,13 +144,13 @@ function AppSearch() {
         {!loading && query.trim().length >= 2 && !hasResults && suggestions.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-xl text-center">
             <Icon name="search_off" className="text-[48px] text-outline" />
-            <p className="font-body-md text-body-md text-on-surface-variant">لا توجد نتائج لـ «{query}»</p>
+             <p className="font-body-md text-body-md text-on-surface-variant">{t("لا توجد نتائج لـ «{query}»", "No results for “{query}”", { query })}</p>
           </div>
         )}
 
         {data.categories.length > 0 && (
           <section>
-            <SectionTitle title="فئات" icon="category" />
+             <SectionTitle title={t("فئات", "Categories")} icon="category" />
             <div className="tb-stagger flex flex-col gap-2">
               {data.categories.map((c) => (
                 <Link key={c.id} to="/app/restaurant/$id" params={{ id: String(c.restaurantId) }}
@@ -161,7 +166,7 @@ function AppSearch() {
 
         {data.restaurants.length > 0 && (
           <section>
-            <SectionTitle title="مطاعم" icon="storefront" />
+             <SectionTitle title={t("مطاعم", "Restaurants")} icon="storefront" />
             <div className="tb-stagger flex flex-col gap-2">
               {data.restaurants.map((r) => (
                 <Link key={r.id} to="/app/restaurant/$id" params={{ id: String(r.id) }}>
@@ -187,7 +192,7 @@ function AppSearch() {
 
         {data.products.length > 0 && (
           <section>
-            <SectionTitle title="منتجات" icon="fastfood" />
+             <SectionTitle title={t("منتجات", "Products")} icon="fastfood" />
             <div className="tb-stagger flex flex-col gap-2">
               {data.products.map((p) => (
                 <Link key={p.id} to="/app/product/$id" params={{ id: String(p.id) }}>

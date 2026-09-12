@@ -5,8 +5,9 @@ import * as Notifications from 'expo-notifications';
 import { registerNotificationDevice } from '@workspace/api-client-react';
 import { useAuth } from '@/ctx/AuthContext';
 import { setPushDeviceId } from '@/utils/storage';
+import { useLocale } from '@/ctx/LocaleContext';
 
-type PushStatus = 'idle' | 'registering' | 'registered' | 'permission-denied' | 'unavailable' | 'error';
+type PushStatus = 'idle' | 'registering' | 'registered' | 'permission-denied' | 'unavailable' | 'expo-go' | 'missing-project' | 'error';
 
 type PushState = {
   status: PushStatus;
@@ -16,7 +17,7 @@ type PushState = {
 
 const PushNotificationsContext = createContext<PushState>({
   status: 'idle',
-  message: 'Notifications are not configured.',
+  message: '',
   retry: async () => {},
 });
 
@@ -32,32 +33,43 @@ function projectId(): string | undefined {
 
 export function PushNotificationsProvider({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
+  const { t } = useLocale();
   const attemptRef = useRef(0);
-  const [state, setState] = useState<Omit<PushState, 'retry'>>({
-    status: 'idle',
-    message: 'Sign in to enable order notifications.',
-  });
+  const [status, setStatus] = useState<PushStatus>('idle');
+
+  const messageForStatus = (value: PushStatus): string => {
+    switch (value) {
+      case 'idle': return t('push.signIn');
+      case 'registering': return t('push.enabling');
+      case 'registered': return t('push.enabled');
+      case 'permission-denied': return t('push.permissionOff');
+      case 'unavailable': return t('push.nativeOnly');
+      case 'expo-go': return t('push.expoGo');
+      case 'missing-project': return t('push.missingProject');
+      case 'error': return t('push.failed');
+    }
+  };
 
   const register = useCallback(async () => {
     const attempt = ++attemptRef.current;
     if (!token || isLoading) {
-      setState({ status: 'idle', message: 'Sign in to enable order notifications.' });
+      setStatus('idle');
       return;
     }
     if (Platform.OS === 'web') {
-      setState({ status: 'unavailable', message: 'Push notifications require the native driver app.' });
+      setStatus('unavailable');
       return;
     }
     if (Constants.appOwnership === 'expo') {
-      setState({ status: 'unavailable', message: 'Remote notifications are unavailable in Expo Go. Use a driver app build.' });
+      setStatus('expo-go');
       return;
     }
 
-    setState({ status: 'registering', message: 'Enabling order notifications…' });
+    setStatus('registering');
     try {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('orders', {
-          name: 'Order updates',
+          name: t('push.channelName'),
           importance: Notifications.AndroidImportance.HIGH,
           sound: 'default',
           vibrationPattern: [0, 250, 250, 250],
@@ -67,14 +79,14 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
       if (permission.status !== 'granted') permission = await Notifications.requestPermissionsAsync();
       if (permission.status !== 'granted') {
         if (attempt === attemptRef.current) {
-          setState({ status: 'permission-denied', message: 'Notification permission is off. Grant it and retry.' });
+          setStatus('permission-denied');
         }
         return;
       }
       const easProjectId = projectId();
       if (!easProjectId) {
         if (attempt === attemptRef.current) {
-          setState({ status: 'unavailable', message: 'This build is missing its EAS project ID.' });
+          setStatus('missing-project');
         }
         return;
       }
@@ -87,13 +99,13 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
       if (!Number.isInteger(id) || id < 1) throw new Error('Invalid notification device response');
       if (attempt !== attemptRef.current) return;
       await setPushDeviceId(id);
-      setState({ status: 'registered', message: 'Order notifications are enabled.' });
+       setStatus('registered');
     } catch {
       if (attempt === attemptRef.current) {
-        setState({ status: 'error', message: 'Could not enable order notifications. Check your connection and retry.' });
+        setStatus('error');
       }
     }
-  }, [isLoading, token]);
+  }, [isLoading, t, token]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -114,7 +126,7 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
   }, [register]);
 
   return (
-    <PushNotificationsContext.Provider value={{ ...state, retry: register }}>
+    <PushNotificationsContext.Provider value={{ status, message: messageForStatus(status), retry: register }}>
       {children}
     </PushNotificationsContext.Provider>
   );

@@ -4,6 +4,7 @@ import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from "@ta
 import { AppBar, Icon, MobileShell } from "@/components/tb/shell";
 import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import { GateBlockedCard, GateLoadingCard, useApplicationGate } from "@/components/tb/approval-gate";
+import { useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/driver")({
   beforeLoad: () => {
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/driver")({
 const EXEMPT_PATHS = ["/driver/documents", "/driver/profile"];
 
 function DriverLayout() {
+  const { t } = useTranslation();
   const gate = useApplicationGate(["APPROVED"]);
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,13 +36,14 @@ function DriverLayout() {
   return (
     <MobileShell>
       <AppBar
-        title={`أهلاً 👋 +20${session?.user.phone ?? ""}`}
-        subtitle="مندوب طلبات بيتك"
+         title={`${t("أهلاً 👋", "Hello 👋")} +20${session?.user.phone ?? ""}`}
+         subtitle={t("مندوب طلبات بيتك", "Talabat Betak driver")}
         right={
           <button
             onClick={handleLogout}
             className="flex size-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
-            title="تسجيل الخروج"
+             title={t("تسجيل الخروج", "Sign out")}
+             aria-label={t("تسجيل الخروج", "Sign out")}
           >
             <Icon name="logout" className="text-[20px]" />
           </button>

@@ -1,19 +1,22 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { getToken } from "./auth-session";
+import { getLocale, translate } from "@/lib/i18n";
 export { getFreshForegroundFix } from "./driver-location";
 
 export async function driverApi<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  if (!token) throw new Error("يجب تسجيل الدخول أولاً");
+  if (!token) throw new Error(translate("يجب تسجيل الدخول أولاً", "Please sign in first"));
   const response = await fetch(`/api/driver${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
+      "Accept-Language": getLocale(),
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...options.headers,
     },
   });
   const body = await response.json().catch(() => null) as ({ error?: string } & T) | null;
-  if (!response.ok) throw new Error(body?.error || "تعذر تنفيذ الطلب");
+  if (!response.ok) throw new Error(body?.error || translate("تعذر تنفيذ الطلب", "Could not complete request"));
   return body as T;
 }
 

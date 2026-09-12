@@ -18,6 +18,7 @@ import { getToken } from '@/utils/storage';
 import { AuthProvider, useAuth } from '@/ctx/AuthContext';
 import { TrackingProvider } from '@/ctx/TrackingContext';
 import { PushNotificationsProvider } from '@/ctx/PushNotificationsContext';
+import { LocaleProvider } from '@/ctx/LocaleContext';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 
@@ -153,21 +154,23 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <PushNotificationsProvider>
-              <TrackingProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </TrackingProvider>
-            </PushNotificationsProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <LocaleProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <PushNotificationsProvider>
+                <TrackingProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </TrackingProvider>
+              </PushNotificationsProvider>
+            </AuthProvider>
+          </ErrorBoundary>
+        </LocaleProvider>
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 }

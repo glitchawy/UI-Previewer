@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, Icon } from "@/components/tb/shell";
 import { fetchMyApplicationStatus } from "@/lib/tb/applications";
+import { useTranslation } from "@/lib/i18n";
 
 export type GateState =
   | { kind: "loading" }
@@ -32,7 +33,8 @@ export function useApplicationGate(approvedStatuses: readonly string[]): GateSta
 }
 
 export function GateLoadingCard() {
-  return <Card className="p-lg font-body-md text-body-md text-on-surface-variant">جاري التحقق من حالة حسابك...</Card>;
+  const { t } = useTranslation();
+  return <Card className="p-lg font-body-md text-body-md text-on-surface-variant">{t("جاري التحقق من حالة حسابك...", "Checking your account status…")}</Card>;
 }
 
 export function GateBlockedCard({
@@ -44,6 +46,7 @@ export function GateBlockedCard({
   role: "partner" | "driver";
   extra?: ReactNode;
 }) {
+  const { t, dir } = useTranslation();
   const rejected = status === "REJECTED";
   const suspended = status === "SUSPENDED";
   return (
@@ -58,27 +61,27 @@ export function GateBlockedCard({
         <p className="font-headline-md text-headline-md text-on-surface">
           {rejected
             ? role === "partner"
-              ? "تم رفض طلب تسجيل مطعمك"
-              : "تم رفض طلب توثيقك"
+              ? t("تم رفض طلب تسجيل مطعمك", "Your restaurant application was rejected")
+              : t("تم رفض طلب توثيقك", "Your verification application was rejected")
             : suspended
-            ? "حسابك موقوف حالياً"
-            : "حسابك لسه قيد المراجعة"}
+            ? t("حسابك موقوف حالياً", "Your account is currently suspended")
+            : t("حسابك لسه قيد المراجعة", "Your account is still under review")}
         </p>
         <p className="font-body-md text-body-md text-on-surface-variant">
           {rejected || suspended
-            ? "تواصل مع الدعم على support@tasweqet.eg لمعرفة التفاصيل."
+            ? t("تواصل مع الدعم على support@tasweqet.eg لمعرفة التفاصيل.", "Contact support@tasweqet.eg for details.")
             : role === "partner"
-            ? "هتتفعّل لوحة التحكم بالكامل بعد موافقة الإدارة على تسجيل مطعمك."
-            : "مش هتقدر تستقبل طلبات غير بعد موافقة الإدارة على توثيقك."}
+            ? t("هتتفعّل لوحة التحكم بالكامل بعد موافقة الإدارة على تسجيل مطعمك.", "Your dashboard will activate after your restaurant application is approved.")
+            : t("مش هتقدر تستقبل طلبات غير بعد موافقة الإدارة على توثيقك.", "You cannot receive orders until your verification is approved.")}
         </p>
       </Card>
       {role === "driver" && !suspended ? (
         <Link to="/driver/documents" className="flex items-center justify-between gap-2 rounded-card bg-error-container p-md">
           <span className="flex items-center gap-2 font-label-lg text-label-lg text-on-error-container">
             <Icon name="warning" className="text-[18px]" />
-            راجع واتمم مستنداتك
+            {t("راجع واتمم مستنداتك", "Review and complete your documents")}
           </span>
-          <Icon name="chevron_left" className="text-on-error-container" />
+          <Icon name={dir === "rtl" ? "chevron_left" : "chevron_right"} className="text-on-error-container" />
         </Link>
       ) : null}
       {extra}

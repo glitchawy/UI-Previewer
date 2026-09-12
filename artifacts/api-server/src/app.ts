@@ -15,6 +15,7 @@ import {
   preBodySensitiveRateLimit,
 } from "./middleware/rate-limit";
 import { errorHandler, notFound } from "./middleware/http-errors";
+import { localizedJson, requestLocale } from "./middleware/localization";
 
 const app: Express = express();
 
@@ -31,6 +32,8 @@ function configuredTrustProxy(): false | number {
 app.disable("x-powered-by");
 app.set("trust proxy", configuredTrustProxy());
 app.use(requestId);
+app.use(requestLocale);
+app.use(localizedJson);
 app.use(securityHeaders);
 app.use(dynamicCors);
 app.use(requestTimeout());

@@ -1,3 +1,5 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
+
 const SESSION_KEY = "tasweqet_session";
 
 export interface AuthUser {

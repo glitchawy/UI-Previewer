@@ -1,13 +1,15 @@
+import { translate } from "@/lib/i18n";
+
 type DayHours = { open?: unknown; close?: unknown; closed?: unknown };
 
 const DAYS = [
-  ["SUN", "الأحد"],
-  ["MON", "الإثنين"],
-  ["TUE", "الثلاثاء"],
-  ["WED", "الأربعاء"],
-  ["THU", "الخميس"],
-  ["FRI", "الجمعة"],
-  ["SAT", "السبت"],
+  ["SUN", "الأحد", "Sunday"],
+  ["MON", "الإثنين", "Monday"],
+  ["TUE", "الثلاثاء", "Tuesday"],
+  ["WED", "الأربعاء", "Wednesday"],
+  ["THU", "الخميس", "Thursday"],
+  ["FRI", "الجمعة", "Friday"],
+  ["SAT", "السبت", "Saturday"],
 ] as const;
 
 function parseHours(value: string): Record<string, DayHours> | null {
@@ -26,10 +28,10 @@ function dayEntry(hours: Record<string, DayHours>, key: string) {
 }
 
 function describeEntry(entry: DayHours | undefined) {
-  if (!entry || entry.closed === true) return "مغلق";
+  if (!entry || entry.closed === true) return translate("مغلق", "Closed");
   return typeof entry.open === "string" && typeof entry.close === "string"
     ? `${entry.open}–${entry.close}`
-    : "المواعيد متاحة";
+    : translate("المواعيد متاحة", "Hours available");
 }
 
 export function restaurantHoursSummary(value: string | null) {
@@ -37,9 +39,9 @@ export function restaurantHoursSummary(value: string | null) {
   const hours = parseHours(value);
   if (!hours) return null;
   const today = DAYS[new Date().getDay()];
-  const compact = `اليوم: ${describeEntry(dayEntry(hours, today[0]))}`;
+  const compact = `${translate("اليوم", "Today")}: ${describeEntry(dayEntry(hours, today[0]))}`;
   const full = DAYS
-    .map(([key, label]) => `${label}: ${describeEntry(dayEntry(hours, key))}`)
-    .join("، ");
+    .map(([key, ar, en]) => `${translate(ar, en)}: ${describeEntry(dayEntry(hours, key))}`)
+    .join(translate("، ", ", "));
   return { compact, full };
 }

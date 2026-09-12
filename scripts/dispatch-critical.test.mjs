@@ -167,7 +167,7 @@ test("ready orders are offered proactively and recovered by durable workers", ()
   assert.match(operationsMigration, /driver_order_offer_pending_driver_uidx[\s\S]+WHERE status = 'pending'/);
 });
 
-test("foreground coarse refresh is single-flight, lifecycle bounded, and event-driven", () => {
+test("foreground coarse refresh is single-flight, lifecycle bounded, and event-driven", async () => {
   assert.match(webDriverHome, /locationFlightRef\.current/);
   assert.match(webDriverHome, /document\.visibilityState === "visible"/);
   assert.match(webDriverHome, /60_000/);
@@ -175,7 +175,9 @@ test("foreground coarse refresh is single-flight, lifecycle bounded, and event-d
   assert.match(trackingContext, /dispatchFlightRef\.current/);
   assert.match(trackingContext, /AppState\.addEventListener\('change'/);
   assert.match(trackingContext, /60_000/);
-  assert.match(nativeDriverHome, /تحديث موقع الإسناد/);
+  assert.match(nativeDriverHome, /t\('status\.updateDispatchLocation'\)/);
+  const driverTranslations = await readFile(new URL("../artifacts/talabat-betak-driver/lib/i18n.ts", import.meta.url), "utf8");
+  assert.match(driverTranslations, /'status\.updateDispatchLocation': 'تحديث موقع الإسناد'/);
   assert.match(driverRoutes, /dispatchReadyOrders\(new Date\(\), true\)/);
 });
 

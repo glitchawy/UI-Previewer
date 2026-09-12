@@ -4,6 +4,7 @@ import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-
 import { DashboardShell, Icon } from "@/components/tb/shell";
 import { getSession, logoutSession, getRoleDashboard } from "@/lib/auth-session";
 import { GateBlockedCard, GateLoadingCard, useApplicationGate } from "@/components/tb/approval-gate";
+import { useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/partner")({
   beforeLoad: () => {
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/partner")({
 });
 
 function PartnerLayout() {
+  const { t } = useTranslation();
   const gate = useApplicationGate(["APPROVED", "ACTIVE"]);
   const navigate = useNavigate();
   const session = getSession();
@@ -28,10 +30,10 @@ function PartnerLayout() {
 
   return (
     <DashboardShell
-      brand="طلبات بيتك"
-      role={`مطعم — +20${session?.user.phone ?? ""}`}
+      brand={t("طلبات بيتك", "Talabat Betak")}
+      role={`${t("مطعم", "Restaurant")} — +20${session?.user.phone ?? ""}`}
       nav={[]}
-      title="حالة الحساب"
+      title={t("حالة الحساب", "Account status")}
     >
       <div className="tb-stagger flex flex-col gap-lg">
         <div className="flex items-center justify-end">
@@ -40,7 +42,7 @@ function PartnerLayout() {
             className="flex items-center gap-1.5 rounded-button border border-outline-variant px-3 py-1.5 font-label-md text-label-md text-on-surface-variant transition hover:border-error hover:text-error"
           >
             <Icon name="logout" className="text-[16px]" />
-            خروج
+            {t("خروج", "Sign out")}
           </button>
         </div>
         {gate.kind === "loading" ? <GateLoadingCard /> : <GateBlockedCard status={gate.status} role="partner" />}

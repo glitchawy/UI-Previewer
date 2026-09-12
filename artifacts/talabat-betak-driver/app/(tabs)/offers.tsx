@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Alert, StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useTracking } from '@/ctx/TrackingContext';
@@ -7,14 +7,17 @@ import { useGetAvailableDriverOrder, useAcceptDriverOrder, useRejectDriverOrder,
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useLocale } from '@/ctx/LocaleContext';
+import { formatCurrency } from '@/lib/i18n';
 
 export default function OffersScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { isOnline } = useTracking();
+  const { t, locale, direction } = useLocale();
   
-  const { data: offer, isLoading: isOfferLoading, refetch } = useGetAvailableDriverOrder({
+  const { data: offer, isLoading: isOfferLoading, isError: offerError, refetch } = useGetAvailableDriverOrder({
     query: {
       enabled: isOnline,
       refetchInterval: 5000, // Poll more frequently for offers
@@ -60,7 +63,7 @@ export default function OffersScreen() {
     } catch (e) {
       actionLock.current = false;
       setActionLocked(false);
-      console.error(e);
+      Alert.alert(t('common.error'), t('offers.acceptError'));
       refetch();
     }
   };
@@ -76,24 +79,19 @@ export default function OffersScreen() {
     } catch (e) {
       actionLock.current = false;
       setActionLocked(false);
-      console.error(e);
+      Alert.alert(t('common.error'), t('offers.rejectError'));
       refetch();
     }
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return `${amount.toFixed(2)} EGP`;
-  };
-
   if (!isOnline) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, direction }]}>
         <View style={styles.centerContent}>
           <Feather name="moon" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-          <Text style={[styles.title, { color: colors.foreground }]}>You are Offline</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{t('offers.offlineTitle')}</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Go online from the Status tab to receive delivery offers.
+            {t('offers.offlineBody')}
           </Text>
         </View>
       </View>
@@ -102,7 +100,7 @@ export default function OffersScreen() {
 
   if (isOfferLoading && !offer) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center' }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center', direction }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -110,12 +108,12 @@ export default function OffersScreen() {
 
   if (!offer) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, direction }]}>
         <View style={styles.centerContent}>
-          <Feather name="search" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-          <Text style={[styles.title, { color: colors.foreground }]}>No Offers Yet</Text>
+          <Feather name={offerError ? 'alert-circle' : 'search'} size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
+          <Text style={[styles.title, { color: colors.foreground }]}>{offerError ? t('common.error') : t('offers.noOffersTitle')}</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            We'll notify you as soon as a new delivery is available in your area.
+            {offerError ? t('common.loadError') : t('offers.noOffersBody')}
           </Text>
         </View>
       </View>
@@ -125,31 +123,31 @@ export default function OffersScreen() {
   const typedOffer = offer as DriverOrderOffer;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, direction }]}>
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Delivery</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{t('offers.newDelivery')}</Text>
         <View style={[styles.timeBadge, { backgroundColor: colors.destructive }]}>
           <Text style={[styles.timeText, { color: colors.destructiveForeground }]}>
-            ينتهي خلال {remaining} ث
+            {t('offers.expiresIn', { seconds: remaining })}
           </Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120, direction }]}>
         <View style={[styles.mapPlaceholder, { backgroundColor: colors.muted }]}>
           <Feather name="map" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.mapText, { color: colors.mutedForeground }]}>Map Preview</Text>
+          <Text style={[styles.mapText, { color: colors.mutedForeground }]}>{t('offers.mapPreview')}</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.earningRow}>
             <View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Estimated Earnings</Text>
-              <Text style={[styles.earningAmount, { color: colors.primary }]}>{formatCurrency(typedOffer.deliveryFee || 0)}</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>{t('offers.estimatedEarnings')}</Text>
+              <Text style={[styles.earningAmount, { color: colors.primary }]}>{formatCurrency(locale, typedOffer.deliveryFee || 0)}</Text>
             </View>
             <View style={styles.distanceBadge}>
-              <Feather name="navigation" size={16} color={colors.foreground} />
-              <Text style={[styles.distanceText, { color: colors.foreground }]}>{typedOffer.distanceKm?.toFixed(1)} km</Text>
+              <Feather name="navigation" size={16} color={colors.foreground} style={direction === 'rtl' ? { transform: [{ scaleX: -1 }] } : undefined} />
+              <Text style={[styles.distanceText, { color: colors.foreground }]}>{t('offers.distance', { distance: typedOffer.distanceKm?.toFixed(1) ?? '—' })}</Text>
             </View>
           </View>
 
@@ -163,11 +161,11 @@ export default function OffersScreen() {
             </View>
             <View style={styles.locationDetails}>
               <View style={styles.locationItem}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>Pickup</Text>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>{t('offers.pickup')}</Text>
                 <Text style={[styles.locationName, { color: colors.foreground }]} numberOfLines={1}>{typedOffer.restaurantName}</Text>
               </View>
               <View style={styles.locationItem}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>Dropoff</Text>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>{t('offers.dropoff')}</Text>
                 <Text style={[styles.locationName, { color: colors.foreground }]} numberOfLines={2}>{typedOffer.deliveryAddressText}</Text>
               </View>
             </View>
@@ -181,6 +179,8 @@ export default function OffersScreen() {
             style={[styles.rejectBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
             onPress={handleReject}
             disabled={actionLocked || rejectOffer.isPending || acceptOffer.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('offers.reject')}
             testID="reject-offer-button"
           >
             {rejectOffer.isPending ? (
@@ -193,13 +193,15 @@ export default function OffersScreen() {
             style={[styles.acceptBtn, { backgroundColor: colors.primary }]}
             onPress={handleAccept}
             disabled={actionLocked || rejectOffer.isPending || acceptOffer.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('offers.accept')}
             testID="accept-offer-button"
           >
             {acceptOffer.isPending ? (
               <ActivityIndicator color={colors.primaryForeground} />
             ) : (
               <>
-                <Text style={[styles.acceptText, { color: colors.primaryForeground }]}>Accept Delivery</Text>
+                <Text style={[styles.acceptText, { color: colors.primaryForeground }]}>{t('offers.accept')}</Text>
                 <Feather name="check" size={24} color={colors.primaryForeground} />
               </>
             )}
@@ -309,7 +311,7 @@ const styles = StyleSheet.create({
   locationIconWrapper: {
     alignItems: 'center',
     width: 24,
-    marginRight: 12,
+    marginEnd: 12,
   },
   dot: {
     width: 12,

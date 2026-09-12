@@ -4,14 +4,15 @@ import { AppBar, MobileShell, Icon, Card, Badge, Button } from "@/components/tb/
 import { customerTabs } from "@/lib/tb/nav";
 import { clearCart, updateCartItem, useCart } from "@/lib/tb/cart";
 import { getSession } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/cart")({
   head: () => ({
     meta: [
-      { title: "طلبات بيتك | السلة" },
-      { name: "description", content: "راجع طلباتك من كل المطاعم قبل إتمام الشراء" },
-      { property: "og:title", content: "طلبات بيتك | السلة" },
-      { property: "og:description", content: "راجع طلباتك من كل المطاعم قبل إتمام الشراء" },
+      { title: translate("طلبات بيتك | السلة", "Talabat Betak | Cart") },
+      { name: "description", content: translate("راجع طلباتك من كل المطاعم قبل إتمام الشراء", "Review your orders from all restaurants before checkout") },
+      { property: "og:title", content: translate("طلبات بيتك | السلة", "Talabat Betak | Cart") },
+      { property: "og:description", content: translate("راجع طلباتك من كل المطاعم قبل إتمام الشراء", "Review your orders from all restaurants before checkout") },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -20,10 +21,11 @@ export const Route = createFileRoute("/app/cart")({
 });
 
 function AppCart() {
+  const { t, locale } = useTranslation();
   const { cart, isLoading } = useCart();
   const [pendingId, setPendingId] = useState<number | null>(null);
   const session = getSession();
-  const EGP = (value: number) => `${value.toLocaleString("ar-EG")} ج.م`;
+  const EGP = (value: number) => `${value.toLocaleString(locale === "ar" ? "ar-EG" : "en-EG")} ${t("ج.م", "EGP")}`;
 
   async function setQuantity(id: number, quantity: number) {
     setPendingId(id);
@@ -33,13 +35,13 @@ function AppCart() {
   return (
     <MobileShell tabs={customerTabs}>
       <AppBar
-        title="السلة"
+        title={t("السلة", "Cart")}
         back="/app"
-        subtitle={cart.restaurants.length > 0 ? `${cart.restaurants.length.toLocaleString("ar-EG")} مطعم` : "سلتك فاضية"}
+        subtitle={cart.restaurants.length > 0 ? `${cart.restaurants.length.toLocaleString(locale === "ar" ? "ar-EG" : "en-EG")} ${t("مطعم", "restaurant")}` : t("سلتك فاضية", "Your cart is empty")}
         right={cart.itemCount > 0 ? (
           <button type="button" onClick={() => clearCart()} className="flex items-center gap-1 font-label-md text-[13px] text-error hover:bg-error-container px-2 py-1 rounded-button transition-colors">
             <Icon name="delete" className="text-[16px]" />
-            مسح الكل
+            {t("مسح الكل", "Clear all")}
           </button>
         ) : undefined}
       />
@@ -48,7 +50,7 @@ function AppCart() {
         {isLoading ? (
           <div className="flex h-64 flex-col items-center justify-center gap-4 text-primary">
             <Icon name="progress_activity" className="animate-spin text-[40px]" />
-            <p className="font-label-lg text-label-lg animate-pulse">جاري تحضير السلة...</p>
+            <p className="font-label-lg text-label-lg animate-pulse">{t("جاري تحضير السلة...", "Preparing your cart...")}</p>
           </div>
         ) : cart.restaurants.length === 0 ? (
           <div className="mt-12 flex flex-col items-center text-center animate-[tb-fade-up_0.5s_ease-out]">
@@ -58,12 +60,12 @@ function AppCart() {
                 <Icon name="restaurant_menu" className="text-[24px]" />
               </div>
             </div>
-            <h2 className="mb-2 font-headline-lg text-headline-lg text-on-surface">سلتك لسة فاضية</h2>
+             <h2 className="mb-2 font-headline-lg text-headline-lg text-on-surface">{t("سلتك لسة فاضية", "Your cart is still empty")}</h2>
             <p className="mb-8 max-w-[260px] font-body-lg text-[15px] text-on-surface-variant leading-relaxed">
-              اكتشف أكلات جديدة من مطاعمك المفضلة وضيفها للسلة دلوقتي.
+               {t("اكتشف أكلات جديدة من مطاعمك المفضلة وضيفها للسلة دلوقتي.", "Discover new dishes from your favorite restaurants and add them to your cart.")}
             </p>
             <Link to="/app">
-              <Button icon="explore" className="px-8 shadow-md">تصفح المطاعم</Button>
+               <Button icon="explore" className="px-8 shadow-md">{t("تصفح المطاعم", "Browse restaurants")}</Button>
             </Link>
           </div>
         ) : (
@@ -71,7 +73,7 @@ function AppCart() {
             <div className="flex items-start gap-3 rounded-[16px] bg-secondary-container/50 border border-secondary/20 p-4 text-on-secondary-container shadow-sm animate-[tb-fade-up_0.3s_ease-out]">
               <Icon name="info" className="text-[22px] shrink-0 text-secondary mt-0.5" filled />
               <span className="font-label-lg text-[14px] leading-relaxed font-medium">
-                علشان نضمن جودة وسخونة أكلك، كل مطعم بيتحضر وبيتوصل في طلب منفصل.
+                 {t("علشان نضمن جودة وسخونة أكلك، كل مطعم بيتحضر وبيتوصل في طلب منفصل.", "To keep your food fresh and hot, each restaurant is prepared and delivered as a separate order.")}
               </span>
             </div>
 
@@ -88,7 +90,7 @@ function AppCart() {
                       </div>
                       <Badge tone={group.deliveryType === "platform" ? "info" : "success"} className="gap-1 px-3 py-1 shadow-sm border border-transparent">
                         <Icon name={group.deliveryType === "platform" ? "local_shipping" : "storefront"} className="text-[14px]" />
-                        {group.deliveryType === "platform" ? "توصيل طلبات بيتك" : "توصيل المطعم"}
+                         {group.deliveryType === "platform" ? t("توصيل طلبات بيتك", "Talabat Betak delivery") : t("توصيل المطعم", "Restaurant delivery")}
                       </Badge>
                     </div>
 
@@ -109,7 +111,7 @@ function AppCart() {
                               <p className="truncate font-label-lg text-[16px] text-on-surface">{line.name}</p>
                               <button
                                 type="button"
-                                aria-label="حذف"
+                                 aria-label={t("حذف", "Delete")}
                                 onClick={() => setQuantity(line.id, 0)}
                                 disabled={pendingId === line.id}
                                 className="flex size-8 shrink-0 items-center justify-center rounded-full text-outline hover:text-error hover:bg-error-container transition-colors active:scale-95"
@@ -118,7 +120,7 @@ function AppCart() {
                               </button>
                             </div>
                             <p className="font-label-md text-[13px] text-on-surface-variant leading-relaxed line-clamp-2 mb-3 pr-1">
-                              {[line.variant?.name, ...line.addons.map((addon) => addon.name)].filter(Boolean).join(" · ") || "بدون اختيارات إضافية"}
+                               {[line.variant?.name, ...line.addons.map((addon) => addon.name)].filter(Boolean).join(" · ") || t("بدون اختيارات إضافية", "No extra options")}
                             </p>
 
                             <div className="flex items-center justify-between mt-auto">
@@ -140,7 +142,7 @@ function AppCart() {
                     </div>
 
                     <div className="flex items-center justify-between bg-surface-container-low/50 px-5 py-3 border-t border-outline-variant/40">
-                      <span className="font-label-lg text-[14px] text-on-surface-variant">الإجمالي الفرعي للمطعم</span>
+                       <span className="font-label-lg text-[14px] text-on-surface-variant">{t("الإجمالي الفرعي للمطعم", "Restaurant subtotal")}</span>
                       <span className="font-headline-md text-[17px] text-on-surface">{EGP(group.subtotal)}</span>
                     </div>
                   </div>
@@ -155,9 +157,9 @@ function AppCart() {
                   <Icon name="location_on" className="text-[24px]" filled />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-label-lg text-[15px] text-on-surface mb-0.5">عنوان التوصيل</p>
+                   <p className="font-label-lg text-[15px] text-on-surface mb-0.5">{t("عنوان التوصيل", "Delivery address")}</p>
                   <p className="truncate font-body-md text-[14px] text-on-surface-variant">
-                    {session?.user.addressText || "اضغط هنا لتحديد عنوان التوصيل"}
+                     {session?.user.addressText || t("اضغط هنا لتحديد عنوان التوصيل", "Tap here to set your delivery address")}
                   </p>
                 </div>
                 <div className="flex size-8 items-center justify-center rounded-full bg-surface-container-low text-on-surface-variant group-hover:bg-secondary group-hover:text-white transition-colors">
@@ -176,7 +178,7 @@ function AppCart() {
               <Button className="w-full h-14 justify-between shadow-md text-lg">
                 <span className="flex items-center gap-2">
                   <Icon name="shopping_cart_checkout" className="text-[22px]" />
-                  <span className="font-label-lg text-[17px]">متابعة لإتمام الطلب</span>
+                   <span className="font-label-lg text-[17px]">{t("متابعة لإتمام الطلب", "Continue to checkout")}</span>
                 </span>
                 <span className="font-headline-md text-[18px] bg-white/20 px-3 py-1 rounded-md">
                   {EGP(cart.total)}

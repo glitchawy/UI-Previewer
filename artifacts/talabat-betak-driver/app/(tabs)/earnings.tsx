@@ -4,13 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useGetDriverEarnings, useListDriverDeliveries, getListDriverDeliveriesQueryKey } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
+import { useLocale } from '@/ctx/LocaleContext';
+import { formatCurrency, formatDate } from '@/lib/i18n';
 
 export default function EarningsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t, locale, direction } = useLocale();
   
-  const { data: earnings, isLoading: earningsLoading, refetch: refetchEarnings } = useGetDriverEarnings();
-  const { data: deliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useListDriverDeliveries(
+  const { data: earnings, isLoading: earningsLoading, isError: earningsError, refetch: refetchEarnings } = useGetDriverEarnings();
+  const { data: deliveries, isLoading: deliveriesLoading, isError: deliveriesError, refetch: refetchDeliveries } = useListDriverDeliveries(
     { page: 1, pageSize: 50 },
     {
       query: {
@@ -27,40 +30,27 @@ export default function EarningsScreen() {
   const earningsData = earnings as any;
   const deliveryList = (deliveries as any)?.items || [];
 
-  const formatCurrency = (amount: number | undefined) => {
-    return `${(amount || 0).toFixed(2)} EGP`;
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return dateString;
-    }
-  };
-
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-        <Text style={[styles.summaryLabel, { color: colors.primaryForeground }]}>This Week's Earnings</Text>
+        <Text style={[styles.summaryLabel, { color: colors.primaryForeground }]}>{t('earnings.thisWeek')}</Text>
         <Text style={[styles.summaryValue, { color: colors.primaryForeground }]}>
-          {formatCurrency(earningsData?.weeklyTotal)}
+          {formatCurrency(locale, earningsData?.weeklyTotal)}
         </Text>
         
         <View style={styles.summaryStatsRow}>
           <View style={styles.summaryStat}>
-            <Text style={[styles.summaryStatLabel, { color: 'rgba(255,255,255,0.7)' }]}>Deliveries</Text>
+            <Text style={[styles.summaryStatLabel, { color: 'rgba(255,255,255,0.7)' }]}>{t('earnings.deliveries')}</Text>
             <Text style={[styles.summaryStatValue, { color: colors.primaryForeground }]}>{earningsData?.weeklyCount || 0}</Text>
           </View>
           <View style={styles.summaryStat}>
-            <Text style={[styles.summaryStatLabel, { color: 'rgba(255,255,255,0.7)' }]}>Online Hours</Text>
-            <Text style={[styles.summaryStatValue, { color: colors.primaryForeground }]}>{(earningsData?.weeklyHours || 0).toFixed(1)}h</Text>
+            <Text style={[styles.summaryStatLabel, { color: 'rgba(255,255,255,0.7)' }]}>{t('earnings.onlineHours')}</Text>
+            <Text style={[styles.summaryStatValue, { color: colors.primaryForeground }]}>{t('earnings.hours', { hours: (earningsData?.weeklyHours || 0).toFixed(1) })}</Text>
           </View>
         </View>
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent Deliveries</Text>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('earnings.recent')}</Text>
     </View>
   );
 
@@ -72,10 +62,18 @@ export default function EarningsScreen() {
         </View>
       );
     }
+    if (earningsError || deliveriesError) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Feather name="alert-circle" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]} accessibilityRole="alert">{t('common.loadError')}</Text>
+        </View>
+      );
+    }
     return (
       <View style={styles.emptyContainer}>
         <Feather name="file-text" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No recent deliveries found</Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{t('earnings.noRecent')}</Text>
       </View>
     );
   };
@@ -85,9 +83,9 @@ export default function EarningsScreen() {
       <View style={styles.deliveryHeader}>
         <View>
           <Text style={[styles.deliveryCode, { color: colors.foreground }]}>#{item.code}</Text>
-          <Text style={[styles.deliveryDate, { color: colors.mutedForeground }]}>{formatDate(item.createdAt)}</Text>
+          <Text style={[styles.deliveryDate, { color: colors.mutedForeground }]}>{formatDate(locale, item.createdAt)}</Text>
         </View>
-        <Text style={[styles.deliveryAmount, { color: colors.foreground }]}>{formatCurrency(item.deliveryFee)}</Text>
+        <Text style={[styles.deliveryAmount, { color: colors.foreground }]}>{formatCurrency(locale, item.deliveryFee)}</Text>
       </View>
       
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -102,7 +100,7 @@ export default function EarningsScreen() {
         <View style={styles.locationItem}>
           <Feather name="map-pin" size={12} color={colors.primary} />
           <Text style={[styles.locationText, { color: colors.foreground }]} numberOfLines={1}>
-            {item.deliveryAddressText || 'Customer'}
+            {item.deliveryAddressText || t('earnings.customer')}
           </Text>
         </View>
       </View>
@@ -110,9 +108,9 @@ export default function EarningsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, direction }]}>
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Earnings</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{t('tabs.earnings')}</Text>
       </View>
 
       <FlatList
@@ -121,7 +119,7 @@ export default function EarningsScreen() {
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100, direction }]}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       />

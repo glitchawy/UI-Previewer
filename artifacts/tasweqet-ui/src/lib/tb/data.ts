@@ -4,7 +4,9 @@
  * screen render realistic Arabic content.
  */
 
-export const EGP = (n: number) => `${n.toLocaleString("ar-EG")} ج.م`;
+import { formatCurrency } from "@/lib/i18n";
+
+export const EGP = (n: number | string) => formatCurrency(n);
 
 export type Category = { id: string; name: string; icon: string };
 

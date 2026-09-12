@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useSaveCustomerAddress, useReverseGeocode, searchAddress } from "@workspace/api-client-react";
 import { getToken } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 // Fix Leaflet default icon paths broken by Vite bundling
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -17,7 +18,7 @@ L.Icon.Default.mergeOptions({
 
 export const Route = createFileRoute("/auth/location")({
   head: () => ({
-    meta: [{ title: "تحديد الموقع | طلبات بيتك" }],
+    meta: [{ title: translate("تحديد الموقع | طلبات بيتك", "Set delivery location | Talabat Betak") }],
   }),
   component: AuthLocation,
 });
@@ -42,10 +43,10 @@ function FlyTo({ lat, lng }: { lat: number; lng: number }) {
 
 /* ── accuracy badge text ────────────────────────────────────── */
 function accuracyLabel(meters: number) {
-  if (meters < 50) return `دقة ممتازة (~${Math.round(meters)} متر)`;
-  if (meters < 200) return `دقة جيدة (~${Math.round(meters)} متر)`;
-  if (meters < 1000) return `دقة متوسطة (~${Math.round(meters)} متر)`;
-  return `دقة منخفضة (~${(meters / 1000).toFixed(1)} كم) — يُنصح باستخدام الجوال`;
+  if (meters < 50) return translate("دقة ممتازة (~{meters} متر)", "Excellent accuracy (~{meters} m)", { meters: Math.round(meters) });
+  if (meters < 200) return translate("دقة جيدة (~{meters} متر)", "Good accuracy (~{meters} m)", { meters: Math.round(meters) });
+  if (meters < 1000) return translate("دقة متوسطة (~{meters} متر)", "Moderate accuracy (~{meters} m)", { meters: Math.round(meters) });
+  return translate("دقة منخفضة (~{distance} كم) — يُنصح باستخدام الجوال", "Low accuracy (~{distance} km) — using a phone is recommended", { distance: (meters / 1000).toFixed(1) });
 }
 
 function accuracyColor(meters: number) {
@@ -57,6 +58,7 @@ function accuracyColor(meters: number) {
 
 /* ── main component ─────────────────────────────────────────── */
 function AuthLocation() {
+  const { t, dir } = useTranslation();
   const navigate = useNavigate();
   const [geo, setGeo] = useState<GeoState>({ status: "idle" });
   const [search, setSearch] = useState("");
@@ -75,7 +77,7 @@ function AuthLocation() {
   /* ── geolocation ──────────────────────────────────────────── */
   function requestGeo() {
     if (!navigator.geolocation) {
-      setGeo({ status: "error", message: "المتصفح لا يدعم تحديد الموقع" });
+      setGeo({ status: "error", message: t("المتصفح لا يدعم تحديد الموقع", "Your browser does not support location services") });
       return;
     }
     setGeo({ status: "loading" });
@@ -93,11 +95,11 @@ function AuthLocation() {
       },
       (err) => {
         const msgs: Record<number, string> = {
-          1: "تم رفض الإذن — اسمح للمتصفح بالوصول للموقع من الإعدادات",
-          2: "تعذر تحديد الموقع، حاول مرة أخرى",
-          3: "انتهت مهلة التحديد، حاول مرة أخرى",
+          1: t("تم رفض الإذن — اسمح للمتصفح بالوصول للموقع من الإعدادات", "Permission denied — allow your browser to access your location in settings"),
+          2: t("تعذر تحديد الموقع، حاول مرة أخرى", "Unable to determine your location. Please try again"),
+          3: t("انتهت مهلة التحديد، حاول مرة أخرى", "Location request timed out. Please try again"),
         };
-        setGeo({ status: "error", message: msgs[err.code] ?? "خطأ غير معروف" });
+        setGeo({ status: "error", message: msgs[err.code] ?? t("خطأ غير معروف", "Unknown error") });
       },
       { timeout: 12000, maximumAge: 0, enableHighAccuracy: true },
     );
@@ -145,7 +147,7 @@ function AuthLocation() {
   const defaultCenter: [number, number] = [30.0444, 31.2357]; // Cairo fallback
 
   return (
-    <AuthShell title="عنوان التوصيل" subtitle="حدد موقعك عشان نوصلك بأسرع وقت">
+    <AuthShell title={t("عنوان التوصيل", "Delivery address")} subtitle={t("حدد موقعك عشان نوصلك بأسرع وقت", "Set your location so we can deliver faster")}>
 
       {/* ── Map ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-card border border-outline-variant" style={{ height: 280 }}>
@@ -186,7 +188,7 @@ function AuthLocation() {
               <span className="material-symbols-outlined animate-spin text-[32px] text-secondary">
                 my_location
               </span>
-              <p className="font-label-md text-label-md text-on-surface">جاري تحديد الموقع...</p>
+               <p className="font-label-md text-label-md text-on-surface">{t("جاري تحديد الموقع...", "Locating...")}</p>
             </div>
           </div>
         )}
@@ -210,23 +212,23 @@ function AuthLocation() {
         onClick={requestGeo}
         disabled={geo.status === "loading"}
       >
-        {geo.status === "loading" ? "جاري التحديد..." : "تحديد موقعي الحالي تلقائياً"}
+         {geo.status === "loading" ? t("جاري التحديد...", "Locating...") : t("تحديد موقعي الحالي تلقائياً", "Use my current location")}
       </Button>
 
       {/* ── Manual search ────────────────────────────────────── */}
       <div className="relative flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">
-          أو ابحث عن عنوانك يدوياً
+           {t("أو ابحث عن عنوانك يدوياً", "Or search for your address")}
         </span>
         <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary">
           <Icon name="search" className="text-[20px] text-outline" />
           <input
             type="text"
-            placeholder="مثال: المعادي، شارع ٩..."
+             placeholder={t("مثال: المعادي، شارع ٩...", "Example: Maadi, Street 9...")}
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"
-            dir="rtl"
+             dir={dir}
           />
           {searching && (
             <span className="material-symbols-outlined animate-spin text-[18px] text-outline">
@@ -263,7 +265,7 @@ function AuthLocation() {
           <Icon name="place" className="mt-0.5 text-[18px] text-secondary" />
           <div>
             <p className="font-body-md text-body-md text-on-surface">{geo.label}</p>
-            <p className="font-label-md text-label-md text-on-surface-variant">الموقع المحدد</p>
+             <p className="font-label-md text-label-md text-on-surface-variant">{t("الموقع المحدد", "Selected location")}</p>
           </div>
         </div>
       )}
@@ -281,7 +283,7 @@ function AuthLocation() {
         <div className="flex items-center gap-2 rounded-card bg-primary-container/60 p-md">
           <Icon name="info" className="text-[18px] text-on-primary-container" />
           <p className="font-label-md text-label-md text-on-primary-container">
-            اضغط "تحديد موقعي" للسماح بالوصول للموقع، أو ابحث يدوياً أعلاه
+             {t('اضغط "تحديد موقعي" للسماح بالوصول للموقع، أو ابحث يدوياً أعلاه', 'Tap "Use my location" to allow access, or search above')}
           </p>
         </div>
       )}
@@ -292,7 +294,7 @@ function AuthLocation() {
         onClick={handleConfirm}
         disabled={saveAddress.isPending || (!hasLocation)}
       >
-        {saveAddress.isPending ? "جاري الحفظ..." : "تأكيد ومتابعة"}
+         {saveAddress.isPending ? t("جاري الحفظ...", "Saving...") : t("تأكيد ومتابعة", "Confirm and continue")}
       </Button>
 
       {/* Skip link */}
@@ -300,7 +302,7 @@ function AuthLocation() {
         onClick={() => navigate({ to: "/auth/onboard-customer" })}
         className="text-center font-label-lg text-label-lg text-outline hover:text-on-surface-variant transition"
       >
-        تخطي في الوقت الحالي
+         {t("تخطي في الوقت الحالي", "Skip for now")}
       </button>
 
     </AuthShell>

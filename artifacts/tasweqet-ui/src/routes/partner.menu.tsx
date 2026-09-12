@@ -1,13 +1,14 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DashboardShell, Card, Badge, Button, Icon } from "@/components/tb/shell";
-import { partnerNav } from "@/lib/tb/nav";
+import { usePartnerNav } from "@/lib/tb/nav";
 import { getToken } from "@/lib/auth-session";
+import { useTranslation, translate, getLocale } from "@/lib/i18n";
+import { formatCurrency, formatNumber } from "@/lib/tb/locale-format";
 
 export const Route = createFileRoute("/partner/menu")({
-  head: () => ({
-    meta: [{ title: "المنتجات — طلبات بيتك" }],
-  }),
+  head: () => ({ meta: [{ title: translate("المنتجات — طلبات بيتك", "Products — Talabat Betak") }] }),
   component: PartnerMenu,
 });
 
@@ -19,8 +20,6 @@ type Addon = { id: number; productId: number; name: string; price: string; isAva
 type Product = { id: number; restaurantId: number; categoryId: number | null; name: string; description: string | null; imageUrl: string | null; basePrice: string; isAvailable: boolean; sortOrder: number; variants: Variant[]; addons: Addon[] };
 type MenuData = { categories: Category[]; products: Product[] };
 
-const EGP = (n: string | number) => `${Number(n).toLocaleString("ar-EG", { minimumFractionDigits: 0 })} ج.م`;
-
 function storageUrl(p: string) {
   const token = getToken();
   return `/api/storage${p}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
@@ -28,41 +27,42 @@ function storageUrl(p: string) {
 
 function authHeaders(): HeadersInit {
   const t = getToken();
-  return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json", "Accept-Language": getLocale() } : { "Content-Type": "application/json", "Accept-Language": getLocale() };
 }
 
 async function apiPost(path: string, body: unknown) {
   const r = await fetch(path, { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
-  if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? "خطأ في الخادم"); }
+  if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? translate("خطأ في الخادم", "Server error")); }
   return r.json();
 }
 async function apiPatch(path: string, body: unknown) {
   const r = await fetch(path, { method: "PATCH", headers: authHeaders(), body: JSON.stringify(body) });
-  if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? "خطأ في الخادم"); }
+  if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? translate("خطأ في الخادم", "Server error")); }
   return r.json();
 }
 async function apiDelete(path: string) {
   const r = await fetch(path, { method: "DELETE", headers: authHeaders() });
-  if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? "خطأ في الخادم"); }
+  if (!r.ok) { const d = await r.json().catch(() => null) as { error?: string } | null; throw new Error(d?.error ?? translate("خطأ في الخادم", "Server error")); }
   return r.json();
 }
 
 // ─── Small shared components ──────────────────────────────────────────────────
 
 function InlineField({ label, value, onSave, type = "text" }: { label: string; value: string; onSave: (v: string) => Promise<void>; type?: string }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const ref = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setVal(value); }, [value]);
+  useEffect(() => { if (!editing) setVal(value); }, [editing, value]);
   useEffect(() => { if (editing) ref.current?.focus(); }, [editing]);
 
   async function save() {
     setSaving(true); setErr("");
     try { await onSave(val); setEditing(false); }
-    catch (e) { setErr(e instanceof Error ? e.message : "خطأ"); }
+    catch (e) { setErr(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
     finally { setSaving(false); }
   }
 
@@ -82,11 +82,11 @@ function InlineField({ label, value, onSave, type = "text" }: { label: string; v
       <div className="flex gap-1">
         <button type="button" disabled={saving} onClick={save}
           className="rounded-button bg-primary px-2 py-0.5 font-label-md text-[11px] text-on-primary disabled:opacity-50">
-          {saving ? "..." : "حفظ"}
+           {saving ? "…" : t("حفظ", "Save")}
         </button>
         <button type="button" onClick={() => setEditing(false)}
           className="rounded-button bg-surface-container px-2 py-0.5 font-label-md text-[11px] text-on-surface">
-          إلغاء
+           {t("إلغاء", "Cancel")}
         </button>
       </div>
     </div>
@@ -96,36 +96,37 @@ function InlineField({ label, value, onSave, type = "text" }: { label: string; v
 // ─── Add-category dialog ──────────────────────────────────────────────────────
 
 function AddCategoryModal({ onSave, onClose }: { onSave: (name: string, desc: string) => Promise<void>; onClose: () => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   async function submit() {
-    if (!name.trim()) { setErr("الاسم مطلوب"); return; }
+    if (!name.trim()) { setErr(t("الاسم مطلوب", "Name is required")); return; }
     setSaving(true); setErr("");
     try { await onSave(name, desc); onClose(); }
-    catch (e) { setErr(e instanceof Error ? e.message : "خطأ"); }
+    catch (e) { setErr(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
     finally { setSaving(false); }
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-md" onClick={onClose}>
       <div className="w-full max-w-sm rounded-card bg-surface p-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-md font-headline-md text-headline-md text-on-surface">إضافة قسم جديد</h3>
+        <h3 className="mb-md font-headline-md text-headline-md text-on-surface">{t("إضافة قسم جديد", "Add a new category")}</h3>
         <div className="flex flex-col gap-3">
           <div>
-            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">اسم القسم *</label>
+            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("اسم القسم *", "Category name *")}</label>
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
               className="w-full rounded-button border border-outline-variant bg-surface-container-low px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">وصف (اختياري)</label>
+            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("وصف (اختياري)", "Description (optional)")}</label>
             <input value={desc} onChange={(e) => setDesc(e.target.value)}
               className="w-full rounded-button border border-outline-variant bg-surface-container-low px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-primary" />
           </div>
           {err && <p className="font-label-md text-label-md text-error">{err}</p>}
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={submit} disabled={saving}>{saving ? "جاري الحفظ..." : "إضافة"}</Button>
-            <Button className="flex-1" variant="outline" onClick={onClose}>إلغاء</Button>
+            <Button className="flex-1" onClick={submit} disabled={saving}>{saving ? t("جاري الحفظ...", "Saving…") : t("إضافة", "Add")}</Button>
+            <Button className="flex-1" variant="outline" onClick={onClose}>{t("إلغاء", "Cancel")}</Button>
           </div>
         </div>
       </div>
@@ -141,6 +142,7 @@ function ProductModal({ categories, product, onSave, onClose }: {
   onSave: (data: Partial<Product>) => Promise<void>;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(product?.name ?? "");
   const [desc, setDesc] = useState(product?.description ?? "");
   const [price, setPrice] = useState(product?.basePrice ?? "0");
@@ -149,47 +151,47 @@ function ProductModal({ categories, product, onSave, onClose }: {
   const [err, setErr] = useState("");
 
   async function submit() {
-    if (!name.trim()) { setErr("اسم المنتج مطلوب"); return; }
+    if (!name.trim()) { setErr(t("اسم المنتج مطلوب", "Product name is required")); return; }
     const p = parseFloat(price);
-    if (isNaN(p) || p < 0) { setErr("السعر غير صحيح"); return; }
+    if (isNaN(p) || p < 0) { setErr(t("السعر غير صحيح", "Enter a valid price")); return; }
     setSaving(true); setErr("");
     try { await onSave({ name: name.trim(), description: desc.trim() || null, basePrice: p.toFixed(2), categoryId: catId }); onClose(); }
-    catch (e) { setErr(e instanceof Error ? e.message : "خطأ"); }
+    catch (e) { setErr(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
     finally { setSaving(false); }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-md" onClick={onClose}>
       <div className="w-full max-w-sm rounded-card bg-surface p-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-md font-headline-md text-headline-md text-on-surface">{product ? "تعديل المنتج" : "إضافة منتج"}</h3>
+        <h3 className="mb-md font-headline-md text-headline-md text-on-surface">{product ? t("تعديل المنتج", "Edit product") : t("إضافة منتج", "Add product")}</h3>
         <div className="flex flex-col gap-3">
           <div>
-            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">اسم المنتج *</label>
+            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("اسم المنتج *", "Product name *")}</label>
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)}
               className="w-full rounded-button border border-outline-variant bg-surface-container-low px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">وصف</label>
+            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("وصف", "Description")}</label>
             <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={2}
               className="w-full rounded-button border border-outline-variant bg-surface-container-low px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">السعر (ج.م) *</label>
+            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("السعر (ج.م) *", "Price (EGP) *")}</label>
             <input type="number" min="0" step="0.5" value={price} onChange={(e) => setPrice(e.target.value)}
               className="w-full rounded-button border border-outline-variant bg-surface-container-low px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">القسم</label>
+            <label className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("القسم", "Category")}</label>
             <select value={catId ?? ""} onChange={(e) => setCatId(e.target.value ? Number(e.target.value) : null)}
               className="w-full rounded-button border border-outline-variant bg-surface-container-low px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-primary">
-              <option value="">— بدون قسم —</option>
+               <option value="">— {t("بدون قسم", "No category")} —</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           {err && <p className="font-label-md text-label-md text-error">{err}</p>}
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={submit} disabled={saving}>{saving ? "جاري الحفظ..." : product ? "حفظ" : "إضافة"}</Button>
-            <Button className="flex-1" variant="outline" onClick={onClose}>إلغاء</Button>
+            <Button className="flex-1" onClick={submit} disabled={saving}>{saving ? t("جاري الحفظ...", "Saving…") : product ? t("حفظ", "Save") : t("إضافة", "Add")}</Button>
+            <Button className="flex-1" variant="outline" onClick={onClose}>{t("إلغاء", "Cancel")}</Button>
           </div>
         </div>
       </div>
@@ -200,29 +202,30 @@ function ProductModal({ categories, product, onSave, onClose }: {
 // ─── Variant/addon inline list ────────────────────────────────────────────────
 
 function VariantsSection({ product, onRefresh }: { product: Product; onRefresh: () => void }) {
+  const { t, locale } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDelta, setNewDelta] = useState("0");
   const [err, setErr] = useState("");
 
   async function addVariant() {
-    if (!newName.trim()) { setErr("الاسم مطلوب"); return; }
+    if (!newName.trim()) { setErr(t("الاسم مطلوب", "Name is required")); return; }
     try {
       await apiPost(`/api/partner/products/${product.id}/variants`, { name: newName, priceDelta: parseFloat(newDelta) || 0 });
       setNewName(""); setNewDelta("0"); setAdding(false); onRefresh();
-    } catch (e) { setErr(e instanceof Error ? e.message : "خطأ"); }
+    } catch (e) { setErr(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
   }
 
   return (
     <div>
-      <p className="mb-1 font-label-md text-label-md text-on-surface-variant">الأحجام / الأنواع</p>
+       <p className="mb-1 font-label-md text-label-md text-on-surface-variant">{t("الأحجام / الأنواع", "Sizes / variants")}</p>
       <div className="flex flex-col gap-1">
         {product.variants.map((v) => (
           <div key={v.id} className="flex items-center justify-between rounded-button bg-surface-container-low px-2 py-1">
             <span className="font-label-md text-label-md text-on-surface">{v.name}</span>
             <div className="flex items-center gap-2">
-              {Number(v.priceDelta) !== 0 && <span className="font-label-md text-[11px] text-secondary">+{EGP(v.priceDelta)}</span>}
-              {v.isDefault && <Badge tone="success">افتراضي</Badge>}
+               {Number(v.priceDelta) !== 0 && <span className="font-label-md text-[11px] text-secondary">+{formatCurrency(v.priceDelta, locale)}</span>}
+               {v.isDefault && <Badge tone="success">{t("افتراضي", "Default")}</Badge>}
               <button type="button" onClick={() => apiDelete(`/api/partner/variants/${v.id}`).then(onRefresh)}
                 className="text-error hover:opacity-70"><Icon name="delete" className="text-[14px]" /></button>
             </div>
@@ -231,21 +234,21 @@ function VariantsSection({ product, onRefresh }: { product: Product; onRefresh: 
         {adding ? (
           <div className="flex flex-col gap-1">
             <div className="flex gap-1">
-              <input placeholder="الاسم" value={newName} onChange={(e) => setNewName(e.target.value)}
+               <input placeholder={t("الاسم", "Name")} aria-label={t("اسم الحجم", "Variant name")} value={newName} onChange={(e) => setNewName(e.target.value)}
                 className="flex-1 rounded-button border border-outline-variant px-2 py-1 font-body-md text-[12px] text-on-surface outline-none focus:border-primary" />
-              <input type="number" placeholder="+سعر" value={newDelta} onChange={(e) => setNewDelta(e.target.value)}
+               <input type="number" placeholder={t("+سعر", "+Price")} aria-label={t("السعر الإضافي", "Additional price")} value={newDelta} onChange={(e) => setNewDelta(e.target.value)}
                 className="w-20 rounded-button border border-outline-variant px-2 py-1 font-body-md text-[12px] text-on-surface outline-none focus:border-primary" />
             </div>
             {err && <p className="font-label-md text-[10px] text-error">{err}</p>}
             <div className="flex gap-1">
-              <button type="button" onClick={addVariant} className="rounded-button bg-primary px-2 py-0.5 font-label-md text-[11px] text-on-primary">إضافة</button>
-              <button type="button" onClick={() => setAdding(false)} className="rounded-button bg-surface-container px-2 py-0.5 font-label-md text-[11px] text-on-surface">إلغاء</button>
+               <button type="button" onClick={addVariant} className="rounded-button bg-primary px-2 py-0.5 font-label-md text-[11px] text-on-primary">{t("إضافة", "Add")}</button>
+               <button type="button" onClick={() => setAdding(false)} className="rounded-button bg-surface-container px-2 py-0.5 font-label-md text-[11px] text-on-surface">{t("إلغاء", "Cancel")}</button>
             </div>
           </div>
         ) : (
           <button type="button" onClick={() => setAdding(true)}
             className="flex items-center gap-1 font-label-md text-[11px] text-secondary hover:underline">
-            <Icon name="add" className="text-[12px]" /> إضافة حجم
+             <Icon name="add" className="text-[12px]" /> {t("إضافة حجم", "Add variant")}
           </button>
         )}
       </div>
@@ -254,29 +257,30 @@ function VariantsSection({ product, onRefresh }: { product: Product; onRefresh: 
 }
 
 function AddonsSection({ product, onRefresh }: { product: Product; onRefresh: () => void }) {
+  const { t, locale } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("0");
   const [err, setErr] = useState("");
 
   async function addAddon() {
-    if (!newName.trim()) { setErr("الاسم مطلوب"); return; }
+    if (!newName.trim()) { setErr(t("الاسم مطلوب", "Name is required")); return; }
     try {
       await apiPost(`/api/partner/products/${product.id}/addons`, { name: newName, price: parseFloat(newPrice) || 0 });
       setNewName(""); setNewPrice("0"); setAdding(false); onRefresh();
-    } catch (e) { setErr(e instanceof Error ? e.message : "خطأ"); }
+    } catch (e) { setErr(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
   }
 
   return (
     <div>
-      <p className="mb-1 font-label-md text-label-md text-on-surface-variant">الإضافات</p>
+       <p className="mb-1 font-label-md text-label-md text-on-surface-variant">{t("الإضافات", "Add-ons")}</p>
       <div className="flex flex-col gap-1">
         {product.addons.map((a) => (
           <div key={a.id} className="flex items-center justify-between rounded-button bg-surface-container-low px-2 py-1">
             <span className="font-label-md text-label-md text-on-surface">{a.name}</span>
             <div className="flex items-center gap-2">
-              {Number(a.price) > 0 && <span className="font-label-md text-[11px] text-secondary">+{EGP(a.price)}</span>}
-              {!a.isAvailable && <Badge tone="danger">غير متاح</Badge>}
+               {Number(a.price) > 0 && <span className="font-label-md text-[11px] text-secondary">+{formatCurrency(a.price, locale)}</span>}
+               {!a.isAvailable && <Badge tone="danger">{t("غير متاح", "Unavailable")}</Badge>}
               <button type="button" onClick={() => apiDelete(`/api/partner/addons/${a.id}`).then(onRefresh)}
                 className="text-error hover:opacity-70"><Icon name="delete" className="text-[14px]" /></button>
             </div>
@@ -285,21 +289,21 @@ function AddonsSection({ product, onRefresh }: { product: Product; onRefresh: ()
         {adding ? (
           <div className="flex flex-col gap-1">
             <div className="flex gap-1">
-              <input placeholder="الاسم" value={newName} onChange={(e) => setNewName(e.target.value)}
+               <input placeholder={t("الاسم", "Name")} aria-label={t("اسم الإضافة", "Add-on name")} value={newName} onChange={(e) => setNewName(e.target.value)}
                 className="flex-1 rounded-button border border-outline-variant px-2 py-1 font-body-md text-[12px] text-on-surface outline-none focus:border-primary" />
-              <input type="number" placeholder="سعر" value={newPrice} onChange={(e) => setNewPrice(e.target.value)}
+               <input type="number" placeholder={t("سعر", "Price")} aria-label={t("سعر الإضافة", "Add-on price")} value={newPrice} onChange={(e) => setNewPrice(e.target.value)}
                 className="w-20 rounded-button border border-outline-variant px-2 py-1 font-body-md text-[12px] text-on-surface outline-none focus:border-primary" />
             </div>
             {err && <p className="font-label-md text-[10px] text-error">{err}</p>}
             <div className="flex gap-1">
-              <button type="button" onClick={addAddon} className="rounded-button bg-primary px-2 py-0.5 font-label-md text-[11px] text-on-primary">إضافة</button>
-              <button type="button" onClick={() => setAdding(false)} className="rounded-button bg-surface-container px-2 py-0.5 font-label-md text-[11px] text-on-surface">إلغاء</button>
+               <button type="button" onClick={addAddon} className="rounded-button bg-primary px-2 py-0.5 font-label-md text-[11px] text-on-primary">{t("إضافة", "Add")}</button>
+               <button type="button" onClick={() => setAdding(false)} className="rounded-button bg-surface-container px-2 py-0.5 font-label-md text-[11px] text-on-surface">{t("إلغاء", "Cancel")}</button>
             </div>
           </div>
         ) : (
           <button type="button" onClick={() => setAdding(true)}
             className="flex items-center gap-1 font-label-md text-[11px] text-secondary hover:underline">
-            <Icon name="add" className="text-[12px]" /> إضافة إضافة
+             <Icon name="add" className="text-[12px]" /> {t("إضافة إضافة", "Add add-on")}
           </button>
         )}
       </div>
@@ -310,6 +314,8 @@ function AddonsSection({ product, onRefresh }: { product: Product; onRefresh: ()
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 function PartnerMenu() {
+  const { t, locale } = useTranslation();
+  const partnerNav = usePartnerNav();
   const [menu, setMenu] = useState<MenuData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -320,40 +326,42 @@ function PartnerMenu() {
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
 
   async function loadMenu() {
-    setLoading(true);
+    const initialLoad = menu === null;
+    if (initialLoad) setLoading(true);
+    setError("");
     try {
       const r = await fetch("/api/partner/menu", { headers: authHeaders() });
-      if (!r.ok) throw new Error("فشل تحميل المنيو");
+      if (!r.ok) throw new Error(t("فشل تحميل المنيو", "Failed to load menu"));
       const d = await r.json() as MenuData;
       setMenu(d);
-    } catch (e) { setError(e instanceof Error ? e.message : "خطأ"); }
-    finally { setLoading(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
+    finally { if (initialLoad) setLoading(false); }
   }
 
-  useEffect(() => { loadMenu(); }, []);
+  useEffect(() => { void loadMenu(); }, [locale]);
 
   const cats = menu?.categories ?? [];
   const allProducts = menu?.products ?? [];
   const filtered = activeCat === null ? allProducts : allProducts.filter((p) => p.categoryId === activeCat);
-  const catName = (id: number | null) => id === null ? "الكل" : (cats.find((c) => c.id === id)?.name ?? "غير مصنف");
+  const catName = (id: number | null) => id === null ? t("الكل", "All") : (cats.find((c) => c.id === id)?.name ?? t("غير مصنف", "Uncategorized"));
 
   async function handleToggleAvailability(p: Product) {
     try {
       await apiPatch(`/api/partner/products/${p.id}/availability`, { isAvailable: !p.isAvailable });
       await loadMenu();
-    } catch (e) { setError(e instanceof Error ? e.message : "خطأ"); }
+    } catch (e) { setError(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
   }
 
   async function handleDeleteProduct(p: Product) {
-    if (!confirm(`حذف "${p.name}"؟ لا يمكن التراجع.`)) return;
+    if (!confirm(t(`حذف "${p.name}"؟ لا يمكن التراجع.`, `Delete "${p.name}"? This cannot be undone.`))) return;
     try { await apiDelete(`/api/partner/products/${p.id}`); await loadMenu(); }
-    catch (e) { setError(e instanceof Error ? e.message : "خطأ"); }
+    catch (e) { setError(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
   }
 
   async function handleDeleteCategory(c: Category) {
-    if (!confirm(`حذف قسم "${c.name}"؟`)) return;
+    if (!confirm(t(`حذف قسم "${c.name}"؟`, `Delete category "${c.name}"?`))) return;
     try { await apiDelete(`/api/partner/categories/${c.id}`); await loadMenu(); }
-    catch (e) { setError(e instanceof Error ? e.message : "خطأ"); }
+    catch (e) { setError(e instanceof Error ? e.message : t("خطأ", "Something went wrong")); }
   }
 
   async function handleAddCategory(name: string, desc: string) {
@@ -373,33 +381,33 @@ function PartnerMenu() {
   }
 
   if (loading) return (
-    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم" nav={partnerNav} title="المنيو">
+    <DashboardShell brand={t("طلبات بيتك", "Talabat Betak")} role={t("صاحب مطعم", "Restaurant owner")} nav={partnerNav} title={t("المنيو", "Menu")}>
       <div className="flex h-40 items-center justify-center text-on-surface-variant">
         <Icon name="hourglass_empty" className="animate-spin text-[32px]" />
       </div>
     </DashboardShell>
   );
 
-  if (error) return (
-    <DashboardShell brand="طلبات بيتك" role="صاحب مطعم" nav={partnerNav} title="المنيو">
+  if (error && !menu) return (
+    <DashboardShell brand={t("طلبات بيتك", "Talabat Betak")} role={t("صاحب مطعم", "Restaurant owner")} nav={partnerNav} title={t("المنيو", "Menu")}>
       <div className="flex flex-col items-center gap-md py-xl text-center">
         <Icon name="error" className="text-[40px] text-error" />
         <p className="font-body-md text-body-md text-on-surface-variant">{error}</p>
-        <Button onClick={loadMenu}>إعادة المحاولة</Button>
+        <Button onClick={loadMenu}>{t("إعادة المحاولة", "Try again")}</Button>
       </div>
     </DashboardShell>
   );
 
   return (
     <DashboardShell
-      brand="طلبات بيتك"
-      role="صاحب مطعم"
+      brand={t("طلبات بيتك", "Talabat Betak")}
+      role={t("صاحب مطعم", "Restaurant owner")}
       nav={partnerNav}
-      title="المنيو"
+      title={t("المنيو", "Menu")}
       actions={
         <div className="flex gap-2">
-          <Button icon="category" variant="outline" onClick={() => setShowAddCat(true)}>قسم جديد</Button>
-          <Button icon="add" onClick={() => setAddProduct(true)}>منتج جديد</Button>
+          <Button icon="category" variant="outline" onClick={() => setShowAddCat(true)}>{t("قسم جديد", "New category")}</Button>
+          <Button icon="add" onClick={() => setAddProduct(true)}>{t("منتج جديد", "New product")}</Button>
         </div>
       }
     >
@@ -407,13 +415,14 @@ function PartnerMenu() {
       {showAddCat && <AddCategoryModal onSave={handleAddCategory} onClose={() => setShowAddCat(false)} />}
       {addProduct && <ProductModal categories={cats} onSave={handleAddProduct} onClose={() => setAddProduct(false)} />}
       {editProduct && <ProductModal categories={cats} product={editProduct} onSave={handleEditProduct} onClose={() => setEditProduct(null)} />}
+      {error ? <p role="alert" className="font-label-md text-label-md text-error">{error}</p> : null}
 
       <div className="flex flex-col gap-lg">
         {/* Category tabs */}
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setActiveCat(null)}
             className={`rounded-button px-3 py-1.5 font-label-md text-label-md transition ${activeCat === null ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}>
-            الكل ({allProducts.length})
+            {t("الكل", "All")} ({formatNumber(allProducts.length, locale)})
           </button>
           {cats.map((c) => (
             <div key={c.id} className="flex items-center gap-1">
@@ -425,14 +434,14 @@ function PartnerMenu() {
                 className="text-on-surface-variant hover:text-error"><Icon name="close" className="text-[14px]" /></button>
             </div>
           ))}
-          <Badge tone="info" className="ml-auto">المنتجات مشتركة بين جميع الفروع</Badge>
+          <Badge tone="info" className="ml-auto">{t("المنتجات مشتركة بين جميع الفروع", "Products are shared across all branches")}</Badge>
         </div>
 
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-md rounded-card border border-dashed border-outline-variant py-xl text-center">
             <Icon name="restaurant_menu" className="text-[48px] text-outline" />
-            <p className="font-body-md text-body-md text-on-surface-variant">لا توجد منتجات{activeCat !== null ? ` في قسم "${catName(activeCat)}"` : ""}</p>
-            <Button icon="add" onClick={() => setAddProduct(true)}>أضف أول منتج</Button>
+            <p className="font-body-md text-body-md text-on-surface-variant">{activeCat !== null ? t(`لا توجد منتجات في قسم "${catName(activeCat)}"`, `No products in "${catName(activeCat)}"`) : t("لا توجد منتجات", "No products yet")}</p>
+            <Button icon="add" onClick={() => setAddProduct(true)}>{t("أضف أول منتج", "Add your first product")}</Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-md lg:grid-cols-2 xl:grid-cols-3">
@@ -456,15 +465,15 @@ function PartnerMenu() {
                         <p className="font-label-lg text-label-lg text-on-surface">{p.name}</p>
                         {p.description && <p className="mt-0.5 line-clamp-1 font-body-md text-[12px] text-on-surface-variant">{p.description}</p>}
                       </div>
-                      <p className="shrink-0 font-headline-md text-headline-md text-primary">{EGP(p.basePrice)}</p>
+                    <p className="shrink-0 font-headline-md text-headline-md text-primary">{formatCurrency(p.basePrice, locale)}</p>
                     </div>
 
                     {/* Category + availability row */}
                     <div className="flex flex-wrap items-center gap-1.5">
                       {p.categoryId !== null && <Badge tone="neutral">{catName(p.categoryId)}</Badge>}
-                      <Badge tone={p.isAvailable ? "success" : "danger"}>{p.isAvailable ? "متاح" : "غير متاح"}</Badge>
-                      {p.variants.length > 0 && <Badge tone="info">{p.variants.length} حجم</Badge>}
-                      {p.addons.length > 0 && <Badge tone="info">{p.addons.length} إضافة</Badge>}
+                      <Badge tone={p.isAvailable ? "success" : "danger"}>{p.isAvailable ? t("متاح", "Available") : t("غير متاح", "Unavailable")}</Badge>
+                      {p.variants.length > 0 && <Badge tone="info">{t(`${p.variants.length} حجم`, `${p.variants.length} variants`)}</Badge>}
+                      {p.addons.length > 0 && <Badge tone="info">{t(`${p.addons.length} إضافة`, `${p.addons.length} add-ons`)}</Badge>}
                     </div>
 
                     {/* Action row */}
@@ -472,20 +481,20 @@ function PartnerMenu() {
                       <button type="button" onClick={() => handleToggleAvailability(p)}
                         className="flex items-center gap-1 rounded-button bg-surface-container px-2 py-1 font-label-md text-[11px] text-on-surface transition hover:bg-surface-container-high">
                         <Icon name={p.isAvailable ? "visibility_off" : "visibility"} className="text-[14px]" />
-                        {p.isAvailable ? "إخفاء" : "إظهار"}
+                        {p.isAvailable ? t("إخفاء", "Hide") : t("إظهار", "Show")}
                       </button>
                       <button type="button" onClick={() => setEditProduct(p)}
                         className="flex items-center gap-1 rounded-button bg-secondary-container px-2 py-1 font-label-md text-[11px] text-on-secondary-container transition hover:opacity-80">
-                        <Icon name="edit" className="text-[14px]" /> تعديل
+                        <Icon name="edit" className="text-[14px]" /> {t("تعديل", "Edit")}
                       </button>
                       <button type="button" onClick={() => setExpandedProduct(expanded ? null : p.id)}
                         className="flex items-center gap-1 rounded-button bg-surface-container px-2 py-1 font-label-md text-[11px] text-on-surface transition hover:bg-surface-container-high">
                         <Icon name={expanded ? "expand_less" : "tune"} className="text-[14px]" />
-                        {expanded ? "إغلاق" : "أحجام / إضافات"}
+                        {expanded ? t("إغلاق", "Close") : t("أحجام / إضافات", "Variants / add-ons")}
                       </button>
                       <button type="button" onClick={() => handleDeleteProduct(p)}
                         className="mr-auto flex size-7 items-center justify-center rounded-full text-on-surface-variant hover:bg-error-container hover:text-error">
-                        <Icon name="delete" className="text-[16px]" />
+                        <Icon name="delete" className="text-[16px]" /><span className="sr-only">{t("حذف المنتج", "Delete product")}</span>
                       </button>
                     </div>
 

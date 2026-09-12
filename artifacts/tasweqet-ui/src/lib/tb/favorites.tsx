@@ -1,6 +1,8 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useState, useEffect, useCallback, type MouseEvent } from "react";
 import { Icon } from "@/components/tb/shell";
 import { getToken } from "@/lib/auth-session";
+import { useTranslation } from "@/lib/i18n";
 
 export type FavTarget = "restaurant" | "product";
 
@@ -154,6 +156,7 @@ export function FavButton({
   className?: string;
 }) {
   const { isFav, toggle } = useFavoriteIds();
+  const { t } = useTranslation();
   const fav = isFav(targetType, targetId);
 
   function onClick(e: MouseEvent) {
@@ -168,7 +171,7 @@ export function FavButton({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(e as unknown as MouseEvent); }}
-      aria-label={fav ? "إزالة من المفضلة" : "أضف للمفضلة"}
+      aria-label={fav ? t("إزالة من المفضلة", "Remove from favorites") : t("أضف للمفضلة", "Add to favorites")}
       className={`flex size-8 cursor-pointer items-center justify-center rounded-full bg-surface-container-lowest/90 transition active:scale-90 ${fav ? "text-error" : "text-on-surface-variant"} ${className}`}
     >
       <Icon name="favorite" className="text-[18px]" filled={fav} />

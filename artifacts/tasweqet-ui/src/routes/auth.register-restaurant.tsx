@@ -1,8 +1,10 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useRef, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Badge, Button, Icon, MapCanvas, StatusBadge } from "@/components/tb/shell";
 import { categories } from "@/lib/tb/data";
 import { getSession, getRoleDashboard, getToken } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 function storageUrl(objectPath: string): string {
   const token = getToken();
@@ -17,24 +19,24 @@ export const Route = createFileRoute("/auth/register-restaurant")({
   },
   head: () => ({
     meta: [
-      { title: "تسجيل مطعم جديد | طلبات بيتك" },
-      { name: "description", content: "سجّل مطعمك وابدأ البيع على منصة طلبات بيتك." },
+      { title: translate("تسجيل مطعم جديد | طلبات بيتك", "Register a restaurant | Talabat Betak") },
+      { name: "description", content: translate("سجّل مطعمك وابدأ البيع على منصة طلبات بيتك.", "Register your restaurant and start selling on Talabat Betak.") },
     ],
   }),
   component: AuthRegisterRestaurant,
 });
 
 const steps = ["PENDING", "UNDER_REVIEW", "APPROVED", "ACTIVE"];
-const stepLabels: Record<string, string> = {
-  PENDING: "قيد الإرسال",
-  UNDER_REVIEW: "قيد المراجعة",
-  APPROVED: "تمت الموافقة",
-  ACTIVE: "نشط",
+const stepLabels: Record<string, [string, string]> = {
+  PENDING: ["قيد الإرسال", "Submitted"],
+  UNDER_REVIEW: ["قيد المراجعة", "Under review"],
+  APPROVED: ["تمت الموافقة", "Approved"],
+  ACTIVE: ["نشط", "Active"],
 };
 
 const deliveryOptions = [
-  { value: "restaurant", label: "توصيل المطعم", desc: "أنت مسؤول عن التوصيل" },
-  { value: "platform", label: "توصيل طلبات بيتك", desc: "مناديبنا بيوصّلوا عنك" },
+  { value: "restaurant", ar: "توصيل المطعم", en: "Restaurant delivery", descAr: "أنت مسؤول عن التوصيل", descEn: "You handle delivery" },
+  { value: "platform", ar: "توصيل طلبات بيتك", en: "Talabat Betak delivery", descAr: "مناديبنا بيوصّلوا عنك", descEn: "Our drivers deliver for you" },
 ];
 
 /** Upload a file to object storage via the server proxy. Returns objectPath or throws. */
@@ -51,7 +53,7 @@ async function uploadFileToStorage(file: File): Promise<string> {
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "فشل رفع الملف إلى التخزين");
+    throw new Error(data?.error ?? translate("فشل رفع الملف إلى التخزين", "Failed to upload the file to storage"));
   }
   const { objectPath } = (await res.json()) as { objectPath: string };
   return objectPath;
@@ -73,6 +75,7 @@ function ImageUploadSlot({
   previewClass?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useTranslation();
   return (
     <label
       className="relative flex flex-col items-center justify-center gap-1.5 rounded-card border-2 border-dashed border-outline-variant cursor-pointer hover:border-secondary transition overflow-hidden"
@@ -88,13 +91,13 @@ function ImageUploadSlot({
           />
           <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-1">
             <Icon name="refresh" className="text-[20px] text-white" />
-            <span className="font-label-md text-label-md text-white">تغيير</span>
+            <span className="font-label-md text-label-md text-white">{t("تغيير", "Change")}</span>
           </div>
         </>
       ) : uploading ? (
         <>
           <Icon name="hourglass_empty" className="text-[24px] text-primary animate-spin" />
-          <span className="font-label-md text-label-md text-on-surface-variant">جاري الرفع...</span>
+          <span className="font-label-md text-label-md text-on-surface-variant">{t("جاري الرفع...", "Uploading...")}</span>
         </>
       ) : (
         <>
@@ -138,6 +141,7 @@ function Field({ label, placeholder, value, onChange, onClear, type = "text", ic
 }
 
 function AuthRegisterRestaurant() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const session = getSession();
 
@@ -173,12 +177,12 @@ function AuthRegisterRestaurant() {
   ) {
     // Client-side pre-checks (belt-and-suspenders before hitting the server)
     if (file.size > 10_000_000) {
-      setError("حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت");
+      setError(t("حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت", "File is too large — maximum size is 10 MB"));
       return;
     }
     const mime = file.type || "application/octet-stream";
     if (!mime.startsWith("image/")) {
-      setError("نوع الملف غير مقبول — يُسمح فقط بالصور (JPG، PNG، …)");
+      setError(t("نوع الملف غير مقبول — يُسمح فقط بالصور (JPG، PNG، …)", "Unsupported file type — only images (JPG, PNG, …) are allowed"));
       return;
     }
 
@@ -188,16 +192,16 @@ function AuthRegisterRestaurant() {
       const objectPath = await uploadFileToStorage(file);
       setUrl(objectPath);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل رفع الصورة");
+      setError(err instanceof Error ? err.message : t("فشل رفع الصورة", "Image upload failed"));
     } finally {
       setUploading(false);
     }
   }
 
   async function handleSubmit() {
-    if (!ownerName.trim()) { setError("من فضلك أدخل اسم المالك"); return; }
-    if (!restaurantName.trim()) { setError("من فضلك أدخل اسم المطعم"); return; }
-    if (!address.trim()) { setError("من فضلك أدخل عنوان المطعم"); return; }
+    if (!ownerName.trim()) { setError(t("من فضلك أدخل اسم المالك", "Please enter the owner's name")); return; }
+    if (!restaurantName.trim()) { setError(t("من فضلك أدخل اسم المطعم", "Please enter the restaurant name")); return; }
+    if (!address.trim()) { setError(t("من فضلك أدخل عنوان المطعم", "Please enter the restaurant address")); return; }
     setSubmitting(true);
     setError("");
     try {
@@ -224,13 +228,13 @@ function AuthRegisterRestaurant() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? "حدث خطأ أثناء الإرسال، حاول مرة أخرى");
+        setError(data?.error ?? t("حدث خطأ أثناء الإرسال، حاول مرة أخرى", "An error occurred while submitting. Please try again."));
         setSubmitting(false);
         return;
       }
       navigate({ to: "/auth/pending" });
     } catch {
-      setError("تعذر الاتصال بالخادم، حاول مرة أخرى");
+      setError(t("تعذر الاتصال بالخادم، حاول مرة أخرى", "Unable to connect to the server. Please try again."));
       setSubmitting(false);
     }
   }
@@ -239,33 +243,33 @@ function AuthRegisterRestaurant() {
   const clearError = () => setError("");
 
   return (
-    <AuthShell title="تسجيل مطعم جديد" subtitle="ابدأ البيع على طلبات بيتك خطوة بخطوة" back="/auth/register">
+    <AuthShell title={t("تسجيل مطعم جديد", "Register a restaurant")} subtitle={t("ابدأ البيع على طلبات بيتك خطوة بخطوة", "Start selling on Talabat Betak, step by step")} back="/auth/register">
 
       {/* Account info banner */}
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
         <Icon name="phone" className="text-[18px] text-on-secondary-container" />
         <p className="font-label-md text-label-md text-on-secondary-container">
-          الحساب مرتبط بـ{" "}
+          {t("الحساب مرتبط بـ", "Account linked to")}{" "}
           <span className="font-label-lg" dir="ltr">+20{session?.user.phone}</span>
         </p>
       </div>
 
       {/* Owner info */}
-      <p className="font-label-lg text-label-lg text-on-surface">بيانات المالك</p>
-      <Field label="اسم المالك" placeholder="هاني رمضان" value={ownerName} onChange={setOwnerName} icon="person" onClear={clearError} />
-      <Field label="البريد الإلكتروني (اختياري)" placeholder="owner@restaurant.eg" value={email} onChange={setEmail} type="email" icon="mail" onClear={clearError} />
+      <p className="font-label-lg text-label-lg text-on-surface">{t("بيانات المالك", "Owner information")}</p>
+      <Field label={t("اسم المالك", "Owner name")} placeholder={t("هاني رمضان", "Hany Ramadan")} value={ownerName} onChange={setOwnerName} icon="person" onClear={clearError} />
+      <Field label={t("البريد الإلكتروني (اختياري)", "Email (optional)")} placeholder="owner@restaurant.eg" value={email} onChange={setEmail} type="email" icon="mail" onClear={clearError} />
 
       <hr className="border-outline-variant" />
 
       {/* Restaurant info */}
-      <p className="font-label-lg text-label-lg text-on-surface">بيانات المطعم</p>
-      <Field label="اسم المطعم" placeholder="برجر هاوس" value={restaurantName} onChange={setRestaurantName} icon="storefront" onClear={clearError} />
+      <p className="font-label-lg text-label-lg text-on-surface">{t("بيانات المطعم", "Restaurant information")}</p>
+      <Field label={t("اسم المطعم", "Restaurant name")} placeholder={t("برجر هاوس", "Burger House")} value={restaurantName} onChange={setRestaurantName} icon="storefront" onClear={clearError} />
 
       <label className="flex flex-col gap-1.5">
         <span className="font-label-lg text-label-lg text-on-surface-variant">الوصف (اختياري)</span>
         <textarea
           rows={2}
-          placeholder="وصف قصير عن مطعمك"
+          placeholder={t("وصف قصير عن مطعمك", "A short description of your restaurant")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="w-full rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 font-body-md text-body-md text-on-surface outline-none placeholder:text-outline focus:border-secondary"
@@ -274,7 +278,7 @@ function AuthRegisterRestaurant() {
 
       {/* Categories */}
       <div className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">التصنيفات</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("التصنيفات", "Categories")}</span>
         <div className="flex flex-wrap gap-2">
           {categories.slice(0, 8).map((c) => {
             const selected = selectedCategories.includes(c.id);
@@ -290,22 +294,22 @@ function AuthRegisterRestaurant() {
                 }`}
               >
                 <Icon name={c.icon} className="text-[14px]" />
-                {c.name}
+                {translate(c.name, ({ burger: "Burgers", pizza: "Pizza", grill: "Grills", seafood: "Seafood", dessert: "Desserts", drinks: "Drinks", koshary: "Koshary", breakfast: "Breakfast" } as Record<string, string>)[c.id] ?? c.name)}
               </button>
             );
           })}
         </div>
       </div>
 
-      <Field label="هاتف المطعم" placeholder="0100 123 4567" value={phone} onChange={setPhone} type="tel" icon="call" onClear={clearError} />
-      <Field label="العنوان" placeholder="شارع 9، المعادي، القاهرة" value={address} onChange={setAddress} icon="place" onClear={clearError} />
+      <Field label={t("هاتف المطعم", "Restaurant phone")} placeholder="0100 123 4567" value={phone} onChange={setPhone} type="tel" icon="call" onClear={clearError} />
+      <Field label={t("العنوان", "Address")} placeholder={t("شارع 9، المعادي، القاهرة", "Street 9, Maadi, Cairo")} value={address} onChange={setAddress} icon="place" onClear={clearError} />
       <MapCanvas height="h-40" />
-      <Field label="عدد الفروع" placeholder="1" value={branches} onChange={setBranches} type="number" icon="store" onClear={clearError} />
-      <Field label="مواعيد العمل" placeholder="10:00 ص — 2:00 ص" value={hours} onChange={setHours} icon="schedule" onClear={clearError} />
+      <Field label={t("عدد الفروع", "Number of branches")} placeholder="1" value={branches} onChange={setBranches} type="number" icon="store" onClear={clearError} />
+      <Field label={t("مواعيد العمل", "Opening hours")} placeholder={t("10:00 ص — 2:00 ص", "10:00 AM — 2:00 AM")} value={hours} onChange={setHours} icon="schedule" onClear={clearError} />
 
       {/* Delivery type */}
       <div className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">نوع التوصيل</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("نوع التوصيل", "Delivery type")}</span>
         <div className="grid grid-cols-2 gap-2">
           {deliveryOptions.map((opt) => (
             <button
@@ -319,9 +323,9 @@ function AuthRegisterRestaurant() {
               }`}
             >
               <span className={`font-label-lg text-label-lg ${delivery === opt.value ? "text-on-secondary-container" : "text-on-surface"}`}>
-                {opt.label}
+                 {t(opt.ar, opt.en)}
               </span>
-              <span className="font-label-md text-label-md text-on-surface-variant">{opt.desc}</span>
+              <span className="font-label-md text-label-md text-on-surface-variant">{t(opt.descAr, opt.descEn)}</span>
             </button>
           ))}
         </div>
@@ -329,17 +333,17 @@ function AuthRegisterRestaurant() {
 
       {/* Logo / cover upload slots */}
       <div className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">صور المطعم</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("صور المطعم", "Restaurant images")}</span>
         <div className="grid grid-cols-2 gap-2">
           <ImageUploadSlot
-            label="شعار المطعم"
+            label={t("شعار المطعم", "Restaurant logo")}
             icon="add_photo_alternate"
             objectPath={logoUrl}
             uploading={logoUploading}
             onFile={(f) => handleImageUpload(f, setLogoUrl, setLogoUploading)}
           />
           <ImageUploadSlot
-            label="صورة الغلاف"
+            label={t("صورة الغلاف", "Cover image")}
             icon="image"
             objectPath={coverUrl}
             uploading={coverUploading}
@@ -347,18 +351,18 @@ function AuthRegisterRestaurant() {
             previewClass="object-cover"
           />
         </div>
-        <p className="font-label-md text-label-md text-on-surface-variant">اختياري — يساعد على تمييز مطعمك للعملاء</p>
+        <p className="font-label-md text-label-md text-on-surface-variant">{t("اختياري — يساعد على تمييز مطعمك للعملاء", "Optional — helps customers recognize your restaurant")}</p>
       </div>
 
       {/* No KYC badge */}
       <div className="flex items-center gap-2 rounded-card bg-success/10 p-md">
         <Icon name="verified_user" className="text-[18px] text-success" />
-        <p className="font-label-md text-label-md text-success">لا نطلب مستندات KYC للمطاعم — بيانات فقط</p>
+        <p className="font-label-md text-label-md text-success">{t("لا نطلب مستندات KYC للمطاعم — بيانات فقط", "Restaurants do not need KYC documents — information only")}</p>
       </div>
 
       {/* Review steps */}
       <div>
-        <p className="mb-2 font-label-lg text-label-lg text-on-surface">مسار التوثيق</p>
+        <p className="mb-2 font-label-lg text-label-lg text-on-surface">{t("مسار التوثيق", "Verification process")}</p>
         <div className="flex items-center gap-1">
           {steps.map((s, i) => (
             <div key={s} className="flex flex-1 items-center gap-1">
@@ -366,14 +370,14 @@ function AuthRegisterRestaurant() {
                 <span className={`flex size-7 items-center justify-center rounded-full font-label-md text-[11px] ${i === 0 ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant"}`}>
                   {i + 1}
                 </span>
-                <span className="text-center font-label-md text-[10px] text-on-surface-variant">{stepLabels[s]}</span>
+                <span className="text-center font-label-md text-[10px] text-on-surface-variant">{t(...stepLabels[s])}</span>
               </div>
               {i < steps.length - 1 && <span className="mb-4 h-0.5 flex-1 bg-outline-variant" />}
             </div>
           ))}
         </div>
         <div className="mt-2">
-          <StatusBadge status="PENDING" label="الحالة الحالية: قيد الإرسال" />
+          <StatusBadge status="PENDING" label={t("الحالة الحالية: قيد الإرسال", "Current status: Submitted")} />
         </div>
       </div>
 
@@ -385,7 +389,7 @@ function AuthRegisterRestaurant() {
       )}
 
       <Button className="w-full" icon="send" onClick={handleSubmit} disabled={submitting || anyUploading}>
-        {submitting ? "جاري الإرسال..." : "إرسال للتوثيق"}
+        {submitting ? t("جاري الإرسال...", "Submitting...") : t("إرسال للتوثيق", "Submit for verification")}
       </Button>
 
     </AuthShell>

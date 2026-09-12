@@ -20,11 +20,13 @@ import {
   normalizeEgyptianMobile,
   otpRequestData,
 } from '@/lib/login-behavior';
+import { useLocale } from '@/ctx/LocaleContext';
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
+  const { t, direction, toggleLocale } = useLocale();
   
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
@@ -43,7 +45,7 @@ export default function LoginScreen() {
     setRequestLocked(true);
     const canonicalPhone = normalizeEgyptianMobile(phone);
     if (!canonicalPhone) {
-      setError('أدخل رقم موبايل مصري صحيح');
+      setError(t('login.invalidPhone'));
       requestLock.current = false;
       setRequestLocked(false);
       return;
@@ -57,7 +59,7 @@ export default function LoginScreen() {
       });
       setStep('otp');
     } catch (err: unknown) {
-      setError(loginErrorMessage(err, 'تعذر إرسال كود التحقق، حاول مرة أخرى'));
+      setError(loginErrorMessage(err, t('login.requestError')));
       requestLock.current = false;
       setRequestLocked(false);
     }
@@ -67,7 +69,7 @@ export default function LoginScreen() {
     if (!acquireSubmissionLock(verifyLock)) return;
     setVerifyLocked(true);
     if (!/^\d{6}$/.test(otp)) {
-      setError('أدخل كود التحقق المكوّن من 6 أرقام');
+      setError(t('login.invalidOtp'));
       verifyLock.current = false;
       setVerifyLocked(false);
       return;
@@ -85,7 +87,7 @@ export default function LoginScreen() {
       });
       await login(session);
     } catch (err: unknown) {
-      setError(loginErrorMessage(err, 'تعذر التحقق من الكود، حاول مرة أخرى'));
+      setError(loginErrorMessage(err, t('login.verifyError')));
       verifyLock.current = false;
       setVerifyLocked(false);
     }
@@ -106,21 +108,37 @@ export default function LoginScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20, direction }]}>
+        <TouchableOpacity
+          style={[styles.languageButton, { borderColor: colors.border, backgroundColor: colors.card }]}
+          onPress={() => { void toggleLocale(); }}
+          accessibilityRole="button"
+          accessibilityLabel={t('profile.switchHint')}
+          testID="login-language-toggle"
+        >
+          <Text style={[styles.languageText, { color: colors.foreground }]}>{t('login.language')}</Text>
+        </TouchableOpacity>
         <View style={styles.header}>
           <Image 
             source={require('@/assets/images/icon.png')} 
             style={styles.logo} 
             resizeMode="contain"
           />
-          <Text style={[styles.title, { color: colors.foreground }]}>Talabat Betak Driver</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{t('login.title')}</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            {step === 'phone' ? 'Enter your phone number to sign in' : 'Enter the 6-digit code sent to your phone'}
+            {step === 'phone' ? t('login.enterPhone') : t('login.enterOtp')}
           </Text>
         </View>
 
         <View style={styles.form}>
-          {error ? <Text style={[styles.error, { color: colors.destructive }]}>{error}</Text> : null}
+          {error ? (
+            <Text
+              style={[styles.error, { color: colors.destructive }]}
+              accessibilityRole="alert"
+            >
+              {error}
+            </Text>
+          ) : null}
           
           {step === 'phone' ? (
             <>
@@ -132,6 +150,7 @@ export default function LoginScreen() {
                     borderColor: colors.border,
                     color: colors.foreground,
                     borderRadius: colors.radius,
+                    writingDirection: 'ltr',
                   },
                 ]}
                 placeholder="01012345678"
@@ -139,7 +158,9 @@ export default function LoginScreen() {
                 keyboardType="phone-pad"
                 value={phone}
                 onChangeText={setPhone}
+                textAlign="left"
                 editable={!requestLocked && !requestOtp.isPending}
+                accessibilityLabel={t('login.enterPhone')}
                 testID="phone-input"
               />
               <TouchableOpacity
@@ -150,12 +171,14 @@ export default function LoginScreen() {
                 ]}
                 onPress={handleRequestOtp}
                 disabled={requestLocked || requestOtp.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t('login.continue')}
                 testID="request-otp-button"
               >
                 {requestOtp.isPending ? (
                   <ActivityIndicator color={colors.primaryForeground} />
                 ) : (
-                  <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>Continue</Text>
+                  <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>{t('login.continue')}</Text>
                 )}
               </TouchableOpacity>
             </>
@@ -170,6 +193,7 @@ export default function LoginScreen() {
                     color: colors.foreground,
                     borderRadius: colors.radius,
                     textAlign: 'center',
+                    writingDirection: 'ltr',
                     letterSpacing: 8,
                     fontSize: 24,
                   },
@@ -181,6 +205,7 @@ export default function LoginScreen() {
                 value={otp}
                 onChangeText={setOtp}
                 editable={!verifyLocked && !verifyOtp.isPending}
+                accessibilityLabel={t('login.enterOtp')}
                 testID="otp-input"
               />
               <TouchableOpacity
@@ -191,21 +216,25 @@ export default function LoginScreen() {
                 ]}
                 onPress={handleVerifyOtp}
                 disabled={verifyLocked || verifyOtp.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t('login.signIn')}
                 testID="verify-otp-button"
               >
                 {verifyOtp.isPending ? (
                   <ActivityIndicator color={colors.primaryForeground} />
                 ) : (
-                  <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>Sign In</Text>
+                  <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>{t('login.signIn')}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.linkButton, { marginTop: 16 }]}
                 onPress={handleChangePhone}
                 disabled={verifyLocked || verifyOtp.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={t('login.changePhone')}
                 testID="change-phone-button"
               >
-                <Text style={[styles.linkText, { color: colors.foreground }]}>Change phone number</Text>
+                <Text style={[styles.linkText, { color: colors.foreground }]}>{t('login.changePhone')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -223,6 +252,18 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
+  },
+  languageButton: {
+    alignSelf: 'flex-end',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 24,
+  },
+  languageText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
   },
   header: {
     alignItems: 'center',

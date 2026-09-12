@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
+import { Alert, StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useGetActiveDriverOrder, useUpdateDriverOrderStatus, getGetActiveDriverOrderQueryKey, DriverActiveOrder, DriverOrderStatusUpdateStatus } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useLocale } from '@/ctx/LocaleContext';
+import { formatCurrency, statusLabel } from '@/lib/i18n';
 
 export default function DeliveryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t, locale, direction } = useLocale();
   
-  const { data: activeOrder, isLoading, refetch } = useGetActiveDriverOrder({
+  const { data: activeOrder, isLoading, isError: activeOrderError, refetch } = useGetActiveDriverOrder({
     query: {
       refetchInterval: 15000,
       queryKey: getGetActiveDriverOrderQueryKey(),
@@ -44,7 +47,7 @@ export default function DeliveryScreen() {
     } catch (e) {
       setStatusActionLocked(false);
       statusActionLock.current = false;
-      console.error(e);
+      Alert.alert(t('common.error'), t('delivery.updateError'));
       await refetch();
     }
   };
@@ -62,7 +65,7 @@ export default function DeliveryScreen() {
 
   if (isLoading && !activeOrder) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center' }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center', direction }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -70,12 +73,12 @@ export default function DeliveryScreen() {
 
   if (!activeOrder) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, direction }]}>
         <View style={styles.centerContent}>
           <Feather name="check-circle" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-          <Text style={[styles.title, { color: colors.foreground }]}>No Active Delivery</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{activeOrderError ? t('common.error') : t('delivery.noActiveTitle')}</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            You don't have any active deliveries right now. Check the Offers tab for new work.
+            {activeOrderError ? t('common.loadError') : t('delivery.noActiveBody')}
           </Text>
         </View>
       </View>
@@ -88,37 +91,37 @@ export default function DeliveryScreen() {
   const destinationLng = isPickedUp ? order.deliveryLng : order.pickupLng;
   
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, direction }]}>
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Order #{order.code}</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{t('delivery.order', { code: order.code })}</Text>
         <View style={[styles.statusBadge, { backgroundColor: colors.accent }]}>
           <Text style={[styles.statusText, { color: colors.accentForeground }]}>
-            {order.status.replace('_', ' ').toUpperCase()}
+            {statusLabel(locale, order.status)}
           </Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120, direction }]}>
         
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.sectionHeader}>
             <Feather name="map-pin" size={20} color={colors.primary} />
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              {isPickedUp ? 'Deliver To' : 'Pickup From'}
+              {isPickedUp ? t('delivery.deliverTo') : t('delivery.pickupFrom')}
             </Text>
           </View>
           
           <Text style={[styles.locationName, { color: colors.foreground }]}>
-            {isPickedUp ? (order.customerName || 'Customer') : order.restaurantName}
+            {isPickedUp ? (order.customerName || t('delivery.customer')) : order.restaurantName}
           </Text>
           
           <Text style={[styles.addressText, { color: colors.mutedForeground }]}>
-            {isPickedUp ? order.deliveryAddressText : (order.pickupAddressText || 'Restaurant Address')}
+            {isPickedUp ? order.deliveryAddressText : (order.pickupAddressText || t('delivery.restaurantAddress'))}
           </Text>
           
           {isPickedUp && order.notes && (
             <View style={[styles.notesBox, { backgroundColor: colors.accent, borderColor: colors.border }]}>
-              <Text style={[styles.notesLabel, { color: colors.accentForeground }]}>Delivery Notes:</Text>
+              <Text style={[styles.notesLabel, { color: colors.accentForeground }]}>{t('delivery.notes')}</Text>
               <Text style={[styles.notesText, { color: colors.accentForeground }]}>{order.notes}</Text>
             </View>
           )}
@@ -130,18 +133,22 @@ export default function DeliveryScreen() {
                 if (destinationLat != null && destinationLng != null) openMaps(destinationLat, destinationLng);
               }}
               disabled={destinationLat == null || destinationLng == null}
+              accessibilityRole="button"
+              accessibilityLabel={t('delivery.navigate')}
             >
-              <Feather name="navigation" size={20} color={colors.secondaryForeground} />
-              <Text style={[styles.actionBtnText, { color: colors.secondaryForeground }]}>Navigate</Text>
+              <Feather name="navigation" size={20} color={colors.secondaryForeground} style={direction === 'rtl' ? { transform: [{ scaleX: -1 }] } : undefined} />
+              <Text style={[styles.actionBtnText, { color: colors.secondaryForeground }]}>{t('delivery.navigate')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={[styles.actionBtn, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
               onPress={() => openPhone(isPickedUp ? order.customerPhone : undefined)}
               disabled={!isPickedUp || !order.customerPhone}
+              accessibilityRole="button"
+              accessibilityLabel={t('delivery.call')}
             >
               <Feather name="phone" size={20} color={colors.foreground} />
-              <Text style={[styles.actionBtnText, { color: colors.foreground }]}>Call</Text>
+              <Text style={[styles.actionBtnText, { color: colors.foreground }]}>{t('delivery.call')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -149,7 +156,7 @@ export default function DeliveryScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.sectionHeader}>
             <Feather name="shopping-bag" size={20} color={colors.foreground} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Order Details</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('delivery.orderDetails')}</Text>
           </View>
           
           <View style={styles.itemsList}>
@@ -168,9 +175,9 @@ export default function DeliveryScreen() {
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           
           <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: colors.foreground }]}>Total to collect</Text>
+            <Text style={[styles.totalLabel, { color: colors.foreground }]}>{t('delivery.totalToCollect')}</Text>
             <Text style={[styles.totalValue, { color: order.paymentMethod === 'cash' ? colors.destructive : colors.success }]}>
-              {order.paymentMethod === 'cash' ? `${order.total.toFixed(2)} EGP` : 'PAID (Card)'}
+              {order.paymentMethod === 'cash' ? formatCurrency(locale, order.total) : t('delivery.paidCard')}
             </Text>
           </View>
         </View>
@@ -183,12 +190,14 @@ export default function DeliveryScreen() {
             style={[styles.mainBtn, { backgroundColor: colors.primary }]}
             onPress={() => handleUpdateStatus('picked_up' as any)}
             disabled={statusActionLocked || updateStatus.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('delivery.markPickedUp')}
             testID="pickup-button"
           >
             {updateStatus.isPending ? (
               <ActivityIndicator color={colors.primaryForeground} />
             ) : (
-              <Text style={[styles.mainBtnText, { color: colors.primaryForeground }]}>Mark as Picked Up</Text>
+              <Text style={[styles.mainBtnText, { color: colors.primaryForeground }]}>{t('delivery.markPickedUp')}</Text>
             )}
           </TouchableOpacity>
         ) : (
@@ -196,12 +205,14 @@ export default function DeliveryScreen() {
             style={[styles.mainBtn, { backgroundColor: colors.success }]}
             onPress={() => handleUpdateStatus('delivered' as any)}
             disabled={statusActionLocked || updateStatus.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('delivery.complete')}
             testID="deliver-button"
           >
             {updateStatus.isPending ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={[styles.mainBtnText, { color: '#fff' }]}>Complete Delivery</Text>
+              <Text style={[styles.mainBtnText, { color: colors.primaryForeground }]}>{t('delivery.complete')}</Text>
             )}
           </TouchableOpacity>
         )}

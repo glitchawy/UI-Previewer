@@ -1,7 +1,9 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Field, Icon } from "@/components/tb/shell";
 import { getSession, logoutSession, saveSession, getRoleDashboard } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/auth/onboard-customer")({
   beforeLoad: () => {
@@ -12,12 +14,13 @@ export const Route = createFileRoute("/auth/onboard-customer")({
     if (session.user.name) throw redirect({ to: "/app" });
   },
   head: () => ({
-    meta: [{ title: "أكمل ملفك الشخصي | طلبات بيتك" }],
+    meta: [{ title: translate("أكمل ملفك الشخصي | طلبات بيتك", "Complete your profile | Talabat Betak") }],
   }),
   component: OnboardCustomer,
 });
 
 function OnboardCustomer() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const session = getSession();
   const [name, setName] = useState("");
@@ -26,8 +29,8 @@ function OnboardCustomer() {
 
   async function handleSubmit() {
     const trimmed = name.trim();
-    if (!trimmed) { setError("من فضلك أدخل اسمك الكامل"); return; }
-    if (trimmed.length < 3) { setError("الاسم يجب أن يكون 3 أحرف على الأقل"); return; }
+    if (!trimmed) { setError(t("من فضلك أدخل اسمك الكامل", "Please enter your full name")); return; }
+    if (trimmed.length < 3) { setError(t("الاسم يجب أن يكون 3 أحرف على الأقل", "Your name must be at least 3 characters")); return; }
     setSubmitting(true);
     setError("");
     try {
@@ -42,7 +45,7 @@ function OnboardCustomer() {
       });
       if (!res.ok) {
         const data = await res.json() as { error?: string };
-        throw new Error(data.error ?? "حصل خطأ");
+        throw new Error(data.error ?? t("حصل خطأ", "Something went wrong"));
       }
       // Update cached session with the saved name
       if (session) {
@@ -50,7 +53,7 @@ function OnboardCustomer() {
       }
       navigate({ to: "/app" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "حصل خطأ، حاول تاني");
+      setError(err instanceof Error ? err.message : t("حصل خطأ، حاول تاني", "Something went wrong. Please try again."));
     } finally {
       setSubmitting(false);
     }
@@ -66,7 +69,7 @@ function OnboardCustomer() {
   }
 
   return (
-    <AuthShell title="أكمل ملفك الشخصي" subtitle="أدخل اسمك عشان نعرف نناديك صح">
+    <AuthShell title={t("أكمل ملفك الشخصي", "Complete your profile")} subtitle={t("أدخل اسمك عشان نعرف نناديك صح", "Enter your name so we know what to call you")}>
 
       {/* Welcome banner */}
       <div className="flex items-center gap-3 rounded-card bg-primary-container p-md">
@@ -74,7 +77,7 @@ function OnboardCustomer() {
           <Icon name="waving_hand" className="text-[20px]" />
         </span>
         <div>
-          <p className="font-label-lg text-label-lg text-on-primary-container">أهلاً بيك في طلبات بيتك!</p>
+          <p className="font-label-lg text-label-lg text-on-primary-container">{t("أهلاً بيك في طلبات بيتك!", "Welcome to Talabat Betak!")}</p>
           <p className="font-label-md text-label-md text-on-primary-container opacity-80" dir="ltr">
             +20{session?.user.phone}
           </p>
@@ -83,7 +86,7 @@ function OnboardCustomer() {
 
       {/* Name field */}
       <label className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">الاسم بالكامل</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("الاسم بالكامل", "Full name")}</span>
         <span className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${error ? "border-error" : "border-outline-variant"}`}>
           <Icon name="person" className="text-[20px] text-outline" />
           <input
@@ -107,23 +110,23 @@ function OnboardCustomer() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-3">
           <Icon name="lock" className="text-[18px] text-on-surface-variant" />
-          <p className="font-label-md text-label-md text-on-surface-variant">اسمك بيظهر للمطعم والمندوب بس</p>
+           <p className="font-label-md text-label-md text-on-surface-variant">{t("اسمك بيظهر للمطعم والمندوب بس", "Your name is only shown to the restaurant and driver")}</p>
         </div>
         <div className="flex items-center gap-2 rounded-card bg-surface-container-low p-3">
           <Icon name="edit" className="text-[18px] text-on-surface-variant" />
-          <p className="font-label-md text-label-md text-on-surface-variant">تقدر تغيّره في أي وقت من الملف الشخصي</p>
+           <p className="font-label-md text-label-md text-on-surface-variant">{t("تقدر تغيّره في أي وقت من الملف الشخصي", "You can change it anytime from your profile")}</p>
         </div>
       </div>
 
       <Button className="w-full" icon="check_circle" onClick={handleSubmit} disabled={submitting}>
-        {submitting ? "جاري الحفظ..." : "متابعة"}
+         {submitting ? t("جاري الحفظ...", "Saving...") : t("متابعة", "Continue")}
       </Button>
 
       <button
         onClick={handleSkip}
         className="text-center font-label-lg text-label-lg text-outline transition hover:text-on-surface-variant"
       >
-        تخطي في الوقت الحالي
+         {t("تخطي في الوقت الحالي", "Skip for now")}
       </button>
 
       <button
@@ -131,7 +134,7 @@ function OnboardCustomer() {
         className="flex items-center justify-center gap-1.5 font-label-md text-label-md text-on-surface-variant transition hover:text-error"
       >
         <Icon name="logout" className="text-[16px]" />
-        تسجيل الخروج
+         {t("تسجيل الخروج", "Log out")}
       </button>
 
     </AuthShell>

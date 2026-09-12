@@ -135,7 +135,7 @@ router.get("/auth/capabilities", authCapabilitiesRateLimit, (_req, res): void =>
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/request-otp", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
   const { role } = parsed.data;
   const phone = normalizeEgyptianMobile(parsed.data.phone);
   if (!phone) {
@@ -178,7 +178,7 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
   const { role } = parsed.data;
   const phone = normalizeEgyptianMobile(parsed.data.phone);
 
@@ -258,7 +258,7 @@ router.post("/auth/dev-register", async (req, res): Promise<void> => {
 
   const parsed = DevRegisterBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "بيانات الطلب غير صحيحة" });
     return;
   }
   if (parsed.data.role === "admin") {
@@ -330,7 +330,7 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   const parsed = VerifyOtpBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
   const { otp, role, type } = parsed.data;
   const phone = normalizeEgyptianMobile(parsed.data.phone);
   if (!phone) {
@@ -456,7 +456,7 @@ router.post("/auth/rotate", async (req, res): Promise<void> => {
 router.patch("/auth/location", async (req, res): Promise<void> => {
   const parsed = UpdateLocationBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "بيانات الطلب غير صحيحة" });
     return;
   }
   const { lat, lng } = parsed.data;

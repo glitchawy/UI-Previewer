@@ -1,7 +1,9 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useRef, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { AuthShell, Badge, Button, Icon, StatusBadge } from "@/components/tb/shell";
 import { getSession, getRoleDashboard, getToken } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 /** Build a URL to serve a stored object, attaching the session token as a query param
  *  so plain <img src> and CSS backgrounds work without Bearer header support. */
@@ -18,8 +20,8 @@ export const Route = createFileRoute("/auth/driver")({
   },
   head: () => ({
     meta: [
-      { title: "تسجيل مندوب توصيل | طلبات بيتك" },
-      { name: "description", content: "انضم كمندوب توصيل وارفع مستنداتك لتفعيل حسابك." },
+      { title: translate("تسجيل مندوب توصيل | طلبات بيتك", "Delivery driver sign-up | Talabat Betak") },
+      { name: "description", content: translate("انضم كمندوب توصيل وارفع مستنداتك لتفعيل حسابك.", "Join as a delivery driver and upload your documents to activate your account.") },
     ],
   }),
   component: AuthDriver,
@@ -28,11 +30,11 @@ export const Route = createFileRoute("/auth/driver")({
 const areas = ["المعادي", "مدينة نصر", "الدقي", "شبرا", "مصر الجديدة", "الزمالك", "الهرم", "المهندسين"];
 const vehicles = ["موتوسيكل", "دراجة هوائية", "سيارة"];
 
-const statusLabels: Record<string, string> = {
-  PENDING: "قيد الإرسال",
-  UNDER_REVIEW: "قيد المراجعة",
-  APPROVED: "مقبول",
-  REJECTED: "مرفوض",
+const statusLabels: Record<string, [string, string]> = {
+  PENDING: ["قيد الإرسال", "Submitted"],
+  UNDER_REVIEW: ["قيد المراجعة", "Under review"],
+  APPROVED: ["مقبول", "Approved"],
+  REJECTED: ["مرفوض", "Rejected"],
 };
 
 type DocKey = "nationalIdFrontUrl" | "nationalIdBackUrl" | "criminalRecordUrl" | "licenseUrl";
@@ -78,6 +80,7 @@ function DocSlot({
   onFile: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useTranslation();
   const uploaded = !!objectPath;
 
   return (
@@ -106,7 +109,7 @@ function DocSlot({
         {uploaded && (
           <span className="flex items-center gap-1 font-label-md text-label-md text-success">
             <Icon name="check_circle" className="text-[14px]" />
-            تم
+            {t("تم", "Done")}
           </span>
         )}
         <button
@@ -122,7 +125,7 @@ function DocSlot({
           }`}
         >
           <Icon name={uploading ? "hourglass_empty" : uploaded ? "refresh" : "upload"} className="text-[14px]" />
-          {uploading ? "جاري..." : uploaded ? "تغيير" : "رفع"}
+          {uploading ? t("جاري...", "Uploading...") : uploaded ? t("تغيير", "Change") : t("رفع", "Upload")}
         </button>
       </div>
       <input
@@ -140,6 +143,7 @@ function DocSlot({
 }
 
 function AuthDriver() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const session = getSession();
 
@@ -169,12 +173,12 @@ function AuthDriver() {
   async function handleDocFile(key: DocKey, file: File) {
     // Client-side pre-checks (belt-and-suspenders before hitting the server)
     if (file.size > 10_000_000) {
-      setError("حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت");
+      setError(t("حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت", "File is too large — maximum size is 10 MB"));
       return;
     }
     const mime = file.type || "application/octet-stream";
     if (!mime.startsWith("image/") && mime !== "application/pdf") {
-      setError("نوع الملف غير مقبول — يُسمح فقط بالصور (JPG، PNG، …) أو ملفات PDF");
+      setError(t("نوع الملف غير مقبول — يُسمح فقط بالصور (JPG، PNG، …) أو ملفات PDF", "Unsupported file type — only images (JPG, PNG, …) or PDF files are allowed"));
       return;
     }
 
@@ -184,15 +188,15 @@ function AuthDriver() {
       const objectPath = await uploadFileToStorage(file);
       setDocPaths((prev) => ({ ...prev, [key]: objectPath }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل رفع المستند");
+      setError(err instanceof Error ? err.message : t("فشل رفع المستند", "Document upload failed"));
     } finally {
       setDocUploading((prev) => ({ ...prev, [key]: false }));
     }
   }
 
   async function handleSubmit() {
-    if (!fullName.trim()) { setError("من فضلك أدخل اسمك الكامل"); return; }
-    if (!allUploaded) { setError(`برجاء رفع جميع المستندات المطلوبة (${uploadedCount}/${requiredDocs.length})`); return; }
+    if (!fullName.trim()) { setError(t("من فضلك أدخل اسمك الكامل", "Please enter your full name")); return; }
+    if (!allUploaded) { setError(t("برجاء رفع جميع المستندات المطلوبة ({count}/{total})", "Please upload all required documents ({count}/{total})", { count: uploadedCount, total: requiredDocs.length })); return; }
     setSubmitting(true);
     setError("");
     try {
@@ -215,34 +219,34 @@ function AuthDriver() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? "حدث خطأ أثناء الإرسال، حاول مرة أخرى");
+        setError(data?.error ?? t("حدث خطأ أثناء الإرسال، حاول مرة أخرى", "An error occurred while submitting. Please try again."));
         setSubmitting(false);
         return;
       }
       navigate({ to: "/auth/pending" });
     } catch {
-      setError("تعذر الاتصال بالخادم، حاول مرة أخرى");
+      setError(t("تعذر الاتصال بالخادم، حاول مرة أخرى", "Unable to connect to the server. Please try again."));
       setSubmitting(false);
     }
   }
 
   return (
-    <AuthShell title="تسجيل مندوب توصيل" subtitle="انضم لأسطول طلبات بيتك واربح من توصيلاتك" back="/auth/register">
+    <AuthShell title={t("تسجيل مندوب توصيل", "Delivery driver sign-up")} subtitle={t("انضم لأسطول طلبات بيتك واربح من توصيلاتك", "Join the Talabat Betak fleet and earn from your deliveries")} back="/auth/register">
 
       {/* Account info banner */}
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
         <Icon name="phone" className="text-[18px] text-on-secondary-container" />
         <p className="font-label-md text-label-md text-on-secondary-container">
-          الحساب مرتبط بـ{" "}
+           {t("الحساب مرتبط بـ", "Account linked to")}{" "}
           <span className="font-label-lg" dir="ltr">+20{session?.user.phone}</span>
         </p>
       </div>
 
       {/* Personal info */}
-      <p className="font-label-lg text-label-lg text-on-surface">البيانات الشخصية</p>
+       <p className="font-label-lg text-label-lg text-on-surface">{t("البيانات الشخصية", "Personal information")}</p>
 
       <label className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">الاسم بالكامل</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("الاسم بالكامل", "Full name")}</span>
         <span className="flex items-center gap-2 rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 focus-within:border-secondary">
           <Icon name="person" className="text-[20px] text-outline" />
           <input
@@ -256,7 +260,7 @@ function AuthDriver() {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">المنطقة</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("المنطقة", "Area")}</span>
         <select
           value={area}
           onChange={(e) => setArea(e.target.value)}
@@ -267,7 +271,7 @@ function AuthDriver() {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">نوع المركبة</span>
+         <span className="font-label-lg text-label-lg text-on-surface-variant">{t("نوع المركبة", "Vehicle type")}</span>
         <div className="grid grid-cols-3 gap-2">
           {vehicles.map((v) => (
             <button
@@ -280,7 +284,7 @@ function AuthDriver() {
                   : "border-outline-variant bg-surface-container-lowest text-on-surface-variant"
               }`}
             >
-              {v}
+               {t(v, v === "موتوسيكل" ? "Motorcycle" : v === "دراجة هوائية" ? "Bicycle" : "Car")}
             </button>
           ))}
         </div>
@@ -290,20 +294,20 @@ function AuthDriver() {
 
       {/* Documents */}
       <div className="flex items-center justify-between">
-        <p className="font-label-lg text-label-lg text-on-surface">المستندات المطلوبة</p>
+         <p className="font-label-lg text-label-lg text-on-surface">{t("المستندات المطلوبة", "Required documents")}</p>
         <Badge tone={allUploaded ? "success" : "neutral"}>
-          {uploadedCount}/{requiredDocs.length} مستندات
+           {uploadedCount}/{requiredDocs.length} {t("مستندات", "documents")}
         </Badge>
       </div>
       <p className="font-label-md text-label-md text-on-surface-variant -mt-2">
-        يُقبل: صور (JPG / PNG) أو PDF
+         {t("يُقبل: صور (JPG / PNG) أو PDF", "Accepted: images (JPG / PNG) or PDF")}
       </p>
 
       <div className="tb-stagger flex flex-col gap-2">
         {requiredDocs.map((d) => (
           <DocSlot
             key={d.key}
-            label={d.label}
+             label={t(d.label, d.key === "nationalIdFrontUrl" ? "National ID (front)" : d.key === "nationalIdBackUrl" ? "National ID (back)" : d.key === "criminalRecordUrl" ? "Criminal record certificate" : "Driving license")}
             accept={d.accept}
             objectPath={docPaths[d.key]}
             uploading={docUploading[d.key]}
@@ -314,7 +318,7 @@ function AuthDriver() {
 
       {/* Review status preview */}
       <div>
-        <p className="mb-2 font-label-lg text-label-lg text-on-surface">مسار المراجعة</p>
+         <p className="mb-2 font-label-lg text-label-lg text-on-surface">{t("مسار المراجعة", "Review process")}</p>
         <div className="flex items-center gap-1">
           {Object.keys(statusLabels).map((s, i, arr) => (
             <div key={s} className="flex flex-1 items-center gap-1">
@@ -322,21 +326,21 @@ function AuthDriver() {
                 <span className={`flex size-7 items-center justify-center rounded-full font-label-md text-[11px] ${i === 0 ? "bg-primary-container text-on-primary-container" : "bg-surface-container text-on-surface-variant"}`}>
                   {i + 1}
                 </span>
-                <span className="text-center font-label-md text-[10px] text-on-surface-variant">{statusLabels[s]}</span>
+                 <span className="text-center font-label-md text-[10px] text-on-surface-variant">{t(...statusLabels[s])}</span>
               </div>
               {i < arr.length - 1 && <span className="mb-4 h-0.5 flex-1 bg-outline-variant" />}
             </div>
           ))}
         </div>
         <div className="mt-2">
-          <StatusBadge status="PENDING" label="الحالة الحالية: قيد الإرسال" />
+           <StatusBadge status="PENDING" label={t("الحالة الحالية: قيد الإرسال", "Current status: Submitted")} />
         </div>
       </div>
 
       <div className="flex items-start gap-2 rounded-card bg-error-container/60 p-md">
         <Icon name="warning" className="mt-0.5 text-[18px] text-on-error-container" />
         <p className="font-label-md text-label-md text-on-error-container">
-          لن تتمكن من استلام الطلبات حتى تكتمل مراجعة مستنداتك وتفعيل حسابك.
+           {t("لن تتمكن من استلام الطلبات حتى تكتمل مراجعة مستنداتك وتفعيل حسابك.", "You cannot receive orders until your documents are reviewed and your account is activated.")}
         </p>
       </div>
 
@@ -348,7 +352,7 @@ function AuthDriver() {
       )}
 
       <Button className="w-full" icon="send" onClick={handleSubmit} disabled={submitting || Object.values(docUploading).some(Boolean)}>
-        {submitting ? "جاري الإرسال..." : "إرسال للمراجعة"}
+         {submitting ? t("جاري الإرسال...", "Submitting...") : t("إرسال للمراجعة", "Submit for review")}
       </Button>
 
     </AuthShell>

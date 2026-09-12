@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-ro
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
 import { useDevRegister, useGetAuthCapabilities, useRegisterOtp } from "@workspace/api-client-react";
 import { clearSession, getSession, getRoleDashboard, saveSession, validateWithServer } from "@/lib/auth-session";
+import { translate, useTranslation } from "@/lib/i18n";
 
 export const Route = createFileRoute("/auth/register")({
   beforeLoad: () => {
@@ -11,8 +12,8 @@ export const Route = createFileRoute("/auth/register")({
   },
   head: () => ({
     meta: [
-      { title: "إنشاء حساب | طلبات بيتك" },
-      { name: "description", content: "أنشئ حسابك الجديد برقم موبايلك المصري." },
+      { title: translate("إنشاء حساب | طلبات بيتك", "Create an account | Talabat Betak") },
+      { name: "description", content: translate("أنشئ حسابك الجديد برقم موبايلك المصري.", "Create your new account with your Egyptian mobile number.") },
     ],
   }),
   component: AuthRegister,
@@ -20,25 +21,26 @@ export const Route = createFileRoute("/auth/register")({
 
 type Role = "customer" | "partner" | "driver";
 
-const registerRoles: { value: Role; label: string; icon: string; desc: string }[] = [
-  { value: "customer", label: "عميل", icon: "shopping_bag", desc: "اطلب أكل من مطاعم قريبة منك" },
-  { value: "partner", label: "مطعم / شريك", icon: "storefront", desc: "سجّل مطعمك واستقبل طلبات" },
-  { value: "driver", label: "مندوب توصيل", icon: "two_wheeler", desc: "وصّل الطلبات واكسب أكتر" },
+const registerRoles: { value: Role; ar: string; en: string; icon: string; descAr: string; descEn: string }[] = [
+  { value: "customer", ar: "عميل", en: "Customer", icon: "shopping_bag", descAr: "اطلب أكل من مطاعم قريبة منك", descEn: "Order food from nearby restaurants" },
+  { value: "partner", ar: "مطعم / شريك", en: "Restaurant / Partner", icon: "storefront", descAr: "سجّل مطعمك واستقبل طلبات", descEn: "Register your restaurant and receive orders" },
+  { value: "driver", ar: "مندوب توصيل", en: "Delivery driver", icon: "two_wheeler", descAr: "وصّل الطلبات واكسب أكتر", descEn: "Deliver orders and earn more" },
 ];
 
 const EG_PHONE_RE = /^01[0125]\d{8}$/;
 
 function validateEgPhone(raw: string): string | null {
   const cleaned = raw.replace(/[\s\-]/g, "");
-  if (!cleaned) return "أدخل رقم الموبايل";
-  if (!/^\d+$/.test(cleaned)) return "الرقم يجب أن يحتوي على أرقام فقط";
-  if (cleaned.length !== 11) return "رقم الموبايل يجب أن يكون 11 رقماً";
-  if (!cleaned.startsWith("01")) return "رقم الموبايل المصري يبدأ بـ 01";
-  if (!EG_PHONE_RE.test(cleaned)) return "الشبكة غير معروفة — يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015";
+  if (!cleaned) return translate("أدخل رقم الموبايل", "Enter your mobile number");
+  if (!/^\d+$/.test(cleaned)) return translate("الرقم يجب أن يحتوي على أرقام فقط", "The number must contain digits only");
+  if (cleaned.length !== 11) return translate("رقم الموبايل يجب أن يكون 11 رقماً", "The mobile number must be 11 digits");
+  if (!cleaned.startsWith("01")) return translate("رقم الموبايل المصري يبدأ بـ 01", "Egyptian mobile numbers start with 01");
+  if (!EG_PHONE_RE.test(cleaned)) return translate("الشبكة غير معروفة — يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015", "Unknown network — the number must start with 010, 011, 012, or 015");
   return null;
 }
 
 function AuthRegister() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const capabilities = useGetAuthCapabilities();
   const [role, setRole] = useState<Role>("customer");
@@ -59,7 +61,7 @@ function AuthRegister() {
       },
       onError: (err: unknown) => {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        setError(msg ?? "حصل خطأ، حاول تاني");
+        setError(msg ?? translate("حصل خطأ، حاول تاني", "Something went wrong. Please try again."));
       },
       onSettled: () => {
         registerLock.current = false;
@@ -106,17 +108,17 @@ function AuthRegister() {
         isDevMode: true,
       });
       const validated = await validateWithServer();
-      if (!validated) throw new Error("تعذر التحقق من جلسة حساب الاختبار");
+      if (!validated) throw new Error(translate("تعذر التحقق من جلسة حساب الاختبار", "Unable to verify the test account session"));
       if (validated.user.role === "customer") navigate({ to: "/auth/location" });
       else if (validated.user.role === "partner") navigate({ to: "/auth/register-restaurant" });
       else if (validated.user.role === "driver") navigate({ to: "/auth/driver" });
-      else throw new Error("دور حساب الاختبار غير صحيح");
+      else throw new Error(translate("دور حساب الاختبار غير صحيح", "The test account role is invalid"));
     } catch (err) {
       clearSession();
       const message = (err as { data?: { error?: string }; response?: { data?: { error?: string } } })
         ?.data?.error
         ?? (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(message ?? (err instanceof Error ? err.message : "تعذر إنشاء حساب الاختبار"));
+      setError(message ?? (err instanceof Error ? err.message : translate("تعذر إنشاء حساب الاختبار", "Unable to create the test account")));
     } finally {
       devRegisterLock.current = false;
       setDevRolePending(null);
@@ -124,11 +126,11 @@ function AuthRegister() {
   }
 
   return (
-    <AuthShell title="إنشاء حساب جديد" subtitle="أنشئ حسابك الجديد برقم موبايلك المصري">
+    <AuthShell title={t("إنشاء حساب جديد", "Create a new account")} subtitle={t("أنشئ حسابك الجديد برقم موبايلك المصري", "Create your new account with your Egyptian mobile number")}>
 
       {/* Phone */}
       <label className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">رقم الموبايل</span>
+        <span className="font-label-lg text-label-lg text-on-surface-variant">{t("رقم الموبايل", "Mobile number")}</span>
         <span className={`flex items-center gap-2 rounded-button border bg-surface-container-lowest px-3 py-2.5 transition focus-within:border-secondary ${inlineError ? "border-error" : "border-outline-variant"}`}>
           <span className="select-none font-label-lg text-label-lg text-on-surface-variant">+20</span>
           <span className="h-5 w-px bg-outline-variant" />
@@ -155,7 +157,7 @@ function AuthRegister() {
 
       {/* Role cards */}
       <div className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">نوع الحساب</span>
+        <span className="font-label-lg text-label-lg text-on-surface-variant">{t("نوع الحساب", "Account type")}</span>
         <div className="flex flex-col gap-2">
           {registerRoles.map((r) => (
             <button
@@ -172,8 +174,8 @@ function AuthRegister() {
                 <Icon name={r.icon} className="text-[20px]" />
               </span>
               <div className="flex flex-col items-start">
-                <span className={`font-label-lg text-label-lg ${role === r.value ? "text-on-secondary-container" : "text-on-surface"}`}>{r.label}</span>
-                <span className="font-label-md text-label-md text-on-surface-variant">{r.desc}</span>
+                  <span className={`font-label-lg text-label-lg ${role === r.value ? "text-on-secondary-container" : "text-on-surface"}`}>{t(r.ar, r.en)}</span>
+                  <span className="font-label-md text-label-md text-on-surface-variant">{t(r.descAr, r.descEn)}</span>
               </div>
               {role === r.value && <Icon name="check_circle" className="mr-auto text-[20px] text-secondary" filled />}
             </button>
@@ -189,7 +191,7 @@ function AuthRegister() {
             <p className="font-label-md text-label-md text-on-error-container">{error}</p>
             {error.includes("مسجل بالفعل") && (
               <Link to="/auth/login" className="mt-1 inline-flex items-center gap-1 font-label-md text-label-md text-on-error-container underline">
-                <Icon name="login" className="text-[16px]" />سجّل دخول بدلاً من ذلك
+                  <Icon name="login" className="text-[16px]" />{t("سجّل دخول بدلاً من ذلك", "Log in instead")}
               </Link>
             )}
           </div>
@@ -197,16 +199,16 @@ function AuthRegister() {
       )}
 
       <Button className="w-full" icon="person_add" onClick={handleSubmit} disabled={registerOtp.isPending}>
-        {registerOtp.isPending ? "جاري الإنشاء..." : "إنشاء الحساب"}
+        {registerOtp.isPending ? t("جاري الإنشاء...", "Creating...") : t("إنشاء الحساب", "Create account")}
       </Button>
 
       {capabilities.data?.publicTestLoginEnabled === true && (
         <section className="flex flex-col gap-3 rounded-card border-2 border-dashed border-error/40 bg-error-container/40 p-md">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="font-label-lg text-label-lg text-on-error-container">إنشاء حساب اختبار جديد</p>
+                <p className="font-label-lg text-label-lg text-on-error-container">{t("إنشاء حساب اختبار جديد", "Create a new test account")}</p>
               <p className="font-label-md text-label-md text-on-surface-variant">
-                حساب مستقل جديد ببيانات تجريبية — بدون رقم حقيقي أو رسالة OTP
+                {t("حساب مستقل جديد ببيانات تجريبية — بدون رقم حقيقي أو رسالة OTP", "A new independent account with test data — no real number or OTP required")}
               </p>
             </div>
             <span className="rounded-full bg-error px-2 py-1 text-[10px] font-bold tracking-wide text-white">
@@ -223,13 +225,13 @@ function AuthRegister() {
                 disabled={devRolePending !== null}
                 onClick={() => handleDevSignup(testRole.value)}
               >
-                {devRolePending === testRole.value ? "جاري الإنشاء..." : testRole.label}
+                {devRolePending === testRole.value ? t("جاري الإنشاء...", "Creating...") : t(testRole.ar, testRole.en)}
               </Button>
             ))}
           </div>
           {devRolePending !== null && (
             <p role="status" className="font-label-md text-label-md text-on-surface-variant">
-              جاري إنشاء حساب اختبار جديد وتأمين الجلسة...
+              {t("جاري إنشاء حساب اختبار جديد وتأمين الجلسة...", "Creating a new test account and securing the session...")}
             </p>
           )}
         </section>
@@ -237,12 +239,12 @@ function AuthRegister() {
 
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-outline-variant" />
-        <span className="font-label-md text-label-md text-on-surface-variant">عندك حساب؟</span>
+          <span className="font-label-md text-label-md text-on-surface-variant">{t("عندك حساب؟", "Already have an account?")}</span>
         <span className="h-px flex-1 bg-outline-variant" />
       </div>
 
       <Link to="/auth/login">
-        <Button variant="outline" className="w-full" icon="login">تسجيل الدخول</Button>
+          <Button variant="outline" className="w-full" icon="login">{t("تسجيل الدخول", "Log in")}</Button>
       </Link>
     </AuthShell>
   );

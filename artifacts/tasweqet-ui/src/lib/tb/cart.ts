@@ -1,5 +1,7 @@
+import { localizedFetch as fetch } from "@/lib/i18n-fetch";
 import { useCallback, useEffect, useState } from "react";
 import { getSession, getToken } from "@/lib/auth-session";
+import { subscribeLocale } from "@/lib/i18n";
 
 export type CartAddon = { id: number; name: string; price: number };
 export type CartItem = {
@@ -86,3 +88,10 @@ export function useCart() {
   }, []);
   return { cart, isLoading, refresh: useCallback(() => refreshCart(), []) };
 }
+
+// Cart responses include localized restaurant, product, and availability fields.
+// Refresh the module cache on language changes without resetting local cart
+// state or remounting the page/form that is currently using it.
+subscribeLocale(() => {
+  void refreshCart().catch(() => {});
+});

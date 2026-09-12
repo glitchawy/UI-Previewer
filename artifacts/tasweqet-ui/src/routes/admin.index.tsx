@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Bars, Button, Card, DashboardShell, EmptyState, SectionTitle, Stat, Table, Td } from "@/components/tb/shell";
 import { adminNav } from "@/lib/tb/nav";
-import { EGP } from "@/lib/tb/data";
 import { adminApi, adminRequest } from "@/lib/admin-api";
+import { adminCurrency, adminNumber } from "@/lib/admin-i18n";
+import { useTranslation } from "@/lib/i18n";
 
 type Overview = {
   gmv: number; orders: number; activeOrders: number; customers: number; restaurants: number;
@@ -27,6 +28,7 @@ type OperationsHealth = {
 };
 export const Route = createFileRoute("/admin/")({ component: AdminIndex });
 function AdminIndex() {
+  const { t, locale } = useTranslation();
   const [data, setData] = useState<Overview>(), [error, setError] = useState(""), [retry, setRetry] = useState(0);
   const [health, setHealth] = useState<OperationsHealth>(), [healthError, setHealthError] = useState(""), [healthRetry, setHealthRetry] = useState(0);
   useEffect(() => { const c = new AbortController(); setError(""); adminApi<Overview>("/overview", c.signal).then(setData).catch(e => { if (e instanceof Error && e.name !== "AbortError") setError(e.message); }); return () => c.abort(); }, [retry]);
@@ -51,38 +53,38 @@ function AdminIndex() {
   const healthTone = healthStatus === "critical" ? "bg-error-container text-on-error-container" :
     healthStatus === "warning" ? "bg-tertiary-container text-on-tertiary-container" :
       healthStatus === "healthy" ? "bg-primary-container text-on-primary-container" : "bg-surface-container";
-  return <DashboardShell brand="طلبات بيتك" role="سوبر أدمن" nav={adminNav} title="نظرة عامة">
-    {error ? <Card className="p-lg text-center text-error"><p>{error}</p><Button className="mt-sm" onClick={() => setRetry(x => x + 1)}>إعادة المحاولة</Button></Card> :
-    !data ? <Card className="p-xl text-center">جاري تحميل إحصاءات المنصة…</Card> :
+  return <DashboardShell brand={t("طلبات بيتك", "Talabat Betak")} role={t("سوبر أدمن", "Super admin")} nav={adminNav} title={t("نظرة عامة", "Overview")}>
+    {error ? <Card className="p-lg text-center text-error"><p>{error}</p><Button className="mt-sm" onClick={() => setRetry(x => x + 1)}>{t("إعادة المحاولة", "Try again")}</Button></Card> :
+    !data ? <Card className="p-xl text-center">{t("جاري تحميل إحصاءات المنصة…", "Loading platform statistics…")}</Card> :
     <div className="flex flex-col gap-md">
       <Card className={`p-md ${healthTone}`}>
         <div className="flex flex-wrap items-center justify-between gap-sm">
-          <SectionTitle title="حالة التشغيل" icon="monitor_heart" />
+          <SectionTitle title={t("حالة التشغيل", "Operations health")} icon="monitor_heart" />
           <div className="flex items-center gap-2">
-            {health ? <strong>{healthStatus === "critical" ? "حرجة" : healthStatus === "warning" ? "تحتاج انتباه" : "سليمة"}</strong> : null}
-            <Button variant="outline" onClick={() => setHealthRetry(x => x + 1)}>تحديث</Button>
+            {health ? <strong>{healthStatus === "critical" ? t("حرجة", "Critical") : healthStatus === "warning" ? t("تحتاج انتباه", "Needs attention") : t("سليمة", "Healthy")}</strong> : null}
+            <Button variant="outline" onClick={() => setHealthRetry(x => x + 1)}>{t("تحديث", "Refresh")}</Button>
           </div>
         </div>
-        {healthError ? <p className="text-error">تعذر تحميل حالة التشغيل: {healthError}</p> : !health ? <p>جاري فحص حالة التشغيل…</p> :
+        {healthError ? <p className="text-error">{t("تعذر تحميل حالة التشغيل: ", "Unable to load operations health: ")}{healthError}</p> : !health ? <p>{t("جاري فحص حالة التشغيل…", "Checking operations health…")}</p> :
           <div className="grid gap-2 text-label-md sm:grid-cols-2 lg:grid-cols-3">
-            <p>عامل التشغيل: {health.worker?.healthy ? "يعمل" : "متوقف أو نبضه متأخر"}</p>
-            <p>التنبيهات النشطة: {health.alerts.active.toLocaleString("ar-EG")} · المتعثرة: {health.alerts.deadLetter.toLocaleString("ar-EG")}</p>
-            <p>تسويات الكاش المتعثرة: {health.cashReconciliationDeadLetters.toLocaleString("ar-EG")}</p>
-            <p>فشل Webhook: {health.deadWebhookEvents.toLocaleString("ar-EG")} · فشل الإشعارات: {health.notificationFailures.toLocaleString("ar-EG")}</p>
-            <p>Expo Push: {health.configuration.expoPushReady ? "جاهز" : "يلزم الإعداد"}</p>
-            <p>Webhook الإشعارات: {health.configuration.notificationWebhookConfigured ? "جاهز" : "يلزم الإعداد"} · Webhook التنبيهات: {health.configuration.operationsAlertWebhookConfigured ? "جاهز" : "يلزم الإعداد"}</p>
+            <p>{t("عامل التشغيل: ", "Worker: ")}{health.worker?.healthy ? t("يعمل", "Running") : t("متوقف أو نبضه متأخر", "Stopped or heartbeat delayed")}</p>
+            <p>{t("التنبيهات النشطة: ", "Active alerts: ")}{adminNumber(health.alerts.active, locale)} · {t("المتعثرة: ", "Dead-letter: ")}{adminNumber(health.alerts.deadLetter, locale)}</p>
+            <p>{t("تسويات الكاش المتعثرة: ", "Dead-letter cash reconciliations: ")}{adminNumber(health.cashReconciliationDeadLetters, locale)}</p>
+            <p>{t("فشل Webhook: ", "Webhook failures: ")}{adminNumber(health.deadWebhookEvents, locale)} · {t("فشل الإشعارات: ", "Notification failures: ")}{adminNumber(health.notificationFailures, locale)}</p>
+            <p>{t("Expo Push: ", "Expo Push: ")}{health.configuration.expoPushReady ? t("جاهز", "Ready") : t("يلزم الإعداد", "Needs setup")}</p>
+            <p>{t("Webhook الإشعارات: ", "Notification webhook: ")}{health.configuration.notificationWebhookConfigured ? t("جاهز", "Ready") : t("يلزم الإعداد", "Needs setup")} · {t("Webhook التنبيهات: ", "Alert webhook: ")}{health.configuration.operationsAlertWebhookConfigured ? t("جاهز", "Ready") : t("يلزم الإعداد", "Needs setup")}</p>
           </div>}
       </Card>
       <div className="grid grid-cols-2 gap-sm md:grid-cols-3 lg:grid-cols-6">
-        <Stat label="إجمالي المبيعات" value={EGP(data.gmv)} icon="payments" />
-        <Stat label="الطلبات" value={data.orders.toLocaleString("ar-EG")} icon="receipt_long" tone="info" />
-        <Stat label="طلبات جارية" value={data.activeOrders.toLocaleString("ar-EG")} icon="local_shipping" tone="warn" />
-        <Stat label="العملاء" value={data.customers.toLocaleString("ar-EG")} icon="group" tone="info" />
-        <Stat label="المطاعم النشطة" value={`${data.activeRestaurants.toLocaleString("ar-EG")} / ${data.restaurants.toLocaleString("ar-EG")}`} icon="storefront" />
-        <Stat label="المندوبون المعتمدون" value={data.activeDrivers.toLocaleString("ar-EG")} icon="two_wheeler" tone="success" />
+        <Stat label={t("إجمالي المبيعات", "Total sales")} value={adminCurrency(data.gmv, locale)} icon="payments" />
+        <Stat label={t("الطلبات", "Orders")} value={adminNumber(data.orders, locale)} icon="receipt_long" tone="info" />
+        <Stat label={t("طلبات جارية", "Active orders")} value={adminNumber(data.activeOrders, locale)} icon="local_shipping" tone="warn" />
+        <Stat label={t("العملاء", "Customers")} value={adminNumber(data.customers, locale)} icon="group" tone="info" />
+        <Stat label={t("المطاعم النشطة", "Active restaurants")} value={`${adminNumber(data.activeRestaurants, locale)} / ${adminNumber(data.restaurants, locale)}`} icon="storefront" />
+        <Stat label={t("المندوبون المعتمدون", "Approved drivers")} value={adminNumber(data.activeDrivers, locale)} icon="two_wheeler" tone="success" />
       </div>
-      <Card className="p-md"><SectionTitle title="آخر ٦ أشهر" icon="show_chart" />{data.monthly.length ? <Bars values={data.monthly.map(x => x.gmv)} labels={data.monthly.map(x => x.month)} /> : <EmptyState icon="show_chart" title="لا توجد مبيعات بعد" body="ستظهر البيانات الشهرية عند إنشاء الطلبات." />}</Card>
-      <Card className="p-md"><SectionTitle title="أفضل المطاعم" icon="military_tech" />{data.topRestaurants.length ? <Table head={["المطعم", "الطلبات", "المبيعات"]}>{data.topRestaurants.map(r => <tr key={r.id}><Td>{r.name}</Td><Td>{Number(r.orders).toLocaleString("ar-EG")}</Td><Td>{EGP(r.gmv)}</Td></tr>)}</Table> : <EmptyState icon="storefront" title="لا توجد بيانات" body="لم تُسجل طلبات للمطاعم بعد." />}</Card>
+      <Card className="p-md"><SectionTitle title={t("آخر ٦ أشهر", "Last 6 months")} icon="show_chart" />{data.monthly.length ? <Bars values={data.monthly.map(x => x.gmv)} labels={data.monthly.map(x => x.month)} /> : <EmptyState icon="show_chart" title={t("لا توجد مبيعات بعد", "No sales yet")} body={t("ستظهر البيانات الشهرية عند إنشاء الطلبات.", "Monthly data will appear when orders are created.")} />}</Card>
+      <Card className="p-md"><SectionTitle title={t("أفضل المطاعم", "Top restaurants")} icon="military_tech" />{data.topRestaurants.length ? <Table head={[t("المطعم", "Restaurant"), t("الطلبات", "Orders"), t("المبيعات", "Sales")]}>{data.topRestaurants.map(r => <tr key={r.id}><Td>{r.name}</Td><Td>{adminNumber(Number(r.orders), locale)}</Td><Td>{adminCurrency(r.gmv, locale)}</Td></tr>)}</Table> : <EmptyState icon="storefront" title={t("لا توجد بيانات", "No data")} body={t("لم تُسجل طلبات للمطاعم بعد.", "No restaurant orders have been recorded yet.")} />}</Card>
     </div>}
   </DashboardShell>;
 }
