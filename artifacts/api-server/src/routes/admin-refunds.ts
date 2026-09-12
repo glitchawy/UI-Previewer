@@ -5,6 +5,7 @@ import {
   db,
   adminAccountsTable,
   adminPermissionGroupsTable,
+  orderItemsTable,
   ordersTable,
   paymentRefundClaimsTable,
   refundRequestsTable,
@@ -29,6 +30,14 @@ import {
 } from "../lib/provider-refunds";
 import { creditWallet, toCents } from "../lib/wallet-ledger";
 import { lookupAuthorization } from "../lib/session";
+import {
+  CompensationValidationError,
+  assertCompensationCap,
+  computeCompensationDecision,
+  egpFromCents,
+  parseEgpCents,
+  sameRejectionDecision,
+} from "../lib/refund-compensation";
 
 const router = Router();
 
@@ -61,7 +70,27 @@ async function serializeRefundRequest(id: number) {
   const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, refund.orderId)).limit(1);
   const [customer] = await db.select({ name: usersTable.name, phone: usersTable.phone })
     .from(usersTable).where(eq(usersTable.id, refund.customerId)).limit(1);
+  const orderItems = await db.select({
+    id: orderItemsTable.id,
+    productName: orderItemsTable.productName,
+    variantName: orderItemsTable.variantName,
+    quantity: orderItemsTable.quantity,
+    lineTotal: orderItemsTable.lineTotal,
+  }).from(orderItemsTable).where(eq(orderItemsTable.orderId, refund.orderId))
+    .orderBy(orderItemsTable.id);
   if (!order || !customer) return null;
+  const compensationItems = Array.isArray(refund.compensationItems)
+    ? refund.compensationItems
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      .map((item) => ({
+        orderItemId: Number(item.orderItemId),
+        productName: String(item.productName ?? ""),
+        variantName: item.variantName == null ? null : String(item.variantName),
+        quantity: Number(item.quantity),
+        lineTotal: Number(item.lineTotal),
+        amount: Number(item.amount),
+      }))
+    : null;
   return {
     id: refund.id,
     orderId: order.id,
@@ -69,14 +98,82 @@ async function serializeRefundRequest(id: number) {
     customerName: customer.name,
     customerPhone: customer.phone,
     restaurantName: order.restaurantName,
+    orderTotal: Number(order.total),
+    orderItems: orderItems.map((item) => ({
+      id: item.id,
+      productName: item.productName,
+      variantName: item.variantName,
+      quantity: item.quantity,
+      lineTotal: Number(item.lineTotal),
+    })),
     amount: Number(refund.amount),
     reason: refund.reason,
     description: refund.description,
     proofPath: refund.proofPath,
     status: refund.status,
     resolutionNote: refund.resolutionNote,
+    compensationType: refund.compensationType,
+    responsibleParty: refund.responsibleParty,
+    compensationItems,
     createdAt: refund.createdAt,
   };
+}
+
+function decisionError(error: unknown): string {
+  if (!(error instanceof CompensationValidationError)) {
+    return "بيانات التعويض غير صحيحة";
+  }
+  const messages: Record<string, string> = {
+    INVALID_DECIMAL: "المبلغ يجب أن يكون رقماً عشرياً صالحاً بالجنيه المصري",
+    INVALID_COURTESY_AMOUNT: "قيمة الرصيد المجامل يجب أن تكون موجبة وبحد أقصى خانتين عشريتين",
+    INVALID_ORDER_TOTAL: "إجمالي الطلب غير صالح",
+    EMPTY_ITEM_SELECTION: "اختر عنصراً واحداً على الأقل للتعويض",
+    INVALID_ITEM_SELECTION: "بيانات عنصر التعويض غير صحيحة",
+    DUPLICATE_OR_FOREIGN_ITEM: "عنصر التعويض غير تابع لهذا الطلب أو مكرر",
+    INVALID_ITEM_QUANTITY: "كمية التعويض غير صحيحة أو تتجاوز الكمية المطلوبة",
+    INVALID_ORDER_LINE_TOTAL: "قيمة سطر الطلب غير صالحة",
+    ZERO_COMPENSATION: "يجب أن يكون مبلغ التعويض أكبر من صفر",
+    COMPENSATION_EXCEEDS_ORDER: "مبلغ التعويض يتجاوز إجمالي الطلب",
+    UNEXPECTED_COMPENSATION_VALUE: "لا تستخدم العناصر أو قيمة المجاملة مع نوع التعويض المحدد",
+  };
+  return messages[error.code] ?? "بيانات التعويض غير صحيحة";
+}
+
+function sameDecision(
+  refund: {
+    compensationType: string | null;
+    responsibleParty: string | null;
+    amount: string;
+    resolutionNote: string | null;
+    compensationItems: unknown;
+  },
+  body: {
+    type: string;
+    party: string;
+    amountCents: number;
+    note: string;
+    items: unknown;
+  },
+) {
+  const canonicalItems = (value: unknown) => {
+    if (!Array.isArray(value)) return null;
+    return value
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      .map((item) => ({
+        orderItemId: Number(item.orderItemId),
+        productName: String(item.productName ?? ""),
+        variantName: item.variantName == null ? null : String(item.variantName),
+        quantity: Number(item.quantity),
+        lineTotal: String(item.lineTotal),
+        amount: String(item.amount),
+      }))
+      .sort((a, b) => a.orderItemId - b.orderItemId);
+  };
+  return refund.compensationType === body.type &&
+    refund.responsibleParty === body.party &&
+    parseEgpCents(refund.amount) === body.amountCents &&
+    refund.resolutionNote === body.note &&
+    JSON.stringify(canonicalItems(refund.compensationItems)) === JSON.stringify(canonicalItems(body.items));
 }
 
 async function serializePaymentRefundClaim(id: number) {
@@ -114,7 +211,12 @@ router.post("/admin/refunds/:id/approve", async (req, res: Response): Promise<vo
   const params = ApproveAdminRefundParams.safeParse(req.params);
   const body = ApproveAdminRefundBody.safeParse(req.body ?? {});
   if (!params.success || !Number.isInteger(params.data.id) || !body.success) {
-    res.status(400).json({ error: "بيانات القرار غير صحيحة" });
+    res.status(400).json({ error: "قرار الموافقة يتطلب الملاحظة ونوع التعويض والطرف المسؤول" });
+    return;
+  }
+  const note = body.data.note.trim();
+  if (!note) {
+    res.status(400).json({ error: "ملاحظة المراجع مطلوبة" });
     return;
   }
   const result = await db.transaction(async (tx) => {
@@ -124,29 +226,107 @@ router.post("/admin/refunds/:id/approve", async (req, res: Response): Promise<vo
     if (!refund || refund.source !== "customer_request" || refund.method !== "wallet") {
       return { error: 404 as const, message: "طلب الاسترداد غير موجود" };
     }
-    if (refund.status === "approved") return { id: refund.id };
+    if (refund.status === "approved") {
+      // The request lock makes replay deterministic.  Replays of the exact
+      // immutable decision are successful; a different decision is a conflict.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(78252, ${refund.orderId})`);
+    }
     if (refund.status !== "pending") {
-      return { error: 400 as const, message: "تم اتخاذ قرار في طلب الاسترداد بالفعل" };
+      if (refund.status === "approved") {
+        const [order] = await tx.select().from(ordersTable)
+          .where(eq(ordersTable.id, refund.orderId)).limit(1);
+        const orderItems = order
+          ? await tx.select().from(orderItemsTable)
+            .where(eq(orderItemsTable.orderId, refund.orderId))
+            .orderBy(orderItemsTable.id)
+          : [];
+        if (!order) return { error: 404 as const, message: "الطلب غير موجود" };
+        let decision;
+        try {
+          decision = computeCompensationDecision({
+            type: body.data.compensationType,
+            orderTotal: String(order.total),
+            orderItems,
+            items: body.data.items,
+            courtesyAmount: body.data.courtesyAmount,
+          });
+        } catch (error) {
+          return { error: 400 as const, message: decisionError(error) };
+        }
+        return sameDecision(refund, {
+          type: decision.type,
+          party: body.data.responsibleParty,
+          amountCents: decision.amountCents,
+          note,
+          items: decision.items,
+        })
+          ? { id: refund.id }
+          : { error: 409 as const, message: "قرار التعويض مختلف عن القرار المحفوظ" };
+      }
+      return { error: 409 as const, message: "تم اتخاذ قرار مختلف في طلب الاسترداد بالفعل" };
+    }
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(78252, ${refund.orderId})`);
+    const [order] = await tx.select().from(ordersTable)
+      .where(eq(ordersTable.id, refund.orderId)).limit(1);
+    if (!order) return { error: 404 as const, message: "الطلب غير موجود" };
+    const orderItems = await tx.select().from(orderItemsTable)
+      .where(eq(orderItemsTable.orderId, refund.orderId))
+      .orderBy(orderItemsTable.id);
+    let decision;
+    try {
+      decision = computeCompensationDecision({
+        type: body.data.compensationType,
+        orderTotal: String(order.total),
+        orderItems,
+        items: body.data.items,
+        courtesyAmount: body.data.courtesyAmount,
+      });
+    } catch (error) {
+      return { error: 400 as const, message: decisionError(error) };
+    }
+    const [priorApproved] = await tx.select({
+      amount: sql<string>`COALESCE(SUM(${refundRequestsTable.amount}), '0')`,
+    }).from(refundRequestsTable).where(and(
+      eq(refundRequestsTable.orderId, refund.orderId),
+      eq(refundRequestsTable.status, "approved"),
+    ));
+    let priorApprovedCents: number;
+    try {
+      priorApprovedCents = parseEgpCents(String(priorApproved?.amount ?? "0"));
+    } catch (error) {
+      return { error: 409 as const, message: "تعذر التحقق من إجمالي التعويضات السابقة" };
+    }
+    const orderTotalCents = toCents(order.total);
+    try {
+      assertCompensationCap(priorApprovedCents, decision.amountCents, orderTotalCents);
+    } catch {
+      return { error: 409 as const, message: "إجمالي التعويضات المعتمدة يتجاوز قيمة الطلب" };
     }
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${refund.customerId})`);
     await creditWallet(tx, {
       userId: refund.customerId,
-      amountCents: toCents(refund.amount),
+      amountCents: decision.amountCents,
       description: `استرداد طلب ${orderCode(refund.orderId)}`,
       referenceType: "refund",
       referenceId: refund.id,
     });
     await tx.update(refundRequestsTable).set({
       status: "approved",
+      amount: egpFromCents(decision.amountCents),
       reviewedBy: admin.id,
-      resolutionNote: body.data.note?.trim() || "تمت الموافقة وإضافة المبلغ للمحفظة",
+      resolutionNote: note,
+      compensationType: decision.type,
+      responsibleParty: body.data.responsibleParty,
+      compensationItems: decision.items,
       reviewedAt: new Date(),
     }).where(and(
       eq(refundRequestsTable.id, refund.id),
       eq(refundRequestsTable.status, "pending"),
     ));
-    await tx.update(ordersTable).set({ paymentStatus: "refunded" })
-      .where(eq(ordersTable.id, refund.orderId));
+    if (decision.type === "full_refund") {
+      await tx.update(ordersTable).set({ paymentStatus: "refunded" })
+        .where(eq(ordersTable.id, refund.orderId));
+    }
     return { id: refund.id };
   });
   if ("error" in result && result.error) {
@@ -175,14 +355,22 @@ router.post("/admin/refunds/:id/reject", async (req, res: Response): Promise<voi
     if (!refund || refund.source !== "customer_request") {
       return { error: 404 as const, message: "طلب الاسترداد غير موجود" };
     }
-    if (refund.status === "rejected") return { id: refund.id };
+    if (refund.status === "rejected") {
+      return sameRejectionDecision(refund, {
+        note,
+        responsibleParty: body.data.responsibleParty,
+      })
+        ? { id: refund.id }
+        : { error: 409 as const, message: "قرار الرفض مختلف عن القرار المحفوظ" };
+    }
     if (refund.status !== "pending") {
-      return { error: 400 as const, message: "تم اتخاذ قرار في طلب الاسترداد بالفعل" };
+      return { error: 409 as const, message: "تم اتخاذ قرار مختلف في طلب الاسترداد بالفعل" };
     }
     await tx.update(refundRequestsTable).set({
       status: "rejected",
       reviewedBy: admin.id,
       resolutionNote: note,
+      responsibleParty: body.data.responsibleParty ?? null,
       reviewedAt: new Date(),
     }).where(and(
       eq(refundRequestsTable.id, refund.id),

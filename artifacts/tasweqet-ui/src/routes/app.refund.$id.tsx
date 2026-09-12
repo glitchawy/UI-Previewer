@@ -6,6 +6,7 @@ import {
   useGetCustomerOrder,
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Button, Badge, EmptyState } from "@/components/tb/shell";
+import { CustomerCompensationSummary } from "@/components/tb/customer-compensation-summary";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP, formatOrderDate } from "@/lib/tb/orders";
 import { translate, useTranslation } from "@/lib/i18n";
@@ -40,7 +41,7 @@ function refundStatusCopy(status: string, t: ReturnType<typeof useTranslation>["
       tone: "success" as const,
       icon: "check_circle",
       title: t("تمت الموافقة على طلب الاسترداد", "Refund request approved"),
-      body: t("تمت إضافة المبلغ إلى محفظتك.", "The amount has been added to your wallet."),
+      body: t("تم تنفيذ قرار فريق الإدارة وإضافة المبلغ المعتمد إلى محفظتك.", "The reviewed decision was completed and the approved amount was added to your wallet."),
       badge: t("تمت الموافقة", "Approved"),
     };
   }
@@ -103,6 +104,7 @@ function AppRefundId() {
   });
   const finalReason = reason === reasons[4]![0] ? otherReason.trim() : reason;
   const refundStatus = order.data?.refundRequestStatus;
+  const refundCompensation = order.data?.refundCompensation;
 
   useEffect(() => {
     if (!selectedProof) {
@@ -200,6 +202,7 @@ function AppRefundId() {
                </Card>
              );
            })()}
+            <CustomerCompensationSummary compensation={refundCompensation} orderTotal={order.data.total} status={refundStatus} />
            <Link to="/app/wallet"><Button className="w-full" icon="account_balance_wallet">{t("فتح المحفظة", "Open wallet")}</Button></Link>
         </div>
       ) : !order.data.canRequestRefund ? (
@@ -288,13 +291,13 @@ function AppRefundId() {
            </section>
 
           <Card className="space-y-2 p-md">
-             <div className="flex justify-between"><span className="text-on-surface-variant">{t("المبلغ المطلوب", "Requested amount")}</span><strong>{EGP(order.data.total)}</strong></div>
+              <div className="flex justify-between"><span className="text-on-surface-variant">{t("الحد الأقصى للمبلغ المراجع", "Maximum amount for review")}</span><strong>{EGP(order.data.total)}</strong></div>
              <div className="flex justify-between"><span className="text-on-surface-variant">{t("طريقة الاسترداد", "Refund method")}</span><Badge tone="info">{t("محفظة طلبات بيتك", "Talabat Betak wallet")}</Badge></div>
           </Card>
 
           <Card className="flex items-center gap-2 bg-secondary-container p-3 text-on-secondary-container">
             <Icon name="info" className="text-[18px]" />
-             <span className="font-label-md text-label-md">{t("الطلب هيتراجع من فريق الإدارة قبل إضافة المبلغ للمحفظة", "The team will review the request before adding funds to your wallet")}</span>
+              <span className="font-label-md text-label-md">{t("فريق الإدارة هيراجع الحالة وقد يضيف كل المبلغ أو جزءاً منه للمحفظة؛ القرار النهائي يظهر بعد المراجعة", "The team will review the case and may credit all or part of the amount; the final decision appears after review.")}</span>
           </Card>
 
            {validationError ? <p className="rounded-button bg-error-container p-3 text-center text-label-md text-error" role="alert">{validationError}</p> : null}

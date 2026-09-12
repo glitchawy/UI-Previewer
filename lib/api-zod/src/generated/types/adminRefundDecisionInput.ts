@@ -5,8 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ResponsibleParty } from './responsibleParty';
 
 export interface AdminRefundDecisionInput {
-  /** @maxLength 1000 */
-  note?: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  note: string;
+  responsibleParty: ResponsibleParty;
 }

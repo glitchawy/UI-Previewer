@@ -8,6 +8,7 @@
 import type { OrderLine } from './orderLine';
 import type { OrderSummary } from './orderSummary';
 import type { OrderTimelineEntry } from './orderTimelineEntry';
+import type { RefundCompensation } from './refundCompensation';
 import type { RefundRequestStatus } from './refundRequestStatus';
 
 export type OrderDetail = OrderSummary & ({
@@ -31,6 +32,7 @@ export type OrderDetail = OrderSummary & ({
   canCancel: boolean;
   canRequestRefund: boolean;
   refundRequestStatus: RefundRequestStatus | null;
+  refundCompensation: RefundCompensation | null;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });

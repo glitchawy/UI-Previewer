@@ -31,6 +31,7 @@ import type {
   AdminOverview,
   AdminPage,
   AdminPaymentRefundClaim,
+  AdminRefundApprovalInput,
   AdminRefundDecisionInput,
   AdminRefundRequest,
   ApplicantOnboardingStatus,
@@ -4972,14 +4973,14 @@ export const getApproveAdminRefundUrl = (id: number,) => {
  * @summary Approve a pending request and credit the customer's wallet
  */
 export const approveAdminRefund = async (id: number,
-    adminRefundDecisionInput?: AdminRefundDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminRefundRequest> => {
+    adminRefundApprovalInput: AdminRefundApprovalInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminRefundRequest> => {
 
   return customFetch<AdminRefundRequest>(getApproveAdminRefundUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(adminRefundDecisionInput)
+    body: JSON.stringify(adminRefundApprovalInput)
   }
 );}
 
@@ -4988,8 +4989,8 @@ export const approveAdminRefund = async (id: number,
 
 
 export const getApproveAdminRefundMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data?: BodyType<AdminRefundDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data?: BodyType<AdminRefundDecisionInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data: BodyType<AdminRefundApprovalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data: BodyType<AdminRefundApprovalInput>}, TContext> => {
 
 const mutationKey = ['approveAdminRefund'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -5001,7 +5002,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAdminRefund>>, {id: number;data?: BodyType<AdminRefundDecisionInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAdminRefund>>, {id: number;data: BodyType<AdminRefundApprovalInput>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  approveAdminRefund(id,data,requestOptions)
@@ -5015,18 +5016,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ApproveAdminRefundMutationResult = NonNullable<Awaited<ReturnType<typeof approveAdminRefund>>>
-    export type ApproveAdminRefundMutationBody = BodyType<AdminRefundDecisionInput> | undefined
+    export type ApproveAdminRefundMutationBody = BodyType<AdminRefundApprovalInput>
     export type ApproveAdminRefundMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Approve a pending request and credit the customer's wallet
  */
 export const useApproveAdminRefund = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data?: BodyType<AdminRefundDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAdminRefund>>, TError,{id: number;data: BodyType<AdminRefundApprovalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof approveAdminRefund>>,
         TError,
-        {id: number;data?: BodyType<AdminRefundDecisionInput>},
+        {id: number;data: BodyType<AdminRefundApprovalInput>},
         TContext
       > => {
       return useMutation(getApproveAdminRefundMutationOptions(options));

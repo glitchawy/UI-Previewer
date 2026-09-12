@@ -10,6 +10,7 @@ import {
 import { AppBar, MobileShell, Icon, Card, Badge, Button, EmptyState } from "@/components/tb/shell";
 import { DeliveryEstimateCard } from "@/components/tb/delivery-estimate";
 import { OrderLiveTracking } from "@/components/tb/order-live-tracking";
+import { CustomerCompensationSummary } from "@/components/tb/customer-compensation-summary";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP, formatOrderDate, orderStatusLabels, orderStatusTones, paymentStatusLabels, paymentStatusTones } from "@/lib/tb/orders";
 import { translate, useTranslation } from "@/lib/i18n";
@@ -33,7 +34,7 @@ function AppOrderDetail() {
   const orderQuery = useGetCustomerOrder(id, {
     query: { enabled: id > 0, queryKey: getGetCustomerOrderQueryKey(id), refetchInterval: 10_000 },
   });
-  const orderEstimate = (orderQuery.data as unknown as { deliveryEstimate?: unknown } | undefined)?.deliveryEstimate;
+  const orderEstimate = orderQuery.data?.deliveryEstimate;
   const cancelOrder = useCancelCustomerOrder({
     mutation: {
       onSuccess: async () => {
@@ -121,6 +122,12 @@ function AppOrderDetail() {
              {orderQuery.data.notes ? <div className="flex gap-3"><Icon name="notes" className="text-secondary" /><div><p className="font-label-lg text-label-lg">{t("ملاحظات", "Notes")}</p><p className="font-body-md text-body-md text-on-surface-variant">{orderQuery.data.notes}</p></div></div> : null}
           </Card>
 
+           <CustomerCompensationSummary
+             compensation={orderQuery.data.refundCompensation}
+             orderTotal={orderQuery.data.total}
+             status={orderQuery.data.refundRequestStatus}
+           />
+
           {orderQuery.data.canCancel ? (
             <Card className="space-y-3 border-error/30 p-md">
                <div><p className="font-label-lg text-label-lg">{t("محتاج تلغي الطلب؟", "Need to cancel your order?")}</p><p className="font-label-md text-label-md text-on-surface-variant">{t("الإلغاء متاح قبل ما المطعم يبدأ التحضير.", "Cancellation is available before the restaurant starts preparing.")}</p></div>
@@ -135,11 +142,11 @@ function AppOrderDetail() {
             </Card>
           ) : null}
 
-          {orderQuery.data.canRequestRefund ? (
+           {orderQuery.data.canRequestRefund ? (
             <Link to="/app/refund/$id" params={{ id: String(orderQuery.data.id) }}>
                <Button variant="outline" className="w-full" icon="currency_exchange">{t("طلب استرداد للمحفظة", "Request wallet refund")}</Button>
             </Link>
-          ) : orderQuery.data.refundRequestStatus ? (
+           ) : orderQuery.data.refundRequestStatus && !orderQuery.data.refundCompensation ? (
             <Card className="flex items-center justify-between p-md">
                <span className="font-label-lg text-label-lg">{t("طلب الاسترداد", "Refund request")}</span>
               <Badge tone={orderQuery.data.refundRequestStatus === "approved" ? "success" : orderQuery.data.refundRequestStatus === "rejected" || orderQuery.data.refundRequestStatus === "failed" ? "danger" : "warn"}>

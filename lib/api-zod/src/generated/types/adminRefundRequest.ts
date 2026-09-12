@@ -5,7 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminRefundCompensationItem } from './adminRefundCompensationItem';
+import type { AdminRefundOrderItem } from './adminRefundOrderItem';
+import type { CompensationType } from './compensationType';
 import type { RefundRequestStatus } from './refundRequestStatus';
+import type { ResponsibleParty } from './responsibleParty';
 
 export interface AdminRefundRequest {
   id: number;
@@ -15,6 +19,8 @@ export interface AdminRefundRequest {
   customerName: string | null;
   customerPhone: string;
   restaurantName: string;
+  orderTotal: number;
+  orderItems: AdminRefundOrderItem[];
   amount: number;
   reason: string;
   /** @nullable */
@@ -24,5 +30,8 @@ export interface AdminRefundRequest {
   status: RefundRequestStatus;
   /** @nullable */
   resolutionNote: string | null;
+  compensationType: CompensationType | null;
+  responsibleParty: ResponsibleParty | null;
+  compensationItems: AdminRefundCompensationItem[] | null;
   createdAt: Date;
 }

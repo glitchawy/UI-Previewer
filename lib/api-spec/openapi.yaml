@@ -1779,10 +1779,11 @@ paths:
           schema:
             type: number
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AdminRefundDecisionInput"
+              $ref: "#/components/schemas/AdminRefundApprovalInput"
       responses:
         "200":
           description: Refund approved idempotently
@@ -1810,6 +1811,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Refund request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The decision conflicts with an existing outcome or would exceed the order compensation cap
           content:
             application/json:
               schema:
@@ -1861,6 +1868,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Refund request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A different decision has already been recorded
           content:
             application/json:
               schema:
@@ -3221,7 +3234,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/OrderSummary"
         - type: object
-          required: [deliveryAddressText, deliveryLat, deliveryLng, notes, timeline, items, driverName, driverPhone, driverLat, driverLng, driverLocationUpdatedAt, walletAmountUsed, externalAmountDue, canCancel, canRequestRefund, refundRequestStatus]
+          required: [deliveryAddressText, deliveryLat, deliveryLng, notes, timeline, items, driverName, driverPhone, driverLat, driverLng, driverLocationUpdatedAt, walletAmountUsed, externalAmountDue, canCancel, canRequestRefund, refundRequestStatus, refundCompensation]
           properties:
             deliveryAddressText:
               type: string
@@ -3253,6 +3266,10 @@ components:
             refundRequestStatus:
               oneOf:
                 - $ref: "#/components/schemas/RefundRequestStatus"
+                - type: "null"
+            refundCompensation:
+              oneOf:
+                - $ref: "#/components/schemas/RefundCompensation"
                 - type: "null"
             timeline:
               type: array
@@ -3481,14 +3498,101 @@ components:
 
     AdminRefundDecisionInput:
       type: object
+      required: [note, responsibleParty]
       properties:
         note:
           type: string
+          minLength: 1
           maxLength: 1000
+        responsibleParty:
+          $ref: "#/components/schemas/ResponsibleParty"
+
+    CompensationType:
+      type: string
+      enum: [full_refund, item_refund, courtesy_credit]
+
+    ResponsibleParty:
+      type: string
+      enum: [restaurant, driver, customer, platform, shared, undetermined]
+
+    AdminRefundItemSelection:
+      type: object
+      required: [orderItemId, quantity]
+      properties:
+        orderItemId:
+          type: number
+          minimum: 1
+          multipleOf: 1
+        quantity:
+          type: number
+          minimum: 1
+          multipleOf: 1
+
+    AdminRefundApprovalInput:
+      type: object
+      required: [note, compensationType, responsibleParty]
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        compensationType:
+          $ref: "#/components/schemas/CompensationType"
+        responsibleParty:
+          $ref: "#/components/schemas/ResponsibleParty"
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AdminRefundItemSelection"
+        courtesyAmount:
+          type: string
+          maxLength: 20
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+
+    AdminRefundCompensationItem:
+      type: object
+      required: [orderItemId, productName, variantName, quantity, lineTotal, amount]
+      properties:
+        orderItemId:
+          type: number
+        productName:
+          type: string
+        variantName:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        lineTotal:
+          type: number
+        amount:
+          type: number
+
+    RefundCompensation:
+      type: object
+      required: [type, responsibleParty, amount, items, note]
+      properties:
+        type:
+          oneOf:
+            - $ref: "#/components/schemas/CompensationType"
+            - type: "null"
+        responsibleParty:
+          oneOf:
+            - $ref: "#/components/schemas/ResponsibleParty"
+            - type: "null"
+        amount:
+          type: number
+        items:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/AdminRefundCompensationItem"
+            - type: "null"
+        note:
+          type: ["string", "null"]
 
     AdminRefundRequest:
       type: object
-      required: [id, orderId, orderCode, customerName, customerPhone, restaurantName, amount, reason, description, proofPath, status, resolutionNote, createdAt]
+      required: [id, orderId, orderCode, customerName, customerPhone, restaurantName, orderTotal, orderItems, amount, reason, description, proofPath, status, resolutionNote, compensationType, responsibleParty, compensationItems, createdAt]
       properties:
         id:
           type: number
@@ -3502,6 +3606,12 @@ components:
           type: string
         restaurantName:
           type: string
+        orderTotal:
+          type: number
+        orderItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRefundOrderItem"
         amount:
           type: number
         reason:
@@ -3514,9 +3624,38 @@ components:
           $ref: "#/components/schemas/RefundRequestStatus"
         resolutionNote:
           type: ["string", "null"]
+        compensationType:
+          oneOf:
+            - $ref: "#/components/schemas/CompensationType"
+            - type: "null"
+        responsibleParty:
+          oneOf:
+            - $ref: "#/components/schemas/ResponsibleParty"
+            - type: "null"
+        compensationItems:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/AdminRefundCompensationItem"
+            - type: "null"
         createdAt:
           type: string
           format: date-time
+
+    AdminRefundOrderItem:
+      type: object
+      required: [id, productName, variantName, quantity, lineTotal]
+      properties:
+        id:
+          type: number
+        productName:
+          type: string
+        variantName:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        lineTotal:
+          type: number
 
     PaymentRefundResolutionInput:
       type: object

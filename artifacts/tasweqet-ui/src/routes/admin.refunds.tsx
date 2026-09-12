@@ -10,7 +10,15 @@ import {
   useRejectAdminRefund,
   useResolveAdminPaymentRefund,
 } from "@workspace/api-client-react";
+import type { AdminRefundRequest } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Button, Badge, EmptyState } from "@/components/tb/shell";
+import {
+  CompensationChoice,
+  compensationTypeLabel,
+  responsiblePartyLabel,
+  type CompensationDecisionInput,
+  type ResponsibleParty,
+} from "@/components/tb/compensation-choice";
 import { adminCurrency, adminDateTime } from "@/lib/admin-i18n";
 import { translate, useTranslation } from "@/lib/i18n";
 import { fetchPrivateStorageObject } from "@/lib/refund-proof";
@@ -90,6 +98,70 @@ function RefundProofPreview({
   );
 }
 
+function RefundDecisionSummary({
+  refund,
+  t,
+  locale,
+}: {
+  refund: AdminRefundRequest;
+  t: ReturnType<typeof useTranslation>["t"];
+  locale: "ar" | "en";
+}) {
+  const hasDecision = Boolean(refund.compensationType || refund.responsibleParty || refund.compensationItems?.length);
+
+  if (!hasDecision) {
+    return (
+      <div className="rounded-card bg-surface-container p-3">
+        <p className="font-label-md text-label-md text-on-surface-variant">
+          {t("قرار قديم: تفاصيل التعويض غير متاحة.", "Legacy decision: compensation details are not available.")}
+        </p>
+        <p className="mt-1 font-label-lg text-label-lg">{t("المبلغ المسجل", "Recorded amount")}: {adminCurrency(refund.amount, locale)}</p>
+      </div>
+    );
+  }
+
+  if (refund.status === "rejected" || refund.status === "failed") {
+    return (
+      <div className="space-y-2 rounded-card bg-error-container/50 p-3">
+        <p className="font-label-lg text-label-lg">{t("قرار الرفض", "Rejection decision")}</p>
+        <div className="grid grid-cols-2 gap-2 text-label-md">
+          <span className="text-on-surface-variant">{t("الجهة المسؤولة", "Responsible party")}</span>
+          <strong>{responsiblePartyLabel(refund.responsibleParty, t)}</strong>
+          <span className="text-on-surface-variant">{t("المبلغ المضاف للمحفظة", "Wallet credit")}</span>
+          <strong>{adminCurrency(0, locale)}</strong>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-card bg-success/10 p-3">
+      <p className="font-label-lg text-label-lg">{t("قرار التعويض الفعلي", "Actual compensation decision")}</p>
+      <div className="grid grid-cols-2 gap-2 text-label-md">
+        <span className="text-on-surface-variant">{t("النوع", "Type")}</span>
+        <strong>{compensationTypeLabel(refund.compensationType, t)}</strong>
+        <span className="text-on-surface-variant">{t("الجهة المسؤولة", "Responsible party")}</span>
+        <strong>{responsiblePartyLabel(refund.responsibleParty, t)}</strong>
+        <span className="text-on-surface-variant">{t("المبلغ المضاف للمحفظة", "Wallet credit")}</span>
+        <strong>{adminCurrency(refund.amount, locale)}</strong>
+      </div>
+      {refund.compensationItems?.length ? (
+        <div className="border-t border-outline-variant pt-2">
+          <p className="font-label-md text-label-md text-on-surface-variant">{t("الأصناف والكميات", "Items and quantities")}</p>
+          <ul className="mt-1 space-y-1 font-label-md text-label-md">
+            {refund.compensationItems.map((item, index) => (
+              <li key={`${item.orderItemId ?? item.productName ?? "item"}-${index}`}>
+                {item.productName || t(`الصنف ${item.orderItemId ?? ""}`, `Item ${item.orderItemId ?? ""}`)}
+                {item.variantName ? ` · ${item.variantName}` : ""} · {t("الكمية", "Qty")} {item.quantity ?? "—"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AdminRefunds() {
   const { t, locale } = useTranslation();
   const statusLabel = (status: string) => ({
@@ -104,6 +176,7 @@ function AdminRefunds() {
   const paymentRefunds = useListAdminPaymentRefunds();
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [claimNotes, setClaimNotes] = useState<Record<number, string>>({});
+  const [rejectParties, setRejectParties] = useState<Record<number, ResponsibleParty | "">>({});
 
   const refreshRefunds = () => queryClient.invalidateQueries({ queryKey: getListAdminRefundsQueryKey() });
   const refreshClaims = () => queryClient.invalidateQueries({ queryKey: getListAdminPaymentRefundsQueryKey() });
@@ -133,13 +206,11 @@ function AdminRefunds() {
              <EmptyState icon="task_alt" title={t("لا توجد طلبات استرداد", "No refund requests")} body={t("ستظهر طلبات العملاء الجديدة هنا", "New customer requests will appear here")} />
           ) : (
             <div className="flex flex-col gap-3">
-              {refunds.data?.map((refund) => {
+               {refunds.data?.map((refund) => {
                 const pending = refund.status === "pending";
                 const note = notes[refund.id] ?? "";
-                 const refundDetails = refund as typeof refund & {
-                   description?: string | null;
-                   proofPath?: string | null;
-                 };
+                 const rejectParty = rejectParties[refund.id] ?? "";
+                 const rejection = rejectParty ? { note: note.trim(), responsibleParty: rejectParty } : null;
                 return (
                   <Card key={refund.id} className="space-y-3 p-md">
                     <div className="flex items-start justify-between gap-3">
@@ -149,35 +220,60 @@ function AdminRefunds() {
                       </div>
                        <Badge tone={refund.status === "approved" ? "success" : refund.status === "rejected" || refund.status === "failed" ? "danger" : "warn"}>{statusLabel(refund.status)}</Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 rounded-card bg-surface-container p-3 text-label-md">
+                     <div className="grid grid-cols-2 gap-2 rounded-card bg-surface-container p-3 text-label-md">
                        <span className="text-on-surface-variant">{t("العميل", "Customer")}</span><strong>{refund.customerName || refund.customerPhone}</strong>
-                       <span className="text-on-surface-variant">{t("المبلغ", "Amount")}</span><strong>{adminCurrency(refund.amount, locale)}</strong>
+                        <span className="text-on-surface-variant">{t("إجمالي الطلب", "Order total")}</span><strong>{adminCurrency(Number(refund.orderTotal ?? refund.amount), locale)}</strong>
                        <span className="text-on-surface-variant">{t("السبب", "Reason")}</span><strong>{refund.reason}</strong>
                     </div>
                      <div className="space-y-1 rounded-card bg-surface-container p-3">
                        <p className="font-label-md text-label-md text-on-surface-variant">{t("وصف الشكوى", "Complaint description")}</p>
-                       <p className="whitespace-pre-wrap break-words font-body-md text-body-md">{refundDetails.description?.trim() || t("لم يقدم العميل وصفاً لهذا الطلب القديم.", "No description was provided for this legacy request.")}</p>
+                        <p className="whitespace-pre-wrap break-words font-body-md text-body-md">{refund.description?.trim() || t("لم يقدم العميل وصفاً لهذا الطلب القديم.", "No description was provided for this legacy request.")}</p>
                      </div>
                      <div className="space-y-2 rounded-card bg-surface-container p-3">
                        <p className="font-label-md text-label-md text-on-surface-variant">{t("صورة الإثبات", "Proof photo")}</p>
-                       <RefundProofPreview objectPath={refundDetails.proofPath} t={t} />
+                        <RefundProofPreview objectPath={refund.proofPath} t={t} />
                      </div>
-                     {refund.resolutionNote ? <p className="rounded-button bg-surface-container p-2 text-label-md text-on-surface-variant">{t("ملاحظة الإدارة: ", "Admin note: ")}{refund.resolutionNote}</p> : null}
+                      {refund.resolutionNote ? <p className="rounded-button bg-surface-container p-2 text-label-md text-on-surface-variant">{t("ملاحظة الإدارة: ", "Admin note: ")}{refund.resolutionNote}</p> : null}
+                     {!pending ? <RefundDecisionSummary refund={refund} t={t} locale={locale} /> : null}
                     {pending ? (
                       <>
-                        <textarea value={note} onChange={(event) => setNotes((current) => ({ ...current, [refund.id]: event.target.value }))}
+                         <CompensationChoice
+                           orderTotal={refund.orderTotal}
+                           orderItems={refund.orderItems}
+                           isSubmitting={approve.isPending}
+                           submitError={approve.isError ? errorMessage(approve.error, t("تعذر اعتماد التعويض", "Unable to approve compensation")) : null}
+                           onSubmit={async (decision: CompensationDecisionInput) => {
+                             await approve.mutateAsync({ id: refund.id, data: decision });
+                           }}
+                         />
+                         <div className="space-y-2 rounded-card border border-outline-variant p-3">
+                           <p className="font-label-lg text-label-lg">{t("أو ارفض الطلب", "Or reject the request")}</p>
+                           <label className="block">
+                             <span className="mb-1 block font-label-md text-label-md text-on-surface-variant">{t("الجهة المسؤولة عن الرفض", "Responsible party for rejection")} <span className="text-error">*</span></span>
+                             <select
+                               value={rejectParty}
+                               onChange={(event) => setRejectParties((current) => ({ ...current, [refund.id]: event.target.value as ResponsibleParty | "" }))}
+                               className="w-full rounded-button border border-outline-variant bg-surface-container-lowest px-3 py-2.5 outline-none focus:border-secondary"
+                             >
+                               <option value="">{t("اختار الجهة", "Select a party")}</option>
+                               <option value="restaurant">{t("المطعم", "Restaurant")}</option>
+                               <option value="driver">{t("المندوب", "Driver")}</option>
+                               <option value="customer">{t("العميل", "Customer")}</option>
+                               <option value="platform">{t("المنصة", "Platform")}</option>
+                               <option value="shared">{t("مشترك", "Shared")}</option>
+                               <option value="undetermined">{t("غير محدد", "Undetermined")}</option>
+                             </select>
+                           </label>
+                           <textarea value={note} onChange={(event) => setNotes((current) => ({ ...current, [refund.id]: event.target.value }))}
                            maxLength={1000} aria-label={t("ملاحظة القرار", "Decision note")} placeholder={t("ملاحظة القرار (مطلوبة عند الرفض)", "Decision note (required when rejecting)")}
                           className="min-h-20 w-full rounded-card border border-outline-variant bg-surface-container-lowest p-3 outline-none focus:border-primary" />
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button icon="check" disabled={approve.isPending || reject.isPending}
-                            onClick={() => approve.mutate({ id: refund.id, data: note.trim() ? { note: note.trim() } : {} })}>
-                             {t("موافقة", "Approve")}
-                          </Button>
-                          <Button variant="danger" icon="close" disabled={!note.trim() || approve.isPending || reject.isPending}
-                            onClick={() => reject.mutate({ id: refund.id, data: { note: note.trim() } })}>
-                             {t("رفض", "Reject")}
-                          </Button>
-                        </div>
+                           <Button variant="danger" icon="close" disabled={!rejection?.note || !rejection.responsibleParty || approve.isPending || reject.isPending}
+                             onClick={() => {
+                               if (rejection) reject.mutate({ id: refund.id, data: rejection });
+                             }}>
+                              {t("رفض", "Reject")}
+                           </Button>
+                         </div>
                       </>
                     ) : null}
                   </Card>

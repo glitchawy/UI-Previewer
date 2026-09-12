@@ -781,6 +781,46 @@ export const RefundRequestStatus = {
   failed: 'failed',
 } as const;
 
+export type CompensationType = typeof CompensationType[keyof typeof CompensationType];
+
+
+export const CompensationType = {
+  full_refund: 'full_refund',
+  item_refund: 'item_refund',
+  courtesy_credit: 'courtesy_credit',
+} as const;
+
+export type ResponsibleParty = typeof ResponsibleParty[keyof typeof ResponsibleParty];
+
+
+export const ResponsibleParty = {
+  restaurant: 'restaurant',
+  driver: 'driver',
+  customer: 'customer',
+  platform: 'platform',
+  shared: 'shared',
+  undetermined: 'undetermined',
+} as const;
+
+export interface AdminRefundCompensationItem {
+  orderItemId: number;
+  productName: string;
+  /** @nullable */
+  variantName: string | null;
+  quantity: number;
+  lineTotal: number;
+  amount: number;
+}
+
+export interface RefundCompensation {
+  type: CompensationType | null;
+  responsibleParty: ResponsibleParty | null;
+  amount: number;
+  items: AdminRefundCompensationItem[] | null;
+  /** @nullable */
+  note: string | null;
+}
+
 export type OrderDetail = OrderSummary & ({
   deliveryAddressText: string;
   deliveryLat: number;
@@ -802,6 +842,7 @@ export type OrderDetail = OrderSummary & ({
   canCancel: boolean;
   canRequestRefund: boolean;
   refundRequestStatus: RefundRequestStatus | null;
+  refundCompensation: RefundCompensation | null;
   timeline: OrderTimelineEntry[];
   items: OrderLine[];
 });
@@ -933,8 +974,45 @@ export interface CustomerWallet {
 }
 
 export interface AdminRefundDecisionInput {
-  /** @maxLength 1000 */
-  note?: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  note: string;
+  responsibleParty: ResponsibleParty;
+}
+
+export interface AdminRefundItemSelection {
+  /** @minimum 1 */
+  orderItemId: number;
+  /** @minimum 1 */
+  quantity: number;
+}
+
+export interface AdminRefundApprovalInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  note: string;
+  compensationType: CompensationType;
+  responsibleParty: ResponsibleParty;
+  /** @minItems 1 */
+  items?: AdminRefundItemSelection[];
+  /**
+     * @maxLength 20
+     * @pattern ^[0-9]+(?:\.[0-9]{1,2})?$
+     */
+  courtesyAmount?: string;
+}
+
+export interface AdminRefundOrderItem {
+  id: number;
+  productName: string;
+  /** @nullable */
+  variantName: string | null;
+  quantity: number;
+  lineTotal: number;
 }
 
 export interface AdminRefundRequest {
@@ -945,6 +1023,8 @@ export interface AdminRefundRequest {
   customerName: string | null;
   customerPhone: string;
   restaurantName: string;
+  orderTotal: number;
+  orderItems: AdminRefundOrderItem[];
   amount: number;
   reason: string;
   /** @nullable */
@@ -954,6 +1034,9 @@ export interface AdminRefundRequest {
   status: RefundRequestStatus;
   /** @nullable */
   resolutionNote: string | null;
+  compensationType: CompensationType | null;
+  responsibleParty: ResponsibleParty | null;
+  compensationItems: AdminRefundCompensationItem[] | null;
   createdAt: string;
 }
 

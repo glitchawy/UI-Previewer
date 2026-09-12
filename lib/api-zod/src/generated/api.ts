@@ -499,6 +499,20 @@ export const GetCustomerOrderResponse = zod.object({
   "canCancel": zod.boolean(),
   "canRequestRefund": zod.boolean(),
   "refundRequestStatus": zod.union([zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),zod.null()]),
+  "refundCompensation": zod.union([zod.object({
+  "type": zod.union([zod.enum(['full_refund', 'item_refund', 'courtesy_credit']),zod.null()]),
+  "responsibleParty": zod.union([zod.enum(['restaurant', 'driver', 'customer', 'platform', 'shared', 'undetermined']),zod.null()]),
+  "amount": zod.number(),
+  "items": zod.union([zod.array(zod.object({
+  "orderItemId": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number(),
+  "amount": zod.number()
+})),zod.null()]),
+  "note": zod.string().nullable()
+}),zod.null()]),
   "timeline": zod.array(zod.object({
   "status": zod.enum(['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']),
   "at": zod.coerce.date(),
@@ -1370,12 +1384,30 @@ export const ListAdminRefundsResponseItem = zod.object({
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string(),
   "restaurantName": zod.string(),
+  "orderTotal": zod.number(),
+  "orderItems": zod.array(zod.object({
+  "id": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number()
+})),
   "amount": zod.number(),
   "reason": zod.string(),
   "description": zod.string().nullable(),
   "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "resolutionNote": zod.string().nullable(),
+  "compensationType": zod.union([zod.enum(['full_refund', 'item_refund', 'courtesy_credit']),zod.null()]),
+  "responsibleParty": zod.union([zod.enum(['restaurant', 'driver', 'customer', 'platform', 'shared', 'undetermined']),zod.null()]),
+  "compensationItems": zod.union([zod.array(zod.object({
+  "orderItemId": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number(),
+  "amount": zod.number()
+})),zod.null()]),
   "createdAt": zod.coerce.date()
 })
 export const ListAdminRefundsResponse = zod.array(ListAdminRefundsResponseItem)
@@ -1390,10 +1422,26 @@ export const ApproveAdminRefundParams = zod.object({
 
 export const approveAdminRefundBodyNoteMax = 1000;
 
+export const approveAdminRefundBodyItemsItemOrderItemIdMultipleOf = 1;
+
+export const approveAdminRefundBodyItemsItemQuantityMultipleOf = 1;
+
+
+export const approveAdminRefundBodyCourtesyAmountMax = 20;
+
+
+export const approveAdminRefundBodyCourtesyAmountRegExp = new RegExp('^[0-9]+(?:\\.[0-9]{1,2})?$');
 
 
 export const ApproveAdminRefundBody = zod.object({
-  "note": zod.string().max(approveAdminRefundBodyNoteMax).optional()
+  "note": zod.string().min(1).max(approveAdminRefundBodyNoteMax),
+  "compensationType": zod.enum(['full_refund', 'item_refund', 'courtesy_credit']),
+  "responsibleParty": zod.enum(['restaurant', 'driver', 'customer', 'platform', 'shared', 'undetermined']),
+  "items": zod.array(zod.object({
+  "orderItemId": zod.number().min(1).multipleOf(approveAdminRefundBodyItemsItemOrderItemIdMultipleOf),
+  "quantity": zod.number().min(1).multipleOf(approveAdminRefundBodyItemsItemQuantityMultipleOf)
+})).min(1).optional(),
+  "courtesyAmount": zod.string().max(approveAdminRefundBodyCourtesyAmountMax).regex(approveAdminRefundBodyCourtesyAmountRegExp).optional()
 })
 
 export const ApproveAdminRefundResponse = zod.object({
@@ -1403,12 +1451,30 @@ export const ApproveAdminRefundResponse = zod.object({
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string(),
   "restaurantName": zod.string(),
+  "orderTotal": zod.number(),
+  "orderItems": zod.array(zod.object({
+  "id": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number()
+})),
   "amount": zod.number(),
   "reason": zod.string(),
   "description": zod.string().nullable(),
   "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "resolutionNote": zod.string().nullable(),
+  "compensationType": zod.union([zod.enum(['full_refund', 'item_refund', 'courtesy_credit']),zod.null()]),
+  "responsibleParty": zod.union([zod.enum(['restaurant', 'driver', 'customer', 'platform', 'shared', 'undetermined']),zod.null()]),
+  "compensationItems": zod.union([zod.array(zod.object({
+  "orderItemId": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number(),
+  "amount": zod.number()
+})),zod.null()]),
   "createdAt": zod.coerce.date()
 })
 
@@ -1425,7 +1491,8 @@ export const rejectAdminRefundBodyNoteMax = 1000;
 
 
 export const RejectAdminRefundBody = zod.object({
-  "note": zod.string().max(rejectAdminRefundBodyNoteMax).optional()
+  "note": zod.string().min(1).max(rejectAdminRefundBodyNoteMax),
+  "responsibleParty": zod.enum(['restaurant', 'driver', 'customer', 'platform', 'shared', 'undetermined'])
 })
 
 export const RejectAdminRefundResponse = zod.object({
@@ -1435,12 +1502,30 @@ export const RejectAdminRefundResponse = zod.object({
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string(),
   "restaurantName": zod.string(),
+  "orderTotal": zod.number(),
+  "orderItems": zod.array(zod.object({
+  "id": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number()
+})),
   "amount": zod.number(),
   "reason": zod.string(),
   "description": zod.string().nullable(),
   "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "resolutionNote": zod.string().nullable(),
+  "compensationType": zod.union([zod.enum(['full_refund', 'item_refund', 'courtesy_credit']),zod.null()]),
+  "responsibleParty": zod.union([zod.enum(['restaurant', 'driver', 'customer', 'platform', 'shared', 'undetermined']),zod.null()]),
+  "compensationItems": zod.union([zod.array(zod.object({
+  "orderItemId": zod.number(),
+  "productName": zod.string(),
+  "variantName": zod.string().nullable(),
+  "quantity": zod.number(),
+  "lineTotal": zod.number(),
+  "amount": zod.number()
+})),zod.null()]),
   "createdAt": zod.coerce.date()
 })
 

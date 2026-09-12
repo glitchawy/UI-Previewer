@@ -590,7 +590,14 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
   const events = await db.select().from(orderStatusEventsTable)
     .where(eq(orderStatusEventsTable.orderId, id))
     .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
-  const [refundRequest] = await db.select({ status: refundRequestsTable.status })
+  const [refundRequest] = await db.select({
+    status: refundRequestsTable.status,
+    amount: refundRequestsTable.amount,
+    compensationType: refundRequestsTable.compensationType,
+    responsibleParty: refundRequestsTable.responsibleParty,
+    compensationItems: refundRequestsTable.compensationItems,
+    resolutionNote: refundRequestsTable.resolutionNote,
+  })
     .from(refundRequestsTable)
     .where(and(
       eq(refundRequestsTable.orderId, id),
@@ -602,6 +609,27 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
     ready: "الطلب جاهز", picked_up: "الطلب خرج للتوصيل", delivered: "تم توصيل الطلب", cancelled: "تم إلغاء الطلب",
   };
   const timeline = events.length ? events : [{ status: order.status, createdAt: order.createdAt }];
+  const refundCompensation = refundRequest &&
+    ["approved", "rejected"].includes(refundRequest.status)
+    ? {
+        type: refundRequest.compensationType,
+        responsibleParty: refundRequest.responsibleParty,
+        amount: Number(refundRequest.amount),
+        items: Array.isArray(refundRequest.compensationItems)
+          ? refundRequest.compensationItems
+            .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+            .map((item) => ({
+              orderItemId: Number(item.orderItemId),
+              productName: String(item.productName ?? ""),
+              variantName: item.variantName == null ? null : String(item.variantName),
+              quantity: Number(item.quantity),
+              lineTotal: Number(item.lineTotal),
+              amount: Number(item.amount),
+            }))
+          : null,
+        note: refundRequest.resolutionNote,
+      }
+    : null;
   const [driver] = order.driverProfileId
     ? await db.select({
         name: driverProfilesTable.fullName,
@@ -623,6 +651,7 @@ router.get("/orders/:id", async (req, res: Response): Promise<void> => {
     canCancel: order.status === "pending" || order.status === "confirmed",
     canRequestRefund: order.status === "delivered" && !refundRequest,
     refundRequestStatus: refundRequest?.status ?? null,
+     refundCompensation,
     driverName: driver?.name ?? null, driverPhone: driver?.phone ?? null,
     driverLat: order.status === "picked_up" ? driver?.lat ?? null : null,
     driverLng: order.status === "picked_up" ? driver?.lng ?? null : null,

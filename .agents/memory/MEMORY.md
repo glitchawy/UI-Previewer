@@ -9,3 +9,4 @@
 - [Localization safety](localization-safety.md) — locale changes must preserve forms/tracking; translate system copy, never stored user content or audit snapshots.
 - [Delivery estimate policy](delivery-estimate-policy.md) — user chose approximate distance-based travel plus 20-minute preparation, without an external routing service.
 - [Private proof lifecycle](private-proof-lifecycle.md) — unclaimed complaint uploads must be replaceable and order-bound; claiming and replacement share a lock.
+- [Compensation policy](compensation-policy.md) — responsibility is attribution, not automatic deductions; wallet compensation is distinct from a card reversal.

@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   serial,
@@ -52,6 +53,18 @@ export const refundRequestsTable = pgTable("refund_requests", {
   proofPath: text("proof_path"),
   reviewedBy: integer("reviewed_by"),
   resolutionNote: text("resolution_note"),
+  compensationType: text("compensation_type", {
+    enum: ["full_refund", "item_refund", "courtesy_credit"],
+  }),
+  responsibleParty: text("responsible_party", {
+    enum: ["restaurant", "driver", "customer", "platform", "shared", "undetermined"],
+  }),
+  /**
+   * Immutable item-level decision snapshot.  The API accepts only an item id
+   * and quantity, but the approval path stores the order-line names/prices and
+   * the integer-cent allocation used to calculate the credit here.
+   */
+  compensationItems: jsonb("compensation_items"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
