@@ -78,7 +78,10 @@ app.use(
 const jsonParser = express.json({ limit: "100kb", strict: true });
 const urlencodedParser = express.urlencoded({ extended: false, limit: "32kb" });
 const isUploadRequest = (req: Request) =>
-  req.method === "POST" && /^\/api\/storage\/uploads\/?$/.test(req.path);
+  req.method === "POST" && (
+    /^\/api\/storage\/uploads\/?$/.test(req.path) ||
+    /^\/api\/orders\/[^/]+\/refund-proof\/?$/.test(req.path)
+  );
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (isUploadRequest(req)) {
     next();

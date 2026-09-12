@@ -71,6 +71,8 @@ async function serializeRefundRequest(id: number) {
     restaurantName: order.restaurantName,
     amount: Number(refund.amount),
     reason: refund.reason,
+    description: refund.description,
+    proofPath: refund.proofPath,
     status: refund.status,
     resolutionNote: refund.resolutionNote,
     createdAt: refund.createdAt,

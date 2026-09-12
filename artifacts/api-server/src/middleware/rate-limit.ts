@@ -115,7 +115,11 @@ const uploadLimit = rateLimit({
 const callbackLimit = rateLimit({ prefix: "payment-callback", windowMs: 60_000, limit: 60 });
 
 export function preBodySensitiveRateLimit(req: Request, res: Response, next: NextFunction): void {
-  if (/^\/api\/storage\/uploads\/?$/.test(req.path) && req.method === "POST") {
+  if (
+    req.method === "POST" &&
+    (/^\/api\/storage\/uploads\/?$/.test(req.path) ||
+      /^\/api\/orders\/[^/]+\/refund-proof\/?$/.test(req.path))
+  ) {
     uploadLimit(req, res, next);
   } else if (req.path === "/api/webhooks/paymob" && req.method === "POST") {
     callbackLimit(req, res, next);

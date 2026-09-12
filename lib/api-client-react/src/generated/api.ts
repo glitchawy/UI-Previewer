@@ -109,6 +109,7 @@ import type {
   ProfileUpdateResult,
   ReadAllNotifications200,
   ReadNotification200,
+  RefundProofUploadResponse,
   RefundRequest,
   RefundRequestInput,
   RegisterNotificationDeviceBody,
@@ -1864,6 +1865,161 @@ export const useCreateCustomerRefundRequest = <TError = ErrorType<ErrorResponse>
         TContext
       > => {
       return useMutation(getCreateCustomerRefundRequestMutationOptions(options));
+    }
+
+export const getGetStorageObjectUrl = (objectPath: string,) => {
+
+
+
+
+  return `/api/storage/objects/${objectPath}`
+}
+
+/**
+ * Returns a private object after the existing server-side ACL check.
+ * Refund proof paths are readable by their owning customer or an active
+ * admin with refunds.read.
+ * @summary Serve an authenticated private object
+ */
+export const getStorageObject = async (objectPath: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetStorageObjectUrl(objectPath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStorageObjectQueryKey = (objectPath: string,) => {
+    return [
+    `/api/storage/objects/${objectPath}`
+    ] as const;
+    }
+
+
+export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<ErrorResponse>>(objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: objectPath !== null && objectPath !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStorageObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getStorageObject>>>
+export type GetStorageObjectQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Serve an authenticated private object
+ */
+
+export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<ErrorResponse>>(
+ objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStorageObjectQueryOptions(objectPath,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadCustomerRefundProofUrl = (id: number,) => {
+
+
+
+
+  return `/api/orders/${id}/refund-proof`
+}
+
+/**
+ * Uploads one JPEG, PNG, or WebP image as raw bytes. The server checks
+ * the image signature and binds the resulting private object path to the
+ * authenticated customer's delivered order.
+ * @summary Upload the photo proof for a customer refund request
+ */
+export const uploadCustomerRefundProof = async (id: number,
+    uploadCustomerRefundProofBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<RefundProofUploadResponse> => {
+
+  return customFetch<RefundProofUploadResponse>(getUploadCustomerRefundProofUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg', ...options?.headers },
+    body: uploadCustomerRefundProofBody
+  }
+);}
+
+
+
+
+
+export const getUploadCustomerRefundProofMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCustomerRefundProof>>, TError,{id: number;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadCustomerRefundProof>>, TError,{id: number;data: BodyType<Blob>}, TContext> => {
+
+const mutationKey = ['uploadCustomerRefundProof'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadCustomerRefundProof>>, {id: number;data: BodyType<Blob>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadCustomerRefundProof(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadCustomerRefundProofMutationResult = NonNullable<Awaited<ReturnType<typeof uploadCustomerRefundProof>>>
+    export type UploadCustomerRefundProofMutationBody = BodyType<Blob>
+    export type UploadCustomerRefundProofMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Upload the photo proof for a customer refund request
+ */
+export const useUploadCustomerRefundProof = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCustomerRefundProof>>, TError,{id: number;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadCustomerRefundProof>>,
+        TError,
+        {id: number;data: BodyType<Blob>},
+        TContext
+      > => {
+      return useMutation(getUploadCustomerRefundProofMutationOptions(options));
     }
 
 export const getGetOrderDriverLocationUrl = (id: number,) => {

@@ -1,6 +1,6 @@
-import { Router } from "express";
-import type { Response } from "express";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import express, { Router } from "express";
+import type { NextFunction, Request, Response } from "express";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   db,
   driverProfilesTable,
@@ -8,6 +8,7 @@ import {
   orderStatusEventsTable,
   paymentRefundClaimsTable,
   paymentSessionsTable,
+  refundProofUploadsTable,
   refundRequestsTable,
   usersTable,
   walletTransactionsTable,
@@ -20,6 +21,7 @@ import {
   CreateCustomerRefundRequestResponse,
   GetCustomerWalletQueryParams,
   GetCustomerWalletResponse,
+  UploadCustomerRefundProofResponse,
 } from "@workspace/api-zod";
 import { getCustomer } from "./cart";
 import { cancelPendingPaymentSession } from "../lib/payment-session-lifecycle";
@@ -33,8 +35,16 @@ import {
   markProviderRefundClaim,
 } from "../lib/provider-refunds";
 import { creditWallet, toCents } from "../lib/wallet-ledger";
+import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
+import {
+  detectRefundProofMimeType,
+  canReplaceRefundProof,
+  normalizeRefundDescription,
+  REFUND_PROOF_MAX_BYTES,
+} from "../lib/refund-proof";
 
 const router = Router();
+const objectStorageService = new ObjectStorageService();
 
 function orderCode(id: number) {
   return `TB-${String(id).padStart(6, "0")}`;
@@ -80,14 +90,230 @@ router.get("/customer/wallet", async (req, res: Response): Promise<void> => {
   }));
 });
 
+/**
+ * Authenticate and authorize the refund-proof upload before express.raw()
+ * buffers the request body. This prevents an unauthenticated caller (or a
+ * caller targeting another customer's order) from forcing a 10 MB allocation.
+ */
+async function requireEligibleRefundProof(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const customer = await getCustomer(req);
+  if (!customer) { res.status(401).json({ error: "غير مصرح" }); return; }
+  const params = CreateCustomerRefundRequestParams.safeParse(req.params);
+  if (!params.success || !Number.isInteger(params.data.id)) {
+    res.status(400).json({ error: "رقم الطلب غير صحيح" }); return;
+  }
+  const [order] = await db.select({ id: ordersTable.id, status: ordersTable.status, paymentStatus: ordersTable.paymentStatus })
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, params.data.id), eq(ordersTable.customerId, customer.id)))
+    .limit(1);
+  if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+  if (order.status !== "delivered" || order.paymentStatus === "refunded") {
+    res.status(409).json({ error: "لا يمكن رفع إثبات لهذا الطلب حالياً" }); return;
+  }
+  const [refund] = await db.select({ id: refundRequestsTable.id })
+    .from(refundRequestsTable)
+    .where(and(
+      eq(refundRequestsTable.orderId, order.id),
+      eq(refundRequestsTable.source, "customer_request"),
+    ))
+    .limit(1);
+  if (refund) { res.status(409).json({ error: "تم إرسال طلب استرداد لهذا الطلب من قبل" }); return; }
+  const [proof] = await db.select({
+    id: refundProofUploadsTable.id,
+    refundRequestId: refundProofUploadsTable.refundRequestId,
+  })
+    .from(refundProofUploadsTable)
+    .where(eq(refundProofUploadsTable.orderId, order.id))
+    .limit(1);
+  if (proof && !canReplaceRefundProof(proof.refundRequestId)) {
+    res.status(409).json({ error: "تم إرسال طلب استرداد لهذا الطلب من قبل" });
+    return;
+  }
+  next();
+}
+
+async function cleanupRefundProofObject(req: Request, objectPath: string): Promise<void> {
+  try {
+    await objectStorageService.deleteObjectEntity(objectPath);
+  } catch (error) {
+    req.log.warn({ err: error, objectPath }, "Refund proof object cleanup failed");
+  }
+}
+
+router.post(
+  "/orders/:id/refund-proof",
+  requireEligibleRefundProof,
+  express.raw({ type: "*/*", limit: REFUND_PROOF_MAX_BYTES }),
+  async (req: Request, res: Response): Promise<void> => {
+    const customer = await getCustomer(req);
+    if (!customer) { res.status(401).json({ error: "غير مصرح" }); return; }
+    const params = CreateCustomerRefundRequestParams.safeParse(req.params);
+    const body = req.body as Buffer;
+    if (!params.success || !Number.isInteger(params.data.id)) {
+      res.status(400).json({ error: "رقم الطلب غير صحيح" });
+      return;
+    }
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      res.status(400).json({ error: "الملف فارغ أو لم يُرسَل بشكل صحيح" });
+      return;
+    }
+    if (body.length > REFUND_PROOF_MAX_BYTES) {
+      res.status(413).json({ error: "حجم الملف كبير جداً — الحد الأقصى 10 ميجابايت" });
+      return;
+    }
+    const contentType = detectRefundProofMimeType(body);
+    if (!contentType) {
+      res.status(400).json({ error: "نوع الملف غير مقبول — يُسمح فقط بصور JPG أو PNG أو WebP" });
+      return;
+    }
+
+    let objectPath: string;
+    try {
+      objectPath = await objectStorageService.uploadObjectEntity(body, contentType);
+    } catch (error) {
+      req.log.error({ err: error }, "Error uploading refund proof");
+      res.status(500).json({ error: "فشل رفع إثبات الاسترداد، حاول مرة أخرى" });
+      return;
+    }
+
+    let result;
+    try {
+      result = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${params.data.id})`);
+        const [order] = await tx.select({
+          id: ordersTable.id,
+          status: ordersTable.status,
+          paymentStatus: ordersTable.paymentStatus,
+        }).from(ordersTable).where(and(
+          eq(ordersTable.id, params.data.id),
+          eq(ordersTable.customerId, customer.id),
+        )).limit(1);
+        if (!order) return { error: 404 as const, message: "الطلب غير موجود" };
+        if (order.status !== "delivered" || order.paymentStatus === "refunded") {
+          return { error: 409 as const, message: "لا يمكن رفع إثبات لهذا الطلب حالياً" };
+        }
+        const [refund] = await tx.select({ id: refundRequestsTable.id })
+          .from(refundRequestsTable)
+          .where(and(
+            eq(refundRequestsTable.orderId, order.id),
+            eq(refundRequestsTable.source, "customer_request"),
+          )).limit(1);
+        if (refund) return { error: 409 as const, message: "تم إرسال طلب استرداد لهذا الطلب من قبل" };
+        const [existingProof] = await tx.select().from(refundProofUploadsTable)
+          .where(eq(refundProofUploadsTable.orderId, order.id))
+          .limit(1);
+        if (existingProof && !canReplaceRefundProof(existingProof.refundRequestId)) {
+          return { error: 409 as const, message: "تم إرسال طلب استرداد لهذا الطلب من قبل" };
+        }
+        if (existingProof) {
+          await tx.update(refundProofUploadsTable).set({
+            objectPath,
+            customerId: customer.id,
+            contentType,
+            size: body.length,
+            createdAt: new Date(),
+          }).where(eq(refundProofUploadsTable.id, existingProof.id));
+          return {
+            objectPath,
+            replacedObjectPath: existingProof.objectPath,
+          };
+        }
+        await tx.insert(refundProofUploadsTable).values({
+          objectPath,
+          orderId: order.id,
+          customerId: customer.id,
+          contentType,
+          size: body.length,
+        });
+        return { objectPath, replacedObjectPath: null };
+      });
+    } catch (error) {
+      // The database transaction rolls back on failure, so the newly uploaded
+      // object is no longer reachable and must be removed.
+      await cleanupRefundProofObject(req, objectPath);
+      if (typeof error === "object" && error !== null && "code" in error &&
+        (error as { code?: unknown }).code === "23505") {
+        res.status(409).json({ error: "تم إرسال طلب استرداد لهذا الطلب من قبل" });
+        return;
+      }
+      throw error;
+    }
+    if (result.error !== undefined) {
+      await cleanupRefundProofObject(req, objectPath);
+      res.status(result.error).json({ error: result.message });
+      return;
+    }
+    if (result.replacedObjectPath && result.replacedObjectPath !== result.objectPath) {
+      await cleanupRefundProofObject(req, result.replacedObjectPath);
+    }
+    res.status(201).json(UploadCustomerRefundProofResponse.parse({ objectPath: result.objectPath }));
+  },
+);
+
 router.post("/orders/:id/refund", async (req, res: Response): Promise<void> => {
   const customer = await getCustomer(req);
   if (!customer) { res.status(401).json({ error: "غير مصرح" }); return; }
   const params = CreateCustomerRefundRequestParams.safeParse(req.params);
   const body = CreateCustomerRefundRequestBody.safeParse(req.body);
   if (!params.success || !Number.isInteger(params.data.id) || !body.success) {
-    res.status(400).json({ error: "اختر سبباً صحيحاً لطلب الاسترداد" });
+    res.status(400).json({ error: "أدخل سبباً ووصفاً وإثباتاً صحيحاً لطلب الاسترداد" });
     return;
+  }
+  const description = normalizeRefundDescription(body.data.description);
+  if (!description) {
+    res.status(400).json({ error: "وصف الشكوى يجب أن يكون بين 10 و2000 حرف بعد حذف المسافات الزائدة" });
+    return;
+  }
+  // Check the customer/order/proof binding before touching object storage. In
+  // addition to avoiding needless storage lookups, this ensures an arbitrary
+  // private path cannot be used as a proof just because the object exists.
+  const [candidateOrder] = await db.select({
+    id: ordersTable.id,
+    status: ordersTable.status,
+    paymentStatus: ordersTable.paymentStatus,
+  }).from(ordersTable).where(and(
+    eq(ordersTable.id, params.data.id),
+    eq(ordersTable.customerId, customer.id),
+  )).limit(1);
+  if (!candidateOrder) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+  if (candidateOrder.status !== "delivered") {
+    res.status(400).json({ error: "يمكن طلب الاسترداد بعد توصيل الطلب فقط" }); return;
+  }
+  if (candidateOrder.paymentStatus === "refunded") {
+    res.status(400).json({ error: "تم استرداد هذا الطلب بالفعل" }); return;
+  }
+  const [existingRequest] = await db.select({ id: refundRequestsTable.id })
+    .from(refundRequestsTable).where(and(
+      eq(refundRequestsTable.orderId, candidateOrder.id),
+      eq(refundRequestsTable.source, "customer_request"),
+    )).limit(1);
+  if (existingRequest) {
+    res.status(409).json({ error: "تم إرسال طلب استرداد لهذا الطلب من قبل" });
+    return;
+  }
+  const [proofBinding] = await db.select({ id: refundProofUploadsTable.id })
+    .from(refundProofUploadsTable).where(and(
+      eq(refundProofUploadsTable.objectPath, body.data.proofPath),
+      eq(refundProofUploadsTable.orderId, candidateOrder.id),
+      eq(refundProofUploadsTable.customerId, customer.id),
+      isNull(refundProofUploadsTable.refundRequestId),
+    )).limit(1);
+  if (!proofBinding) {
+    res.status(400).json({ error: "ارفع إثباتاً صالحاً مرتبطاً بهذا الطلب أولاً" });
+    return;
+  }
+  try {
+    await objectStorageService.getObjectEntityFile(body.data.proofPath);
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(400).json({ error: "إثبات الاسترداد غير موجود" });
+      return;
+    }
+    throw error;
   }
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(78241, ${params.data.id})`);
@@ -107,6 +333,15 @@ router.post("/orders/:id/refund", async (req, res: Response): Promise<void> => {
       eq(refundRequestsTable.source, "customer_request"),
     )).limit(1);
     if (existing) return { error: 409 as const, message: "تم إرسال طلب استرداد لهذا الطلب من قبل" };
+    const [proof] = await tx.select().from(refundProofUploadsTable).where(and(
+      eq(refundProofUploadsTable.objectPath, body.data.proofPath),
+      eq(refundProofUploadsTable.orderId, order.id),
+      eq(refundProofUploadsTable.customerId, customer.id),
+      isNull(refundProofUploadsTable.refundRequestId),
+    )).limit(1);
+    if (!proof) {
+      return { error: 400 as const, message: "ارفع إثباتاً صالحاً مرتبطاً بهذا الطلب أولاً" };
+    }
     const [refund] = await tx.insert(refundRequestsTable).values({
       orderId: order.id,
       customerId: customer.id,
@@ -115,7 +350,11 @@ router.post("/orders/:id/refund", async (req, res: Response): Promise<void> => {
       status: "pending",
       amount: order.total,
       reason: body.data.reason.trim(),
+      description,
+      proofPath: body.data.proofPath,
     }).returning();
+    await tx.update(refundProofUploadsTable).set({ refundRequestId: refund.id })
+      .where(eq(refundProofUploadsTable.id, proof.id));
     return { refund };
   });
   if ("error" in result && result.error) {
@@ -127,6 +366,8 @@ router.post("/orders/:id/refund", async (req, res: Response): Promise<void> => {
     orderId: result.refund.orderId,
     amount: Number(result.refund.amount),
     reason: result.refund.reason,
+    description: result.refund.description,
+    proofPath: result.refund.proofPath,
     status: result.refund.status,
     createdAt: result.refund.createdAt,
   }));

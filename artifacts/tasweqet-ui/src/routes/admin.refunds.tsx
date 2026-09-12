@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -13,6 +13,7 @@ import {
 import { AppBar, MobileShell, Icon, Card, Button, Badge, EmptyState } from "@/components/tb/shell";
 import { adminCurrency, adminDateTime } from "@/lib/admin-i18n";
 import { translate, useTranslation } from "@/lib/i18n";
+import { fetchPrivateStorageObject } from "@/lib/refund-proof";
 
 export const Route = createFileRoute("/admin/refunds")({
   head: () => ({
@@ -26,6 +27,67 @@ export const Route = createFileRoute("/admin/refunds")({
 
 function errorMessage(error: unknown, fallback: string) {
   return (error as { data?: { error?: string } } | null)?.data?.error || fallback;
+}
+
+function RefundProofPreview({
+  objectPath,
+  t,
+}: {
+  objectPath: string | null | undefined;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(objectPath));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    setPreviewUrl(null);
+    setError(null);
+    setIsLoading(Boolean(objectPath));
+    if (!objectPath) return () => undefined;
+
+    void fetchPrivateStorageObject(objectPath)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+        setIsLoading(false);
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setIsLoading(false);
+        setError(cause instanceof Error ? cause.message : t("تعذر تحميل صورة الإثبات", "Unable to load the proof photo"));
+      });
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [objectPath, t]);
+
+  if (!objectPath) {
+    return <p className="font-label-md text-label-md text-on-surface-variant">{t("لا توجد صورة إثبات لهذا الطلب القديم.", "No proof photo was attached to this legacy request.")}</p>;
+  }
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 rounded-button bg-surface-container p-3 font-label-md text-label-md text-on-surface-variant" role="status">
+        <Icon name="progress_activity" className="animate-spin text-[18px]" />
+        {t("جاري تحميل صورة الإثبات…", "Loading proof photo…")}
+      </div>
+    );
+  }
+  if (error || !previewUrl) {
+    return <p className="rounded-button bg-error-container p-3 font-label-md text-label-md text-error" role="alert">{error || t("تعذر معاينة صورة الإثبات.", "Unable to preview the proof photo.")}</p>;
+  }
+  return (
+    <img
+      src={previewUrl}
+      alt={t("صورة إثبات شكوى العميل", "Customer complaint proof photo")}
+      className="max-h-72 w-full rounded-button border border-outline-variant bg-surface-container object-contain"
+    />
+  );
 }
 
 function AdminRefunds() {
@@ -74,6 +136,10 @@ function AdminRefunds() {
               {refunds.data?.map((refund) => {
                 const pending = refund.status === "pending";
                 const note = notes[refund.id] ?? "";
+                 const refundDetails = refund as typeof refund & {
+                   description?: string | null;
+                   proofPath?: string | null;
+                 };
                 return (
                   <Card key={refund.id} className="space-y-3 p-md">
                     <div className="flex items-start justify-between gap-3">
@@ -88,6 +154,14 @@ function AdminRefunds() {
                        <span className="text-on-surface-variant">{t("المبلغ", "Amount")}</span><strong>{adminCurrency(refund.amount, locale)}</strong>
                        <span className="text-on-surface-variant">{t("السبب", "Reason")}</span><strong>{refund.reason}</strong>
                     </div>
+                     <div className="space-y-1 rounded-card bg-surface-container p-3">
+                       <p className="font-label-md text-label-md text-on-surface-variant">{t("وصف الشكوى", "Complaint description")}</p>
+                       <p className="whitespace-pre-wrap break-words font-body-md text-body-md">{refundDetails.description?.trim() || t("لم يقدم العميل وصفاً لهذا الطلب القديم.", "No description was provided for this legacy request.")}</p>
+                     </div>
+                     <div className="space-y-2 rounded-card bg-surface-container p-3">
+                       <p className="font-label-md text-label-md text-on-surface-variant">{t("صورة الإثبات", "Proof photo")}</p>
+                       <RefundProofPreview objectPath={refundDetails.proofPath} t={t} />
+                     </div>
                      {refund.resolutionNote ? <p className="rounded-button bg-surface-container p-2 text-label-md text-on-surface-variant">{t("ملاحظة الإدارة: ", "Admin note: ")}{refund.resolutionNote}</p> : null}
                     {pending ? (
                       <>

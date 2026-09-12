@@ -863,6 +863,19 @@ export interface RefundRequestInput {
      * @maxLength 1000
      */
   reason: string;
+  /**
+     * Trimmed complaint description.
+     * @minLength 10
+     * @maxLength 2000
+     */
+  description: string;
+  /**
+     * Private object path returned by the refund-proof upload endpoint.
+     * @minLength 10
+     * @maxLength 500
+     * @pattern ^/objects/.+
+     */
+  proofPath: string;
 }
 
 export interface RefundRequest {
@@ -870,8 +883,17 @@ export interface RefundRequest {
   orderId: number;
   amount: number;
   reason: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  proofPath: string | null;
   status: RefundRequestStatus;
   createdAt: string;
+}
+
+export interface RefundProofUploadResponse {
+  /** @pattern ^/objects/.+ */
+  objectPath: string;
 }
 
 export type WalletTransactionType = typeof WalletTransactionType[keyof typeof WalletTransactionType];
@@ -925,6 +947,10 @@ export interface AdminRefundRequest {
   restaurantName: string;
   amount: number;
   reason: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  proofPath: string | null;
   status: RefundRequestStatus;
   /** @nullable */
   resolutionNote: string | null;

@@ -180,6 +180,21 @@ export class ObjectStorageService {
     return objectFile;
   }
 
+  /**
+   * Delete a private object entity after its database binding has been
+   * replaced or rolled back. Missing objects are intentionally ignored so a
+   * cleanup retry cannot turn an otherwise successful request into an error.
+   */
+  async deleteObjectEntity(objectPath: string): Promise<void> {
+    try {
+      const objectFile = await this.getObjectEntityFile(objectPath);
+      await objectFile.delete({ ignoreNotFound: true });
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) return;
+      throw error;
+    }
+  }
+
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath.startsWith('https://storage.googleapis.com/')) {
       return rawPath;

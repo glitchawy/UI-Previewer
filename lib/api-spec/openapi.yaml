@@ -16,6 +16,8 @@ tags:
     description: Customer order operations
   - name: driver
     description: Driver delivery operations
+  - name: storage
+    description: Private customer-uploaded object operations
 paths:
   /healthz:
     get:
@@ -704,6 +706,121 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: A refund request already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      summary: Serve an authenticated private object
+      description: |
+        Returns a private object after the existing server-side ACL check.
+        Refund proof paths are readable by their owning customer or an active
+        admin with refunds.read.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Object path below /objects/, including nested segments.
+      responses:
+        "200":
+          description: Private object bytes
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Object access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Object not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{id}/refund-proof:
+    post:
+      operationId: uploadCustomerRefundProof
+      tags: [orders, storage]
+      summary: Upload the photo proof for a customer refund request
+      description: |
+        Uploads one JPEG, PNG, or WebP image as raw bytes. The server checks
+        the image signature and binds the resulting private object path to the
+        authenticated customer's delivered order.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/webp:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: Private proof object created and bound to the order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundProofUploadResponse"
+        "400":
+          description: Invalid order or image bytes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Customer authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Customer-owned order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Order is not eligible or already has a submitted refund
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Image exceeds the 10 MB limit
           content:
             application/json:
               schema:
@@ -3273,16 +3390,27 @@ components:
 
     RefundRequestInput:
       type: object
-      required: [reason]
+      required: [reason, description, proofPath]
       properties:
         reason:
           type: string
           minLength: 3
           maxLength: 1000
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: Trimmed complaint description.
+        proofPath:
+          type: string
+          minLength: 10
+          maxLength: 500
+          pattern: "^/objects/.+"
+          description: Private object path returned by the refund-proof upload endpoint.
 
     RefundRequest:
       type: object
-      required: [id, orderId, amount, reason, status, createdAt]
+      required: [id, orderId, amount, reason, description, proofPath, status, createdAt]
       properties:
         id:
           type: number
@@ -3292,11 +3420,23 @@ components:
           type: number
         reason:
           type: string
+        description:
+          type: ["string", "null"]
+        proofPath:
+          type: ["string", "null"]
         status:
           $ref: "#/components/schemas/RefundRequestStatus"
         createdAt:
           type: string
           format: date-time
+
+    RefundProofUploadResponse:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          pattern: "^/objects/.+"
 
     WalletTransaction:
       type: object
@@ -3348,7 +3488,7 @@ components:
 
     AdminRefundRequest:
       type: object
-      required: [id, orderId, orderCode, customerName, customerPhone, restaurantName, amount, reason, status, resolutionNote, createdAt]
+      required: [id, orderId, orderCode, customerName, customerPhone, restaurantName, amount, reason, description, proofPath, status, resolutionNote, createdAt]
       properties:
         id:
           type: number
@@ -3366,6 +3506,10 @@ components:
           type: number
         reason:
           type: string
+        description:
+          type: ["string", "null"]
+        proofPath:
+          type: ["string", "null"]
         status:
           $ref: "#/components/schemas/RefundRequestStatus"
         resolutionNote:

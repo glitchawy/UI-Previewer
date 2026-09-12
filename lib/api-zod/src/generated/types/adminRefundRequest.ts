@@ -17,6 +17,10 @@ export interface AdminRefundRequest {
   restaurantName: string;
   amount: number;
   reason: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  proofPath: string | null;
   status: RefundRequestStatus;
   /** @nullable */
   resolutionNote: string | null;

@@ -12,6 +12,10 @@ export interface RefundRequest {
   orderId: number;
   amount: number;
   reason: string;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  proofPath: string | null;
   status: RefundRequestStatus;
   createdAt: Date;
 }

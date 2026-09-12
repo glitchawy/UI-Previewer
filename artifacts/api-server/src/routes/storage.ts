@@ -1,7 +1,16 @@
 import { Readable } from 'stream';
 import express, { Router, type IRouter, type NextFunction, type Request, type Response } from 'express';
 import { and, eq, or } from 'drizzle-orm';
-import { adminAccountsTable, adminPermissionGroupsTable, applicationDocumentsTable, db, usersTable, restaurantsTable, driverProfilesTable } from '@workspace/db';
+import {
+  adminAccountsTable,
+  adminPermissionGroupsTable,
+  applicationDocumentsTable,
+  db,
+  driverProfilesTable,
+  refundProofUploadsTable,
+  restaurantsTable,
+  usersTable,
+} from '@workspace/db';
 
 import { ObjectNotFoundError, ObjectStorageService } from '../lib/objectStorage';
 import { lookupSession } from '../lib/session';
@@ -33,6 +42,29 @@ export async function canUserAccessObject(
   user: typeof usersTable.$inferSelect,
   objectPath: string,
 ): Promise<boolean> {
+  // Refund proof paths have a dedicated ownership boundary. Do this lookup
+  // first so an accidental path collision cannot let an applications.read
+  // admin read a refund proof without refunds.read.
+  const [refundProof] = await db.select({
+    customerId: refundProofUploadsTable.customerId,
+  }).from(refundProofUploadsTable)
+    .where(eq(refundProofUploadsTable.objectPath, objectPath))
+    .limit(1);
+  if (refundProof) {
+    if (user.role !== "admin") return user.role === "customer" && refundProof.customerId === user.id;
+    const [account] = await db.select({
+      isActive: adminAccountsTable.isActive,
+      isSuperAdmin: adminAccountsTable.isSuperAdmin,
+      permissions: adminPermissionGroupsTable.permissions,
+    })
+      .from(adminAccountsTable)
+      .leftJoin(adminPermissionGroupsTable, eq(adminPermissionGroupsTable.id, adminAccountsTable.permissionGroupId))
+      .where(eq(adminAccountsTable.userId, user.id))
+      .limit(1);
+    return account?.isActive === true &&
+      (account.isSuperAdmin || (account.permissions ?? []).includes("refunds.read"));
+  }
+
   if (user.role === 'admin') {
     const [account] = await db.select({
       isActive: adminAccountsTable.isActive,

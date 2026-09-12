@@ -12,4 +12,17 @@ export interface RefundRequestInput {
      * @maxLength 1000
      */
   reason: string;
+  /**
+     * Trimmed complaint description.
+     * @minLength 10
+     * @maxLength 2000
+     */
+  description: string;
+  /**
+     * Private object path returned by the refund-proof upload endpoint.
+     * @minLength 10
+     * @maxLength 500
+     * @pattern ^/objects/.+
+     */
+  proofPath: string;
 }

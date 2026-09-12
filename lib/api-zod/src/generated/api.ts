@@ -545,10 +545,20 @@ export const CreateCustomerRefundRequestParams = zod.object({
 export const createCustomerRefundRequestBodyReasonMin = 3;
 export const createCustomerRefundRequestBodyReasonMax = 1000;
 
+export const createCustomerRefundRequestBodyDescriptionMin = 10;
+export const createCustomerRefundRequestBodyDescriptionMax = 2000;
+
+export const createCustomerRefundRequestBodyProofPathMin = 10;
+export const createCustomerRefundRequestBodyProofPathMax = 500;
+
+
+export const createCustomerRefundRequestBodyProofPathRegExp = new RegExp('^/objects/.+');
 
 
 export const CreateCustomerRefundRequestBody = zod.object({
-  "reason": zod.string().min(createCustomerRefundRequestBodyReasonMin).max(createCustomerRefundRequestBodyReasonMax)
+  "reason": zod.string().min(createCustomerRefundRequestBodyReasonMin).max(createCustomerRefundRequestBodyReasonMax),
+  "description": zod.string().min(createCustomerRefundRequestBodyDescriptionMin).max(createCustomerRefundRequestBodyDescriptionMax).describe('Trimmed complaint description.'),
+  "proofPath": zod.string().min(createCustomerRefundRequestBodyProofPathMin).max(createCustomerRefundRequestBodyProofPathMax).regex(createCustomerRefundRequestBodyProofPathRegExp).describe('Private object path returned by the refund-proof upload endpoint.')
 })
 
 export const CreateCustomerRefundRequestResponse = zod.object({
@@ -556,8 +566,41 @@ export const CreateCustomerRefundRequestResponse = zod.object({
   "orderId": zod.number(),
   "amount": zod.number(),
   "reason": zod.string(),
+  "description": zod.string().nullable(),
+  "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Returns a private object after the existing server-side ACL check.
+ * Refund proof paths are readable by their owning customer or an active
+ * admin with refunds.read.
+ * @summary Serve an authenticated private object
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string().describe('Object path below \/objects\/, including nested segments.')
+})
+
+export const GetStorageObjectResponse = zod.unknown()
+
+
+/**
+ * Uploads one JPEG, PNG, or WebP image as raw bytes. The server checks
+ * the image signature and binds the resulting private object path to the
+ * authenticated customer's delivered order.
+ * @summary Upload the photo proof for a customer refund request
+ */
+export const UploadCustomerRefundProofParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const uploadCustomerRefundProofResponseObjectPathRegExp = new RegExp('^/objects/.+');
+
+
+export const UploadCustomerRefundProofResponse = zod.object({
+  "objectPath": zod.string().regex(uploadCustomerRefundProofResponseObjectPathRegExp)
 })
 
 
@@ -1329,6 +1372,8 @@ export const ListAdminRefundsResponseItem = zod.object({
   "restaurantName": zod.string(),
   "amount": zod.number(),
   "reason": zod.string(),
+  "description": zod.string().nullable(),
+  "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "resolutionNote": zod.string().nullable(),
   "createdAt": zod.coerce.date()
@@ -1360,6 +1405,8 @@ export const ApproveAdminRefundResponse = zod.object({
   "restaurantName": zod.string(),
   "amount": zod.number(),
   "reason": zod.string(),
+  "description": zod.string().nullable(),
+  "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "resolutionNote": zod.string().nullable(),
   "createdAt": zod.coerce.date()
@@ -1390,6 +1437,8 @@ export const RejectAdminRefundResponse = zod.object({
   "restaurantName": zod.string(),
   "amount": zod.number(),
   "reason": zod.string(),
+  "description": zod.string().nullable(),
+  "proofPath": zod.string().nullable(),
   "status": zod.enum(['pending', 'processing', 'approved', 'rejected', 'failed']),
   "resolutionNote": zod.string().nullable(),
   "createdAt": zod.coerce.date()

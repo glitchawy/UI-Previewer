@@ -151,6 +151,7 @@ export * from './profileUpdate';
 export * from './profileUpdateResult';
 export * from './readAllNotifications200';
 export * from './readNotification200';
+export * from './refundProofUploadResponse';
 export * from './refundRequest';
 export * from './refundRequestInput';
 export * from './refundRequestStatus';
