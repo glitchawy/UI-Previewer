@@ -13,6 +13,7 @@ export type { DriverApplication } from "./generated/types/driverApplication";
 export type { DriverOnboard } from "./generated/types/driverOnboard";
 export type { ErrorResponse } from "./generated/types/errorResponse";
 export type { HealthStatus } from "./generated/types/healthStatus";
+export type { LoginOtpInput } from "./generated/types/loginOtpInput";
 export type { LocationSaveResult } from "./generated/types/locationSaveResult";
 export type { LocationUpdate } from "./generated/types/locationUpdate";
 export type { OnboardResult } from "./generated/types/onboardResult";

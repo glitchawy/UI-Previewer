@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   acquireSubmissionLock,
+  NonDriverSessionError,
   loginErrorMessage,
   normalizeEgyptianMobile,
   otpRequestData,
+  otpVerificationData,
+  requireDriverSession,
 } from "./login-behavior.ts";
 
 test("normalizes accepted Egyptian phone formats for request and verification", () => {
@@ -27,10 +30,45 @@ test("rejects invalid Egyptian phone formats before a request", () => {
   }
 });
 
-test("builds a canonical driver OTP request payload", () => {
+test("builds a canonical phone-only OTP request payload", () => {
   const phone = normalizeEgyptianMobile("+201220002203");
   assert.ok(phone);
-  assert.deepEqual(otpRequestData(phone), { phone: "01220002203", role: "driver" });
+  assert.deepEqual(otpRequestData(phone), { phone: "01220002203" });
+});
+
+test("builds a login-only OTP verification payload without a role", () => {
+  assert.deepEqual(
+    otpVerificationData("01220002203", "123456"),
+    { phone: "01220002203", otp: "123456", type: "login" },
+  );
+});
+
+test("rejects and revokes a wrong-role session before it can be accepted", async () => {
+  const revokedTokens = [];
+  const session = {
+    token: "just-issued-customer-session",
+    user: { role: "customer" },
+  };
+
+  await assert.rejects(
+    requireDriverSession(session, async (token) => {
+      revokedTokens.push(token);
+    }),
+    NonDriverSessionError,
+  );
+  assert.deepEqual(revokedTokens, ["just-issued-customer-session"]);
+});
+
+test("rejects a wrong-role session even if revocation fails", async () => {
+  await assert.rejects(
+    requireDriverSession(
+      { token: "just-issued-partner-session", user: { role: "partner" } },
+      async () => {
+        throw new Error("network unavailable");
+      },
+    ),
+    NonDriverSessionError,
+  );
 });
 
 test("extracts safe API error payloads and localizes rate limiting", () => {

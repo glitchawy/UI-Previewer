@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { getToken, setToken as setStorageToken, removeToken } from '@/utils/storage';
-import { getDriverAccount, logout as apiLogout, AuthSession } from '@workspace/api-client-react';
+import { getDriverAccount, logout as apiLogout, type AuthSession } from '@workspace/api-client-react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 import { purgePreciseLocationQueue } from '@/utils/locationQueue';
 import { revokeCurrentPushDevice } from '@/utils/pushRegistration';
+import { requireDriverSession } from '@/lib/login-behavior';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -71,6 +72,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (session: AuthSession) => {
+    try {
+      await requireDriverSession(session, async (token) => {
+        // The token has not been persisted yet, so provide it explicitly to
+        // the generated logout request when revoking a wrong-role session.
+        await apiLogout({
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      });
+    } catch (error) {
+      // Keep the same cleanup guarantees as logout. In particular, a stale
+      // token must not survive a role-mismatch login attempt.
+      await revokeCurrentPushDevice();
+      await stopAndPurgeTracking();
+      await removeToken();
+      setToken(null);
+      throw error;
+    }
+
     await revokeCurrentPushDevice();
     await stopAndPurgeTracking();
     await setStorageToken(session.token);

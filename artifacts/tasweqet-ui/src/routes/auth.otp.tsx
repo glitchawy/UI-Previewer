@@ -9,6 +9,21 @@ import { translate, useTranslation } from "@/lib/i18n";
 type Role = "customer" | "partner" | "driver" | "admin";
 type FlowType = "login" | "register";
 
+function parseRole(value: unknown): Role | null {
+  return value === "customer" || value === "partner" || value === "driver" || value === "admin"
+    ? value
+    : null;
+}
+
+function apiErrorMessage(err: unknown): string | undefined {
+  const data = (err as { data?: unknown } | null)?.data;
+  if (typeof data === "object" && data !== null && "error" in data) {
+    const message = (data as { error?: unknown }).error;
+    return typeof message === "string" ? message : undefined;
+  }
+  return typeof data === "string" ? data : undefined;
+}
+
 const roleLabels: Record<Role, [string, string]> = {
   customer: ["حساب عميل", "Customer account"],
   partner: ["حساب مطعم", "Restaurant account"],
@@ -19,14 +34,16 @@ const roleLabels: Record<Role, [string, string]> = {
 const RESEND_SECONDS = 60;
 
 export const Route = createFileRoute("/auth/otp")({
-  validateSearch: (search: Record<string, unknown>): { role: Role; phone: string; type: FlowType } => {
-    const r = search["role"];
+  validateSearch: (search: Record<string, unknown>): { role?: Role; phone: string; type: FlowType } => {
+    const role = parseRole(search["role"]);
     const p = typeof search["phone"] === "string" ? search["phone"] : "";
     const t = search["type"];
+    const type = t === "register" ? "register" : "login";
     return {
-      role: r === "partner" || r === "driver" || r === "admin" ? r : "customer",
       phone: p,
-      type: t === "register" ? "register" : "login",
+      type,
+      // Login never carries a role, even if an old or malicious URL includes one.
+      ...(type === "register" && role ? { role } : {}),
     };
   },
   beforeLoad: ({ search }) => {
@@ -35,6 +52,8 @@ export const Route = createFileRoute("/auth/otp")({
     if (session) throw redirect({ to: getRoleDashboard(session.user.role) });
     // If no phone was passed, someone navigated here directly — send to login
     if (!search.phone) throw redirect({ to: "/auth/login" });
+    // Registration needs the role chosen on the signup screen. Login does not.
+    if (search.type === "register" && !search.role) throw redirect({ to: "/auth/register" });
   },
   head: () => ({
     meta: [{ title: translate("تأكيد الكود | طلبات بيتك", "Verify code | Talabat Betak") }],
@@ -52,6 +71,72 @@ function AuthOtp() {
   const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  async function routeAfterLogin(
+    actualRole: Role,
+    token: string,
+    user: { lat?: number | null; lng?: number | null },
+  ) {
+    // Location is customer-only. A customer without a saved location must
+    // always complete that step before entering the app.
+    if (actualRole === "customer") {
+      navigate({ to: user.lat !== null && user.lat !== undefined ? "/app" : "/auth/location" });
+      return;
+    }
+
+    // Never let branch lookup outrank an administrator's canonical dashboard.
+    if (actualRole === "admin") {
+      navigate({ to: "/admin" });
+      return;
+    }
+
+    // Branch assignment takes precedence over the partner dashboard and
+    // onboarding status, but is intentionally never checked for admin or
+    // customer sessions.
+    if (actualRole === "partner") {
+      try {
+        const branchRes = await fetch("/api/branch/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (branchRes.ok) {
+          const branchData = await branchRes.json() as { assigned: boolean };
+          if (branchData.assigned) {
+            navigate({ to: "/branch" });
+            return;
+          }
+        }
+      } catch {
+        // Fall through to the status lookup on a transient branch failure.
+      }
+    }
+
+    // A partner/driver account may have been created before its application
+    // was completed. Resolve that state from the authenticated session rather
+    // than from the URL role.
+    let status: string | null | undefined;
+    try {
+      const statusRes = await fetch("/api/onboard/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (statusRes.ok) {
+        const statusData = await statusRes.json() as { status?: string | null };
+        status = statusData.status ?? null;
+      }
+    } catch {
+      // A transient status failure falls through to the normal dashboard gate.
+    }
+
+    if (status === null) {
+      navigate({ to: actualRole === "partner" ? "/auth/register-restaurant" : "/auth/driver" });
+      return;
+    }
+    if (status !== undefined && !["APPROVED", "ACTIVE"].includes(status)) {
+      navigate({ to: "/auth/pending" });
+      return;
+    }
+
+    navigate({ to: getRoleDashboard(actualRole) });
+  }
+
   useEffect(() => {
     if (seconds <= 0) return;
     const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
@@ -61,46 +146,35 @@ function AuthOtp() {
   const verifyOtp = useVerifyOtp({
     mutation: {
       onSuccess: async (data) => {
+        const actualRole = parseRole(data.user.role);
+        if (!actualRole) {
+          setError(t("الدور المستلم من الخادم غير صحيح", "The role returned by the server is invalid."));
+          return;
+        }
         saveSession({
           token: data.token,
           user: {
             id: data.user.id,
             phone: data.user.phone,
-            role: data.user.role as Role,
+            role: actualRole,
             name: data.user.name ?? null,
             lat: data.user.lat ?? null,
             lng: data.user.lng ?? null,
           },
         });
         if (type === "register") {
-          // New account → role-specific onboarding
-          if (role === "customer") navigate({ to: "/auth/location" });
-          else if (role === "partner") navigate({ to: "/auth/register-restaurant" });
-          else navigate({ to: "/auth/driver" });
+          // New account → role-specific onboarding. The session response is
+          // authoritative; the URL role is never used for this decision.
+          if (actualRole === "customer") navigate({ to: "/auth/location" });
+          else if (actualRole === "partner") navigate({ to: "/auth/register-restaurant" });
+          else if (actualRole === "driver") navigate({ to: "/auth/driver" });
+          else setError(t("لا يمكن إنشاء حساب مشرف من هنا", "Admin accounts cannot be created here."));
         } else {
-          // Login → check for branch assignment first; branch staff land on /branch
-          // regardless of their primary account role
-          if (role === "customer") {
-            navigate({ to: data.user.lat ? "/app" : "/auth/location" });
-          } else {
-            try {
-              const branchRes = await fetch("/api/branch/me", {
-                headers: { Authorization: `Bearer ${data.token}` },
-              });
-              if (branchRes.ok) {
-                const branchData = await branchRes.json() as { assigned: boolean };
-                if (branchData.assigned) {
-                  navigate({ to: "/branch" });
-                  return;
-                }
-              }
-            } catch { /* network error — fall through to role-based redirect */ }
-            navigate({ to: getRoleDashboard(role) });
-          }
+          await routeAfterLogin(actualRole, data.token, data.user);
         }
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const msg = apiErrorMessage(err);
         setError(msg ?? t("الكود غير صحيح، حاول تاني", "The code is incorrect. Please try again."));
         setDigits(Array(6).fill(""));
         inputRefs.current[0]?.focus();
@@ -134,7 +208,15 @@ function AuthOtp() {
   function handleConfirm() {
     const code = digits.join("");
     if (code.length < 6) { setError(t("أدخل الكود كامل (6 أرقام)", "Enter the complete 6-digit code")); return; }
-    verifyOtp.mutate({ data: { phone, otp: code, role, type } });
+    if (type === "register" && !role) {
+      setError(t("اختار نوع الحساب أولاً", "Choose an account type first"));
+      return;
+    }
+    verifyOtp.mutate({
+      data: type === "register"
+        ? { phone, otp: code, role, type }
+        : { phone, otp: code, type },
+    });
   }
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -147,7 +229,12 @@ function AuthOtp() {
       <div className="flex items-center gap-2 rounded-card bg-secondary-container p-md">
         <Icon name={type === "register" ? "person_add" : "login"} className="text-[18px] text-on-secondary-container" />
          <p className="font-label-md text-label-md text-on-secondary-container">
-           {type === "register" ? t("إنشاء", "Create") : t("دخول", "Log in")} {t(...roleLabels[role])} — {t("أدخل الكود لتأكيد رقمك", "Enter the code to verify your number")}
+           {type === "register" && role ? (
+             <>{t("إنشاء", "Create")} {t(...roleLabels[role])}</>
+           ) : (
+             t("تسجيل الدخول", "Log in")
+           )}{" "}
+           — {t("أدخل الكود لتأكيد رقمك", "Enter the code to verify your number")}
         </p>
       </div>
 
@@ -181,11 +268,15 @@ function AuthOtp() {
             setResending(true);
             setError("");
             try {
-              const endpoint = type === "login" ? "/api/auth/request-otp" : "/api/auth/register";
+               const endpoint = type === "login" ? "/api/auth/request-otp" : "/api/auth/register";
+               if (type === "register" && !role) {
+                 setError(t("اختار نوع الحساب أولاً", "Choose an account type first"));
+                 return;
+               }
               const r = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone, role }),
+                 body: JSON.stringify(type === "login" ? { phone } : { phone, role }),
               });
               const data = await r.json() as { error?: string; retryAfterSeconds?: number };
               if (!r.ok) {

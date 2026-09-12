@@ -102,6 +102,7 @@ export * from './listRestaurantApplicationsParams';
 export * from './listRestaurantApplicationsSort';
 export * from './locationSaveResult';
 export * from './locationUpdate';
+export * from './loginOtpInput';
 export * from './logout200';
 export * from './notification';
 export * from './notificationList';

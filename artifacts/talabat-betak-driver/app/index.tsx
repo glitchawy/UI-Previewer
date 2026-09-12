@@ -12,13 +12,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { useRequestOtp, useVerifyOtp, OtpRequestRole, OtpVerifyType } from '@workspace/api-client-react';
+import { useRequestOtp, useVerifyOtp } from '@workspace/api-client-react';
 import { useAuth } from '@/ctx/AuthContext';
 import {
   acquireSubmissionLock,
+  isNonDriverSessionError,
   loginErrorMessage,
   normalizeEgyptianMobile,
   otpRequestData,
+  otpVerificationData,
 } from '@/lib/login-behavior';
 import { useLocale } from '@/ctx/LocaleContext';
 
@@ -78,16 +80,15 @@ export default function LoginScreen() {
 
     try {
       const session = await verifyOtp.mutateAsync({
-        data: {
-          phone,
-          otp,
-          role: OtpRequestRole.driver,
-          type: OtpVerifyType.login,
-        }
+        data: otpVerificationData(phone, otp),
       });
       await login(session);
     } catch (err: unknown) {
-      setError(loginErrorMessage(err, t('login.verifyError')));
+      setError(
+        isNonDriverSessionError(err)
+          ? t('login.driverOnly')
+          : loginErrorMessage(err, t('login.verifyError')),
+      );
       verifyLock.current = false;
       setVerifyLocked(false);
     }

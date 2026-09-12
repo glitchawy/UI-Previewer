@@ -39,6 +39,15 @@ function validateEgPhone(raw: string): string | null {
   return null;
 }
 
+function apiErrorMessage(err: unknown): string | undefined {
+  const data = (err as { data?: unknown } | null)?.data;
+  if (typeof data === "object" && data !== null && "error" in data) {
+    const message = (data as { error?: unknown }).error;
+    return typeof message === "string" ? message : undefined;
+  }
+  return typeof data === "string" ? data : undefined;
+}
+
 function AuthRegister() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -60,7 +69,7 @@ function AuthRegister() {
         navigate({ to: "/auth/otp", search: { role, phone: cleaned, type: "register" } });
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const msg = apiErrorMessage(err);
         setError(msg ?? translate("حصل خطأ، حاول تاني", "Something went wrong. Please try again."));
       },
       onSettled: () => {
@@ -115,9 +124,7 @@ function AuthRegister() {
       else throw new Error(translate("دور حساب الاختبار غير صحيح", "The test account role is invalid"));
     } catch (err) {
       clearSession();
-      const message = (err as { data?: { error?: string }; response?: { data?: { error?: string } } })
-        ?.data?.error
-        ?? (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      const message = apiErrorMessage(err);
       setError(message ?? (err instanceof Error ? err.message : translate("تعذر إنشاء حساب الاختبار", "Unable to create the test account")));
     } finally {
       devRegisterLock.current = false;
@@ -181,6 +188,13 @@ function AuthRegister() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-card bg-primary-container/60 p-md">
+        <Icon name="info" className="mt-0.5 text-[18px] text-on-primary-container" />
+        <p className="font-label-md text-label-md text-on-primary-container">
+          {t("رقم الموبايل بيتسجّل مرة واحدة فقط، ونوع الحساب مايتغيرش بعد التسجيل.", "A phone number can be registered only once, and the account type cannot be changed later.")}
+        </p>
       </div>
 
       {/* Error */}

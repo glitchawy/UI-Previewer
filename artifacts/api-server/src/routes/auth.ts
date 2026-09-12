@@ -1,10 +1,11 @@
 import { randomInt } from "node:crypto";
 import { Router } from "express";
-import { eq, and, not } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import {
   DevRegisterBody,
   DevRegisterResponse,
+  RegisterOtpBody,
   RequestOtpBody,
   VerifyOtpBody,
   UpdateLocationBody,
@@ -23,12 +24,6 @@ import { normalizeEgyptianMobile } from "../lib/egyptian-mobile";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ROLE_LABELS: Record<string, string> = {
-  customer: "عميل",
-  partner: "صاحب مطعم",
-  driver: "مندوب",
-  admin: "مشرف",
-};
 const MOCK_ROLES = ["customer", "partner", "driver", "admin"] as const;
 type AuthRole = (typeof MOCK_ROLES)[number];
 type AuthUser = typeof usersTable.$inferSelect;
@@ -68,20 +63,14 @@ async function createSession(user: AuthUser) {
   return { token, user: serializeUser(user) };
 }
 
-/**
- * Returns an Arabic error message when a phone is already registered under
- * a different role — enforcing account separation per spec section 5.
- */
-async function checkAccountSeparation(phone: string, requestedRole: string): Promise<string | null> {
-  const conflict = await db
-    .select({ role: usersTable.role })
-    .from(usersTable)
-    .where(and(eq(usersTable.phone, phone), not(eq(usersTable.role, requestedRole as "customer"))))
-    .limit(1);
-  if (conflict.length === 0) return null;
-  const existingLabel = ROLE_LABELS[conflict[0].role] ?? conflict[0].role;
-  const requestedLabel = ROLE_LABELS[requestedRole] ?? requestedRole;
-  return `الرقم ده مسجل بالفعل كـ${existingLabel} — أنشئ حساباً منفصلاً كـ${requestedLabel}`;
+function isUniqueConstraintViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (typeof current !== "object" || current === null) return false;
+    if ("code" in current && (current as { code?: unknown }).code === "23505") return true;
+    current = "cause" in current ? (current as { cause?: unknown }).cause : undefined;
+  }
+  return false;
 }
 
 /** Translate IssueResult failure to an HTTP response (returns true = handled). */
@@ -131,12 +120,12 @@ router.get("/auth/capabilities", authCapabilitiesRateLimit, (_req, res): void =>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/request-otp  ← LOGIN only
-// Validates phone, enforces account separation, issues WhatsApp OTP.
+// Validates phone, resolves the existing account by phone, and issues an OTP
+// using its stored role. Any legacy role field is ignored by the input schema.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/request-otp", async (req, res): Promise<void> => {
   const parsed = RequestOtpBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
-  const { role } = parsed.data;
   const phone = normalizeEgyptianMobile(parsed.data.phone);
   if (!phone) {
     res.status(400).json({ error: "رقم الموبايل غير صحيح — يجب أن يكون رقماً مصرياً (01XXXXXXXXX)" });
@@ -147,37 +136,30 @@ router.post("/auth/request-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  // Account must exist under this exact role
-  const existing = await db
-    .select({ id: usersTable.id })
+  const [existing] = await db
+    .select({ id: usersTable.id, role: usersTable.role })
     .from(usersTable)
-    .where(and(eq(usersTable.phone, phone), eq(usersTable.role, role)))
+    .where(eq(usersTable.phone, phone))
     .limit(1);
 
-  if (existing.length === 0) {
-    // Check if phone is registered under a different role — give a specific message
-    const separationMsg = await checkAccountSeparation(phone, role);
-    if (separationMsg) {
-      res.status(409).json({ error: separationMsg });
-    } else {
-      res.status(404).json({ error: "الرقم ده مش مسجل — سجّل حساب جديد أولاً" });
-    }
+  if (!existing) {
+    res.status(404).json({ error: "الرقم ده مش مسجل — سجّل حساب جديد أولاً" });
     return;
   }
 
-  const issued = await issueOtp(phone, role);
+  const issued = await issueOtp(phone, existing.role);
   if (!issued.ok) { await handleIssueFailure(issued, res, (o, m) => req.log.warn(o, m)); return; }
 
-  req.log.info({ phone, role, messageId: issued.messageId }, "Login OTP issued");
+  req.log.info({ phone, messageId: issued.messageId }, "Login OTP issued");
   res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/register  ← SIGNUP only
-// Enforces account separation: same phone cannot register as a different role.
+// Rejects every already-registered phone, regardless of requested role.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/register", async (req, res): Promise<void> => {
-  const parsed = RequestOtpBody.safeParse(req.body);
+  const parsed = RegisterOtpBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
   const { role } = parsed.data;
   const phone = normalizeEgyptianMobile(parsed.data.phone);
@@ -196,21 +178,13 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     return;
   }
 
-  // Same phone + same role = already registered
-  const sameRole = await db
+  const existing = await db
     .select({ id: usersTable.id })
     .from(usersTable)
-    .where(and(eq(usersTable.phone, phone), eq(usersTable.role, role)))
+    .where(eq(usersTable.phone, phone))
     .limit(1);
-  if (sameRole.length > 0) {
+  if (existing.length > 0) {
     res.status(409).json({ error: "الرقم ده مسجل بالفعل — سجّل دخول بدل كده" });
-    return;
-  }
-
-  // Same phone + different role = account separation violation — give specific guidance
-  const separationMsg = await checkAccountSeparation(phone, role);
-  if (separationMsg) {
-    res.status(409).json({ error: separationMsg });
     return;
   }
 
@@ -241,10 +215,7 @@ async function createDevelopmentSignupUser(role: Exclude<AuthRole, "admin">) {
       }).returning();
       return user;
     } catch (error) {
-      const code = typeof error === "object" && error !== null && "code" in error
-        ? (error as { code?: unknown }).code
-        : undefined;
-      if (code !== "23505") throw error;
+      if (!isUniqueConstraintViolation(error)) throw error;
     }
   }
   throw new Error("Unable to allocate a unique development signup identity");
@@ -325,11 +296,19 @@ router.post("/auth/logout", async (req, res): Promise<void> => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/verify-otp
-// type = "login"    → user MUST exist  → create session
-// type = "register" → user MUST NOT exist → create user + session
+// type = "login"    → resolve the user by phone, ignoring any submitted role
+// type = "register" → require a role, then create a user + session
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/auth/verify-otp", async (req, res): Promise<void> => {
-  const parsed = VerifyOtpBody.safeParse(req.body);
+  // Login is phone-only. Remove even malformed legacy role values before
+  // validation so a caller cannot make login depend on a role it supplies.
+  const verifyInput = req.body?.type === "login"
+    && req.body !== null
+    && typeof req.body === "object"
+    && !Array.isArray(req.body)
+    ? Object.fromEntries(Object.entries(req.body).filter(([key]) => key !== "role"))
+    : req.body;
+  const parsed = VerifyOtpBody.safeParse(verifyInput);
   if (!parsed.success) { res.status(400).json({ error: "بيانات الطلب غير صحيحة" }); return; }
   const { otp, role, type } = parsed.data;
   const phone = normalizeEgyptianMobile(parsed.data.phone);
@@ -342,7 +321,25 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  const verdict = await verifyOtpCode(phone, role, otp);
+  let existing: AuthUser | undefined;
+  if (type === "login") {
+    [existing] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.phone, phone))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "الحساب ده مش موجود — سجّل حساب جديد" });
+      return;
+    }
+  } else if (!role || role === "admin") {
+    res.status(role === "admin" ? 403 : 400).json({
+      error: role === "admin" ? "لا يمكن إنشاء حساب مشرف من هنا" : "بيانات الطلب غير صحيحة",
+    });
+    return;
+  }
+
+  const verdict = await verifyOtpCode(phone, type === "login" ? existing!.role : role!, otp);
   if (!verdict.ok) {
     if (verdict.reason === "too_many_attempts") {
       res.status(429).json({ error: "محاولات كتير غلط — اطلب كود جديد" });
@@ -360,34 +357,35 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  let rows = await db
-    .select()
-    .from(usersTable)
-    .where(and(eq(usersTable.phone, phone), eq(usersTable.role, role)))
-    .limit(1);
-
   if (type === "login") {
-    if (rows.length === 0) {
-      res.status(404).json({ error: "الحساب ده مش موجود — سجّل حساب جديد" });
-      return;
-    }
+    // The lookup above is deliberately phone-only. A submitted role (including
+    // a legacy mismatched role) must never change or block login.
   } else {
-    // register
-    if (role === "admin") {
-      res.status(403).json({ error: "لا يمكن إنشاء حساب مشرف من هنا" });
-      return;
-    }
+    const rows = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.phone, phone))
+      .limit(1);
     if (rows.length > 0) {
       res.status(409).json({ error: "الرقم ده مسجل بالفعل — سجّل دخول بدل كده" });
       return;
     }
-    rows = await db.insert(usersTable).values({ phone, role }).returning();
+    try {
+      [existing] = await db.insert(usersTable).values({ phone, role: role! }).returning();
+    } catch (error) {
+      // The phone unique index is the authority under concurrent signup.
+      if (isUniqueConstraintViolation(error)) {
+        res.status(409).json({ error: "الرقم ده مسجل بالفعل — سجّل دخول بدل كده" });
+        return;
+      }
+      throw error;
+    }
   }
 
-  const user = rows[0];
+  const user = existing!;
   const session = await createSession(user);
 
-  req.log.info({ userId: user.id, role, type }, "Session created");
+  req.log.info({ userId: user.id, type }, "Session created");
 
   // For new registrations: generate a Telegram fallback link so the user can
   // link their Telegram account — once linked, future OTPs fall back to Telegram

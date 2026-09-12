@@ -58,7 +58,55 @@ export function loginErrorMessage(error: unknown, fallback: string): string {
 }
 
 export function otpRequestData(phone: string) {
-  return { phone, role: "driver" as const };
+  return { phone };
+}
+
+export function otpVerificationData(phone: string, otp: string) {
+  return { phone, otp, type: "login" as const };
+}
+
+export interface DriverSessionCandidate {
+  token: string;
+  user?: {
+    role?: unknown;
+  } | null;
+}
+
+export class NonDriverSessionError extends Error {
+  readonly role: unknown;
+
+  constructor(role: unknown) {
+    super("The authenticated account is not a driver account");
+    this.name = "NonDriverSessionError";
+    this.role = role;
+  }
+}
+
+export function isNonDriverSessionError(error: unknown): error is NonDriverSessionError {
+  return error instanceof NonDriverSessionError;
+}
+
+export function hasDriverRole(session: DriverSessionCandidate | null | undefined): boolean {
+  return session?.user?.role === "driver";
+}
+
+/**
+ * Check the server-issued identity before a token can be persisted.  A
+ * rejected identity is revoked with the supplied callback, but revocation
+ * failures must not turn into an accepted session.
+ */
+export async function requireDriverSession<T extends DriverSessionCandidate>(
+  session: T,
+  revokeSession: (token: string) => Promise<unknown>,
+): Promise<T> {
+  if (hasDriverRole(session)) return session;
+
+  try {
+    await revokeSession(session.token);
+  } catch {
+    // The local session must still be rejected when the network is down.
+  }
+  throw new NonDriverSessionError(session.user?.role);
 }
 
 export type SubmissionLock = { current: boolean };

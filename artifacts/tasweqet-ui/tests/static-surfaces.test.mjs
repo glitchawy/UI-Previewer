@@ -41,6 +41,32 @@ test("DEV MODE login is controlled by the server runtime capability", () => {
   assert.doesNotMatch(source, /import\.meta\.env.*(?:MOCK_AUTH|PUBLIC_TEST|DEPLOYMENT_PROFILE)/);
 });
 
+test("normal web login is phone-only while DEV role shortcuts stay isolated", () => {
+  const login = readFileSync(join(routes, "auth.login.tsx"), "utf8");
+  const otp = readFileSync(join(routes, "auth.otp.tsx"), "utf8");
+  const register = readFileSync(join(routes, "auth.register.tsx"), "utf8");
+
+  assert.doesNotMatch(login, /Role selector|Account type|نوع الحساب/);
+  assert.match(login, /requestOtp\.mutate\(\{ data: \{ phone: cleaned \} \}\)/);
+  assert.match(login, /search: \{ phone: cleaned, type: "login" \}/);
+  assert.match(login, /const devRoles/);
+  assert.match(login, /DEV MODE/);
+
+  assert.match(otp, /role\?: Role/);
+  assert.match(otp, /Login never carries a role/);
+  assert.match(otp, /\{ phone, otp: code, type \}/);
+  assert.match(otp, /const actualRole = parseRole\(data\.user\.role\)/);
+  assert.match(otp, /routeAfterLogin\(actualRole, data\.token, data\.user\)/);
+  assert.match(otp, /data\.user\.lat/);
+  assert.match(otp, /actualRole === "admin"/);
+  assert.match(otp, /actualRole === "partner"/);
+  assert.match(otp, /\/auth\/pending/);
+
+  assert.match(register, /useRegisterOtp/);
+  assert.match(register, /phone number can be registered only once/i);
+  assert.match(register, /نوع الحساب مايتغيرش/);
+});
+
 test("checkout defaults online payment to server-driven unavailable", () => {
   const source = readFileSync(join(routes, "app.checkout.tsx"), "utf8");
   assert.match(source, /useGetPaymentCapabilities/);

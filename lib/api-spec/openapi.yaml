@@ -78,7 +78,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OtpRequest"
+              $ref: "#/components/schemas/LoginOtpInput"
       responses:
         "200":
           description: OTP requested
@@ -191,6 +191,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Phone was registered while OTP verification was in progress
           content:
             application/json:
               schema:
@@ -2759,6 +2765,15 @@ components:
           type: string
           enum: [customer, partner, driver, admin]
 
+    LoginOtpInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.
+          examples: ["01012345678", "+201012345678"]
+
     OtpRequestResponse:
       type: object
       required: [success]
@@ -2770,7 +2785,7 @@ components:
 
     OtpVerify:
       type: object
-      required: [phone, otp, role, type]
+      required: [phone, otp, type]
       properties:
         phone:
           type: string
@@ -2782,6 +2797,7 @@ components:
         role:
           type: string
           enum: [customer, partner, driver, admin]
+          description: Required for register; ignored for login.
         type:
           type: string
           enum: [login, register]

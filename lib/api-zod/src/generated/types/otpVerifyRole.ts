@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Required for register; ignored for login.
+ */
 export type OtpVerifyRole = typeof OtpVerifyRole[keyof typeof OtpVerifyRole];
 
 

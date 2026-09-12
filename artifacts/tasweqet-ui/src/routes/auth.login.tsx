@@ -23,7 +23,9 @@ export const Route = createFileRoute("/auth/login")({
 
 type Role = "customer" | "partner" | "driver" | "admin";
 
-const loginRoles: { value: Role; ar: string; en: string; icon: string }[] = [
+// These shortcuts are deliberately kept inside the DEV MODE section below.
+// Normal login is identified by phone only; the server owns the account role.
+const devRoles: { value: Role; ar: string; en: string; icon: string }[] = [
   { value: "customer", ar: "عميل", en: "Customer", icon: "shopping_bag" },
   { value: "partner", ar: "مطعم", en: "Restaurant", icon: "storefront" },
   { value: "driver", ar: "مندوب", en: "Driver", icon: "two_wheeler" },
@@ -42,11 +44,19 @@ function validateEgPhone(raw: string): string | null {
   return null;
 }
 
+function apiErrorMessage(err: unknown): string | undefined {
+  const data = (err as { data?: unknown } | null)?.data;
+  if (typeof data === "object" && data !== null && "error" in data) {
+    const message = (data as { error?: unknown }).error;
+    return typeof message === "string" ? message : undefined;
+  }
+  return typeof data === "string" ? data : undefined;
+}
+
 function AuthLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const capabilities = useGetAuthCapabilities();
-  const [role, setRole] = useState<Role>("customer");
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
@@ -58,10 +68,10 @@ function AuthLogin() {
   const requestOtp = useRequestOtp({
     mutation: {
       onSuccess: () => {
-        navigate({ to: "/auth/otp", search: { role, phone: cleaned, type: "login" } });
+        navigate({ to: "/auth/otp", search: { phone: cleaned, type: "login" } });
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const msg = apiErrorMessage(err);
         setError(msg ?? translate("اتاكد من رقم التليفون , او اعمل اكونت جديد", "Check your phone number or create a new account"));
       },
     },
@@ -72,7 +82,7 @@ function AuthLogin() {
     setError("");
     const validationError = validateEgPhone(phone);
     if (validationError) { setError(validationError); return; }
-    requestOtp.mutate({ data: { phone: cleaned, role } });
+    requestOtp.mutate({ data: { phone: cleaned } });
   }
 
   async function handleDevLogin(testRole: Role) {
@@ -138,29 +148,6 @@ function AuthLogin() {
         )}
       </label>
 
-      {/* Role selector */}
-      <div className="flex flex-col gap-1.5">
-        <span className="font-label-lg text-label-lg text-on-surface-variant">{t("نوع الحساب", "Account type")}</span>
-        <div className="grid grid-cols-3 gap-2">
-          {loginRoles.map((r) => (
-            <button
-              key={r.value}
-              type="button"
-              onClick={() => setRole(r.value)}
-              className={`flex flex-col items-center gap-1 rounded-button border px-2 py-2.5 font-label-md text-label-md transition ${
-                role === r.value
-                  ? "border-2 border-secondary bg-secondary-container text-on-secondary-container"
-                  : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-secondary"
-              }`}
-            >
-              <Icon name={r.icon} className="text-[20px]" />
-              {t(r.ar, r.en)}
-            </button>
-          ))}
-        </div>
-        <p className="font-label-md text-label-md text-on-surface-variant">{t("العميل والمطعم والمندوب لهم حسابات منفصلة", "Customers, restaurants, and drivers have separate accounts")}</p>
-      </div>
-
       {/* Error banner */}
       {error && (
         <div className="flex items-start gap-2 rounded-card bg-error-container p-md">
@@ -205,7 +192,7 @@ function AuthLogin() {
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {loginRoles.map((testRole) => (
+            {devRoles.map((testRole) => (
               <Button
                 key={testRole.value}
                 type="button"

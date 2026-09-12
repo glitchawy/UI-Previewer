@@ -84,6 +84,7 @@ import type {
   ListRestaurantApplicationsParams,
   LocationSaveResult,
   LocationUpdate,
+  LoginOtpInput,
   Logout200,
   NotificationList,
   OnboardResult,
@@ -220,8 +221,15 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-   return withQueryKey(query, queryOptions.queryKey);
+  return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getReadinessCheckUrl = () => {
 
 
@@ -290,8 +298,15 @@ export function useReadinessCheck<TData = Awaited<ReturnType<typeof readinessChe
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-   return withQueryKey(query, queryOptions.queryKey);
- }
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetAuthCapabilitiesUrl = () => {
 
 
@@ -381,14 +396,14 @@ export const getRequestOtpUrl = () => {
 /**
  * @summary Request OTP for phone number
  */
-export const requestOtp = async (otpRequest: OtpRequest, options?: Parameters<typeof customFetch>[1]): Promise<OtpRequestResponse> => {
+export const requestOtp = async (loginOtpInput: LoginOtpInput, options?: Parameters<typeof customFetch>[1]): Promise<OtpRequestResponse> => {
 
   return customFetch<OtpRequestResponse>(getRequestOtpUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(otpRequest)
+    body: JSON.stringify(loginOtpInput)
   }
 );}
 
@@ -397,8 +412,8 @@ export const requestOtp = async (otpRequest: OtpRequest, options?: Parameters<ty
 
 
 export const getRequestOtpMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<OtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<OtpRequest>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<LoginOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<LoginOtpInput>}, TContext> => {
 
 const mutationKey = ['requestOtp'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -410,7 +425,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestOtp>>, {data: BodyType<OtpRequest>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestOtp>>, {data: BodyType<LoginOtpInput>}> = (props) => {
           const {data} = props ?? {};
 
           return  requestOtp(data,requestOptions)
@@ -424,18 +439,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RequestOtpMutationResult = NonNullable<Awaited<ReturnType<typeof requestOtp>>>
-    export type RequestOtpMutationBody = BodyType<OtpRequest>
+    export type RequestOtpMutationBody = BodyType<LoginOtpInput>
     export type RequestOtpMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Request OTP for phone number
  */
 export const useRequestOtp = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<OtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestOtp>>, TError,{data: BodyType<LoginOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestOtp>>,
         TError,
-        {data: BodyType<OtpRequest>},
+        {data: BodyType<LoginOtpInput>},
         TContext
       > => {
       return useMutation(getRequestOtpMutationOptions(options));

@@ -516,11 +516,19 @@ export interface OtpRequest {
   role: OtpRequestRole;
 }
 
+export interface LoginOtpInput {
+  /** Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form. */
+  phone: string;
+}
+
 export interface OtpRequestResponse {
   success: boolean;
   message?: string;
 }
 
+/**
+ * Required for register; ignored for login.
+ */
 export type OtpVerifyRole = typeof OtpVerifyRole[keyof typeof OtpVerifyRole];
 
 
@@ -547,7 +555,8 @@ export interface OtpVerify {
   phone: string;
   /** 6-digit OTP code */
   otp: string;
-  role: OtpVerifyRole;
+  /** Required for register; ignored for login. */
+  role?: OtpVerifyRole;
   /** login = existing user only; register = new user only */
   type: OtpVerifyType;
 }

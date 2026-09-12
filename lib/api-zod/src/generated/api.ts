@@ -39,8 +39,7 @@ export const GetAuthCapabilitiesResponse = zod.object({
  * @summary Request OTP for phone number
  */
 export const RequestOtpBody = zod.object({
-  "phone": zod.string().describe('Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.'),
-  "role": zod.enum(['customer', 'partner', 'driver', 'admin'])
+  "phone": zod.string().describe('Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form.')
 })
 
 export const RequestOtpResponse = zod.object({
@@ -92,7 +91,7 @@ export const DevRegisterResponse = zod.object({
 export const VerifyOtpBody = zod.object({
   "phone": zod.string().describe('Egyptian mobile number in any accepted local or international form; it is normalized to 01XXXXXXXXX before verification.'),
   "otp": zod.string().describe('6-digit OTP code'),
-  "role": zod.enum(['customer', 'partner', 'driver', 'admin']),
+  "role": zod.enum(['customer', 'partner', 'driver', 'admin']).optional().describe('Required for register; ignored for login.'),
   "type": zod.enum(['login', 'register']).describe('login = existing user only; register = new user only')
 })
 

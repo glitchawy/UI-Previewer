@@ -28,6 +28,7 @@ import {
   runtimeCapabilities,
 } from "./lib/deployment-profile";
 import { assertCustomerDatabaseSafety } from "./lib/customer-database-safety";
+import { RequestOtpBody } from "@workspace/api-zod";
 
 type Json = Record<string, any>;
 
@@ -43,6 +44,8 @@ const createdApplicationIds: { restaurants: number[]; drivers: number[] } = {
   drivers: [],
 };
 let server: Server | undefined;
+let originalFetch: typeof fetch | undefined;
+let originalAuthevoApiKey: string | undefined;
 
 function auth(token: string) {
   return { authorization: `Bearer ${token}` };
@@ -144,10 +147,15 @@ try {
   assert.equal((await request(baseUrl, "/admin/core/overview", { token: admin.token })).status, 200,
     "active super admin must be allowed");
 
-  const separation = await request(baseUrl, "/auth/request-otp", {
-    method: "POST", body: { phone: customer.user.phone, role: "partner" },
+  const legacyLoginInput = RequestOtpBody.parse({
+    phone: customer.user.phone,
+    role: "partner",
   });
-  assert.equal(separation.status, 409, "a role-specific session/account must not permit role reuse");
+  assert.deepEqual(
+    legacyLoginInput,
+    { phone: customer.user.phone },
+    "a legacy login role must be ignored before OTP delivery",
+  );
 
   process.env.NODE_ENV = "production";
   for (const profile of [undefined, "unknown-value", "customer", "test"] as const) {
@@ -343,6 +351,140 @@ try {
   else process.env.PUBLIC_TEST_MODE_ENABLED = originalPublicTestMode;
   if (originalDeploymentProfile === undefined) delete process.env.DEPLOYMENT_PROFILE;
   else process.env.DEPLOYMENT_PROFILE = originalDeploymentProfile;
+
+  // Keep auth regression coverage at the provider boundary: the production
+  // route still calls Authevo, while this test stubs only the external HTTP
+  // responses and never sends a real OTP.
+  originalFetch = globalThis.fetch;
+  originalAuthevoApiKey = process.env.AUTHEVO_API_KEY;
+  process.env.AUTHEVO_API_KEY = "auth-regression-provider-stub";
+  globalThis.fetch = async (input, init) => {
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+    if (!url.startsWith("https://api.authevo.dev/")) {
+      return originalFetch!(input, init);
+    }
+    const path = new URL(url).pathname;
+    let data: Record<string, unknown>;
+    if (path === "/v1/otp/send") {
+      data = {
+        message_id: `${prefix}-otp`,
+        expires_in: 300,
+        status: "sent",
+      };
+    } else if (path === "/v1/otp/verify") {
+      data = { verified: true };
+    } else if (path === "/v1/otp/telegram-link") {
+      data = { telegram_bot_url: `https://t.me/${prefix}`, expires_in: 900 };
+    } else {
+      return new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "stub path" } }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const roleSpoofedLoginRequest = await request(baseUrl, "/auth/request-otp", {
+    method: "POST", body: { phone: customer.user.phone, role: "partner" },
+  });
+  assert.equal(roleSpoofedLoginRequest.status, 200,
+    "login OTP request must ignore a mismatched legacy role");
+  assert.equal("role" in roleSpoofedLoginRequest.body, false,
+    "login OTP request must not disclose a role");
+  const rolelessLoginRequest = await request(baseUrl, "/auth/request-otp", {
+    method: "POST", body: { phone: partner.user.phone },
+  });
+  assert.equal(rolelessLoginRequest.status, 200,
+    "login OTP request must not require a role");
+  const spoofedLogin = await request(baseUrl, "/auth/verify-otp", {
+    method: "POST",
+    body: { phone: customer.user.phone, otp: "123456", role: "partner", type: "login" },
+  });
+  assert.equal(spoofedLogin.status, 200, "login OTP verification must ignore a mismatched role");
+  assert.equal(spoofedLogin.body.user.role, "customer",
+    "a login role spoof must not change the resolved user");
+  const rolelessLogin = await request(baseUrl, "/auth/verify-otp", {
+    method: "POST",
+    body: { phone: customer.user.phone, otp: "123456", type: "login" },
+  });
+  assert.equal(rolelessLogin.status, 200, "login OTP verification must not require a role");
+  assert.equal(rolelessLogin.body.user.role, "customer",
+    "login OTP verification must resolve the stored role");
+
+  for (const phone of [
+    customer.user.phone,
+    partner.user.phone,
+    driver.user.phone,
+    admin.user.phone,
+  ]) {
+    for (const role of ["customer", "partner", "driver"] as const) {
+      const duplicateSignup = await request(baseUrl, "/auth/register", {
+        method: "POST", body: { phone, role },
+      });
+      assert.equal(duplicateSignup.status, 409,
+        "signup must reject every already-registered phone regardless of role");
+    }
+  }
+
+  const signupRacePhone = `0108${String((suffix + 10) % 10_000_000).padStart(7, "0")}`;
+  assert.equal((await request(baseUrl, "/auth/register", {
+    method: "POST", body: { phone: signupRacePhone, role: "partner" },
+  })).status, 200, "new signup must request an OTP");
+  const signupRaceResults = await Promise.all([
+    request(baseUrl, "/auth/verify-otp", {
+      method: "POST",
+      body: { phone: signupRacePhone, otp: "123456", role: "partner", type: "register" },
+    }),
+    request(baseUrl, "/auth/verify-otp", {
+      method: "POST",
+      body: { phone: signupRacePhone, otp: "123456", role: "partner", type: "register" },
+    }),
+  ]);
+  assert.deepEqual(signupRaceResults.map((result) => result.status).sort(), [200, 409],
+    "concurrent signup verification must convert the phone race to one 409");
+  const [signupRaceUser] = await db.select().from(usersTable)
+    .where(eq(usersTable.phone, signupRacePhone)).limit(1);
+  assert.ok(signupRaceUser);
+  assert.equal(signupRaceUser.role, "partner");
+  createdUserIds.push(signupRaceUser.id);
+
+  await assert.rejects(
+    db.update(usersTable).set({ role: "partner" }).where(eq(usersTable.id, admin.user.id)),
+    (error: unknown) => {
+      let current: unknown = error;
+      for (let depth = 0; depth < 5; depth += 1) {
+        if (current instanceof Error && /users\.role is immutable/.test(current.message)) return true;
+        if (typeof current !== "object" || current === null || !("cause" in current)) return false;
+        current = (current as { cause?: unknown }).cause;
+      }
+      return false;
+    },
+    "an admin must not be able to change a user's role",
+  );
+  const [adminAfterRoleAttempt] = await db.select({ role: usersTable.role })
+    .from(usersTable).where(eq(usersTable.id, admin.user.id)).limit(1);
+  assert.equal(adminAfterRoleAttempt.role, "admin");
+  await assert.rejects(
+    db.insert(usersTable).values({ phone: customer.user.phone, role: "partner" }),
+    (error: unknown) => {
+      let current: unknown = error;
+      for (let depth = 0; depth < 5; depth += 1) {
+        if (typeof current !== "object" || current === null) return false;
+        if ("code" in current && (current as { code?: unknown }).code === "23505") return true;
+        if (!("cause" in current)) return false;
+        current = (current as { cause?: unknown }).cause;
+      }
+      return false;
+    },
+    "users.phone must remain globally unique",
+  );
 
   const deviceA = await issueSession(customer.user);
   const deviceB = await issueSession(customer.user);
@@ -620,6 +762,9 @@ try {
 
   console.log("auth/onboarding/document regression passed");
 } finally {
+  if (originalFetch) globalThis.fetch = originalFetch;
+  if (originalAuthevoApiKey === undefined) delete process.env.AUTHEVO_API_KEY;
+  else process.env.AUTHEVO_API_KEY = originalAuthevoApiKey;
   if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
   if (createdUserIds.length) {
     await db.delete(notificationsTable).where(inArray(notificationsTable.userId, createdUserIds));

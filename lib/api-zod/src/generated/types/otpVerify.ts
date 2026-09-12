@@ -13,7 +13,8 @@ export interface OtpVerify {
   phone: string;
   /** 6-digit OTP code */
   otp: string;
-  role: OtpVerifyRole;
+  /** Required for register; ignored for login. */
+  role?: OtpVerifyRole;
   /** login = existing user only; register = new user only */
   type: OtpVerifyType;
 }
