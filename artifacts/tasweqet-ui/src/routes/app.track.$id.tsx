@@ -98,7 +98,7 @@ function AppTrackId() {
             <Card className="flex min-h-44 flex-col items-center justify-center gap-2 bg-surface-container-low p-lg text-center">
               <Icon name={order.driverName ? "two_wheeler" : "schedule"} className="text-[42px] text-secondary" />
               <p className="font-headline-md text-headline-md">
-                 {order.driverName ? t("الخريطة هتظهر بعد استلام الكابتن للطلب", "The map will appear once the driver picks up the order") : t("جاري تجهيز طلبك", "Preparing your order")}
+                 {isOutForDelivery ? t("الكابتن استلم طلبك — في انتظار موقعه", "The driver has your order — waiting for their location") : order.status === "delivered" ? t("تم توصيل طلبك", "Your order has been delivered") : order.status === "cancelled" ? t("تم إلغاء الطلب", "Order cancelled") : order.driverName ? t("الخريطة هتظهر بعد استلام الكابتن للطلب", "The map will appear once the driver picks up the order") : t("جاري تجهيز طلبك", "Preparing your order")}
               </p>
                <p className="font-body-md text-body-md text-on-surface-variant">{t("هنحدّث الحالة تلقائياً كل ١٥ ثانية", "Status updates automatically every 15 seconds")}</p>
             </Card>

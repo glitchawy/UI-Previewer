@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { AppBar, MobileShell, Icon, Card, Badge, Button, EmptyState } from "@/components/tb/shell";
 import { DeliveryEstimateCard } from "@/components/tb/delivery-estimate";
+import { OrderLiveTracking } from "@/components/tb/order-live-tracking";
 import { customerTabs } from "@/lib/tb/nav";
 import { EGP, formatOrderDate, orderStatusLabels, orderStatusTones, paymentStatusLabels, paymentStatusTones } from "@/lib/tb/orders";
 import { translate, useTranslation } from "@/lib/i18n";
@@ -30,7 +31,7 @@ function AppOrderDetail() {
   const id = Number.isInteger(parsedId) ? parsedId : 0;
   const queryClient = useQueryClient();
   const orderQuery = useGetCustomerOrder(id, {
-    query: { enabled: id > 0, queryKey: getGetCustomerOrderQueryKey(id) },
+    query: { enabled: id > 0, queryKey: getGetCustomerOrderQueryKey(id), refetchInterval: 10_000 },
   });
   const orderEstimate = (orderQuery.data as unknown as { deliveryEstimate?: unknown } | undefined)?.deliveryEstimate;
   const cancelOrder = useCancelCustomerOrder({
@@ -68,6 +69,15 @@ function AppOrderDetail() {
                estimate={orderEstimate}
                title={t("المدة المتوقعة وقت تأكيد الطلب", "Estimated at order placement")}
                testId="order-detail-delivery-estimate"
+             />
+           ) : null}
+
+           {orderQuery.data.status === "picked_up" ? (
+             <OrderLiveTracking
+               key={id}
+               id={id}
+               driverName={orderQuery.data.driverName}
+               destination={{ lat: orderQuery.data.deliveryLat, lng: orderQuery.data.deliveryLng }}
              />
            ) : null}
 
