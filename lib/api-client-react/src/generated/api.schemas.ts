@@ -19,6 +19,24 @@ export interface AuthCapabilities {
   deploymentProfile: AuthCapabilitiesDeploymentProfile;
 }
 
+/**
+ * Admin is rejected explicitly; it is included so callers receive the forbidden-role response.
+ */
+export type DevRegisterInputRole = typeof DevRegisterInputRole[keyof typeof DevRegisterInputRole];
+
+
+export const DevRegisterInputRole = {
+  customer: 'customer',
+  partner: 'partner',
+  driver: 'driver',
+  admin: 'admin',
+} as const;
+
+export interface DevRegisterInput {
+  /** Admin is rejected explicitly; it is included so callers receive the forbidden-role response. */
+  role: DevRegisterInputRole;
+}
+
 export type PaymentCapabilitiesStatus = typeof PaymentCapabilitiesStatus[keyof typeof PaymentCapabilitiesStatus];
 
 
@@ -493,7 +511,7 @@ export const OtpRequestRole = {
 } as const;
 
 export interface OtpRequest {
-  /** Egyptian mobile number. Accepted local and international forms are normalized by the server to 01XXXXXXXXX. */
+  /** Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form. */
   phone: string;
   role: OtpRequestRole;
 }
@@ -525,7 +543,7 @@ export const OtpVerifyType = {
 } as const;
 
 export interface OtpVerify {
-  /** Egyptian mobile number in any accepted local or international form; normalized before verification. */
+  /** Egyptian mobile number in any accepted local or international form; it is normalized to 01XXXXXXXXX before verification. */
   phone: string;
   /** 6-digit OTP code */
   otp: string;

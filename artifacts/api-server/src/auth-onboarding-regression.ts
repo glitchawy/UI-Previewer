@@ -205,6 +205,82 @@ try {
   process.env.DEPLOYMENT_PROFILE = "test";
   process.env.MOCK_AUTH_ENABLED = "true";
   process.env.PUBLIC_TEST_MODE_ENABLED = "true";
+
+  // DEV signup must create fresh, real users rather than reusing the
+  // deterministic dev-login fixtures. It must also return the ordinary
+  // bearer session without touching OTP/provider delivery.
+  const devSignupRoles = ["customer", "partner", "driver"] as const;
+  const devSignupUsers: { id: number; role: typeof devSignupRoles[number]; phone: string; token: string }[] = [];
+  for (const role of devSignupRoles) {
+    const signup = await request(baseUrl, "/auth/dev-register", {
+      method: "POST", body: { role },
+    });
+    assert.equal(signup.status, 200, `development signup should allow ${role}`);
+    assert.ok(typeof signup.body.token === "string" && signup.body.token.length > 20);
+    assert.equal(signup.body.user.role, role);
+    assert.match(signup.body.user.phone, /^0109\d{7}$/, "phone must be a server-generated synthetic identity");
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, signup.body.user.id)).limit(1);
+    assert.ok(user, "development signup must persist a user");
+    assert.equal(user.isDevelopmentFixture, true, "development signup users must be marked as fixtures");
+    assert.equal(user.phone, signup.body.user.phone);
+    createdUserIds.push(user.id);
+    devSignupUsers.push({ id: user.id, role, phone: user.phone, token: signup.body.token });
+    assert.equal((await request(baseUrl, "/auth/me", { token: signup.body.token })).status, 200,
+      "development signup must return a real bearer session");
+  }
+  assert.equal(new Set(devSignupUsers.map((user) => user.id)).size, devSignupRoles.length,
+    "each development signup must create a fresh user");
+  assert.equal(new Set(devSignupUsers.map((user) => user.phone)).size, devSignupRoles.length,
+    "each development signup must create a unique synthetic identity");
+  const repeatedCustomer = await request(baseUrl, "/auth/dev-register", {
+    method: "POST", body: { role: "customer" },
+  });
+  assert.equal(repeatedCustomer.status, 200, "repeating development signup must remain a fresh signup");
+  assert.notEqual(repeatedCustomer.body.user.id, devSignupUsers[0]!.id,
+    "repeated development signup must not reuse the prior customer fixture");
+  assert.notEqual(repeatedCustomer.body.user.phone, devSignupUsers[0]!.phone,
+    "repeated development signup must receive a new synthetic identity");
+  const [repeatedCustomerUser] = await db.select().from(usersTable)
+    .where(eq(usersTable.id, repeatedCustomer.body.user.id)).limit(1);
+  assert.ok(repeatedCustomerUser?.isDevelopmentFixture);
+  createdUserIds.push(repeatedCustomerUser!.id);
+  const [devPartner] = devSignupUsers.filter((user) => user.role === "partner");
+  const [devDriver] = devSignupUsers.filter((user) => user.role === "driver");
+  assert.equal((await db.select().from(restaurantsTable).where(eq(restaurantsTable.ownerUserId, devPartner!.id))).length, 0,
+    "fresh partner signup must not be auto-approved or seeded with an application");
+  assert.equal((await db.select().from(driverProfilesTable).where(eq(driverProfilesTable.userId, devDriver!.id))).length, 0,
+    "fresh driver signup must not be auto-approved or seeded with an application");
+
+  const fixtureCountBeforeRejections = (
+    await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.isDevelopmentFixture, true))
+  ).length;
+  assert.equal((await request(baseUrl, "/auth/dev-register", {
+    method: "POST", body: { role: "not-a-role" },
+  })).status, 400, "invalid development signup roles must be rejected");
+  assert.equal((await request(baseUrl, "/auth/dev-register", {
+    method: "POST", body: { role: "admin" },
+  })).status, 403, "admin development signup must be rejected");
+  assert.equal((
+    await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.isDevelopmentFixture, true))
+  ).length, fixtureCountBeforeRejections, "rejected roles must not create users");
+
+  process.env.DEPLOYMENT_PROFILE = "customer";
+  delete process.env.MOCK_AUTH_ENABLED;
+  delete process.env.PUBLIC_TEST_MODE_ENABLED;
+  assert.equal((await request(baseUrl, "/auth/dev-register", {
+    method: "POST", body: { role: "customer" },
+  })).status, 404, "customer deployments must hide development signup");
+  process.env.DEPLOYMENT_PROFILE = "unknown";
+  assert.equal((await request(baseUrl, "/auth/dev-register", {
+    method: "POST", body: { role: "customer" },
+  })).status, 404, "unknown deployments must hide development signup");
+  assert.equal((
+    await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.isDevelopmentFixture, true))
+  ).length, fixtureCountBeforeRejections, "disabled signup modes must have no side effects");
+  process.env.DEPLOYMENT_PROFILE = "test";
+  process.env.MOCK_AUTH_ENABLED = "true";
+  process.env.PUBLIC_TEST_MODE_ENABLED = "true";
+
   const [transitionAdmin] = await db.insert(usersTable).values({
     phone: phones[8]!,
     role: "admin",

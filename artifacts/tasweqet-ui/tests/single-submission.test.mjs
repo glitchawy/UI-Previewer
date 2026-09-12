@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { runSingleSubmission, runStickyAction } from "../src/lib/tb/single-submission.ts";
 import { getFreshForegroundFix, selectDriverDestination } from "../src/lib/driver-location.ts";
 
@@ -9,6 +10,20 @@ function deferred() {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
+
+test("signup exposes gated fresh DEV accounts with a synchronous duplicate guard", () => {
+  const source = readFileSync(new URL("../src/routes/auth.register.tsx", import.meta.url), "utf8");
+  assert.match(source, /useGetAuthCapabilities/);
+  assert.match(source, /publicTestLoginEnabled === true/);
+  assert.match(source, /useDevRegister/);
+  assert.match(source, /devRegisterLock\.current/);
+  assert.match(source, /clearSession\(\)/);
+  assert.match(source, /\/auth\/location/);
+  assert.match(source, /\/auth\/register-restaurant/);
+  assert.match(source, /\/auth\/driver/);
+  assert.match(source, /DEV MODE/);
+  assert.match(source, /بدون رقم حقيقي أو رسالة OTP/);
+});
 
 test("successful add invokes close once and concurrent clicks submit once", async () => {
   const request = deferred();

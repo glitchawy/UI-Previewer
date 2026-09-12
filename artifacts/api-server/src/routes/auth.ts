@@ -1,7 +1,14 @@
+import { randomInt } from "node:crypto";
 import { Router } from "express";
 import { eq, and, not } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
-import { RequestOtpBody, VerifyOtpBody, UpdateLocationBody } from "@workspace/api-zod";
+import {
+  DevRegisterBody,
+  DevRegisterResponse,
+  RequestOtpBody,
+  VerifyOtpBody,
+  UpdateLocationBody,
+} from "@workspace/api-zod";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
@@ -212,6 +219,57 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   req.log.info({ phone, role, messageId: issued.messageId }, "Register OTP issued");
   res.json({ success: true, message: "تم إرسال كود التحقق عبر واتساب" });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/dev-register  ← fresh development/test signup
+// Creates a new fixture user, rather than reusing the deterministic dev-login
+// users. The identity is generated here so a caller can never provide a real
+// phone number or accidentally trigger OTP/provider delivery.
+// ─────────────────────────────────────────────────────────────────────────────
+async function createDevelopmentSignupUser(role: Exclude<AuthRole, "admin">) {
+  // 0109xxxxxxx is a valid Egyptian-mobile-shaped synthetic identity range
+  // reserved for this test-only flow. randomInt plus the unique DB constraint
+  // gives each successful signup a fresh account even for repeated requests.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const phone = `0109${randomInt(0, 10_000_000).toString().padStart(7, "0")}`;
+    try {
+      const [user] = await db.insert(usersTable).values({
+        phone,
+        role,
+        isDevelopmentFixture: true,
+      }).returning();
+      return user;
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+      if (code !== "23505") throw error;
+    }
+  }
+  throw new Error("Unable to allocate a unique development signup identity");
+}
+
+router.post("/auth/dev-register", async (req, res): Promise<void> => {
+  if (!runtimeCapabilities().publicTestLoginEnabled) {
+    res.status(404).json({ error: "المسار غير متاح" });
+    return;
+  }
+
+  const parsed = DevRegisterBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  if (parsed.data.role === "admin") {
+    res.status(403).json({ error: "لا يمكن إنشاء حساب مشرف من هنا" });
+    return;
+  }
+
+  const user = await createDevelopmentSignupUser(parsed.data.role);
+  const session = await createSession(user);
+  req.log.info({ userId: user.id, role: user.role }, "Development signup session created");
+  res.json(DevRegisterResponse.parse(session));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

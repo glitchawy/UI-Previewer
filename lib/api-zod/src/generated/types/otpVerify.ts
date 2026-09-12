@@ -9,6 +9,7 @@ import type { OtpVerifyRole } from './otpVerifyRole';
 import type { OtpVerifyType } from './otpVerifyType';
 
 export interface OtpVerify {
+  /** Egyptian mobile number in any accepted local or international form; it is normalized to 01XXXXXXXXX before verification. */
   phone: string;
   /** 6-digit OTP code */
   otp: string;

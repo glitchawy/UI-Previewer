@@ -8,7 +8,7 @@
 import type { OtpRequestRole } from './otpRequestRole';
 
 export interface OtpRequest {
-  /** Phone number in Egyptian format e.g. 01012345678 */
+  /** Egyptian mobile number. Accepted forms include 01012345678, +201012345678, 00201012345678, 201012345678, and 1012345678; spaces, dashes, parentheses, and Arabic-Indic digits are accepted. The server stores the canonical local form. */
   phone: string;
   role: OtpRequestRole;
 }

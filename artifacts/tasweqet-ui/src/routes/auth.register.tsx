@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { AuthShell, Button, Icon } from "@/components/tb/shell";
-import { useRegisterOtp } from "@workspace/api-client-react";
-import { getSession, getRoleDashboard } from "@/lib/auth-session";
+import { useDevRegister, useGetAuthCapabilities, useRegisterOtp } from "@workspace/api-client-react";
+import { clearSession, getSession, getRoleDashboard, saveSession, validateWithServer } from "@/lib/auth-session";
 
 export const Route = createFileRoute("/auth/register")({
   beforeLoad: () => {
@@ -40,10 +40,14 @@ function validateEgPhone(raw: string): string | null {
 
 function AuthRegister() {
   const navigate = useNavigate();
+  const capabilities = useGetAuthCapabilities();
   const [role, setRole] = useState<Role>("customer");
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
+  const [devRolePending, setDevRolePending] = useState<Role | null>(null);
+  const registerLock = useRef(false);
+  const devRegisterLock = useRef(false);
 
   const cleaned = phone.replace(/[\s\-]/g, "");
   const inlineError = touched ? validateEgPhone(phone) : null;
@@ -57,15 +61,66 @@ function AuthRegister() {
         const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
         setError(msg ?? "حصل خطأ، حاول تاني");
       },
+      onSettled: () => {
+        registerLock.current = false;
+      },
     },
   });
 
   function handleSubmit() {
+    if (registerLock.current) return;
     setTouched(true);
     setError("");
     const validationError = validateEgPhone(phone);
     if (validationError) { setError(validationError); return; }
+    registerLock.current = true;
     registerOtp.mutate({ data: { phone: cleaned, role } });
+  }
+
+  const devRegister = useDevRegister();
+
+  async function handleDevSignup(testRole: Role) {
+    // React state is asynchronous; this ref closes the duplicate-click window
+    // before React Query has a chance to update isPending.
+    if (devRegisterLock.current) return;
+    devRegisterLock.current = true;
+    setError("");
+    setDevRolePending(testRole);
+    try {
+      const data = await devRegister.mutateAsync({ data: { role: testRole } });
+      // Replace any stale local role/session caches before writing the fresh
+      // bearer so cart/favorites stores cannot leak between test accounts.
+      clearSession();
+      saveSession({
+        token: data.token,
+        user: {
+          id: data.user.id,
+          phone: data.user.phone,
+          role: data.user.role as Role,
+          name: data.user.name ?? null,
+          lat: data.user.lat ?? null,
+          lng: data.user.lng ?? null,
+          addressText: data.user.addressText ?? null,
+          addressDetails: data.user.addressDetails ?? null,
+        },
+        isDevMode: true,
+      });
+      const validated = await validateWithServer();
+      if (!validated) throw new Error("تعذر التحقق من جلسة حساب الاختبار");
+      if (validated.user.role === "customer") navigate({ to: "/auth/location" });
+      else if (validated.user.role === "partner") navigate({ to: "/auth/register-restaurant" });
+      else if (validated.user.role === "driver") navigate({ to: "/auth/driver" });
+      else throw new Error("دور حساب الاختبار غير صحيح");
+    } catch (err) {
+      clearSession();
+      const message = (err as { data?: { error?: string }; response?: { data?: { error?: string } } })
+        ?.data?.error
+        ?? (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(message ?? (err instanceof Error ? err.message : "تعذر إنشاء حساب الاختبار"));
+    } finally {
+      devRegisterLock.current = false;
+      setDevRolePending(null);
+    }
   }
 
   return (
@@ -144,6 +199,41 @@ function AuthRegister() {
       <Button className="w-full" icon="person_add" onClick={handleSubmit} disabled={registerOtp.isPending}>
         {registerOtp.isPending ? "جاري الإنشاء..." : "إنشاء الحساب"}
       </Button>
+
+      {capabilities.data?.publicTestLoginEnabled === true && (
+        <section className="flex flex-col gap-3 rounded-card border-2 border-dashed border-error/40 bg-error-container/40 p-md">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-label-lg text-label-lg text-on-error-container">إنشاء حساب اختبار جديد</p>
+              <p className="font-label-md text-label-md text-on-surface-variant">
+                حساب مستقل جديد ببيانات تجريبية — بدون رقم حقيقي أو رسالة OTP
+              </p>
+            </div>
+            <span className="rounded-full bg-error px-2 py-1 text-[10px] font-bold tracking-wide text-white">
+              DEV MODE
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {registerRoles.map((testRole) => (
+              <Button
+                key={testRole.value}
+                type="button"
+                variant="outline"
+                icon={testRole.icon}
+                disabled={devRolePending !== null}
+                onClick={() => handleDevSignup(testRole.value)}
+              >
+                {devRolePending === testRole.value ? "جاري الإنشاء..." : testRole.label}
+              </Button>
+            ))}
+          </div>
+          {devRolePending !== null && (
+            <p role="status" className="font-label-md text-label-md text-on-surface-variant">
+              جاري إنشاء حساب اختبار جديد وتأمين الجلسة...
+            </p>
+          )}
+        </section>
+      )}
 
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-outline-variant" />

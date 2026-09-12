@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ZlzzoFNCnrfxLlRsTU3LT"
+uri = "file://exports/talabat-betak-source.zip"
+type = "unspecified"
+title = "Talabat Betak — Source Code"
+description = "Current source code, including web app, driver app, API, database migrations, tests, and latest DEV MODE signup changes. Excludes secrets, database contents, dependencies, build outputs, logs, and uploaded reference files."

@@ -51,6 +51,8 @@ export * from './authUser';
 export * from './customerAddress';
 export * from './customerAddressInput';
 export * from './customerWallet';
+export * from './devRegisterInput';
+export * from './devRegisterInputRole';
 export * from './dispatchAdminOrder200';
 export * from './dispatchAdminOrderBodyAction';
 export * from './driverActiveOrder';

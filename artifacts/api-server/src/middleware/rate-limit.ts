@@ -127,7 +127,7 @@ export function preBodySensitiveRateLimit(req: Request, res: Response, next: Nex
 export function parsedSensitiveRateLimit(req: Request, res: Response, next: NextFunction): void {
   if (req.method === "POST" && ["/api/auth/request-otp", "/api/auth/register", "/api/auth/verify-otp"].includes(req.path)) {
     otpLimit(req, res, next);
-  } else if (req.method === "POST" && req.path === "/api/auth/dev-login") {
+  } else if (req.method === "POST" && ["/api/auth/dev-login", "/api/auth/dev-register"].includes(req.path)) {
     devLoginLimit(req, res, next);
   } else if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && /^\/api\/admin(?:\/|$)/.test(req.path)) {
     adminMutationLimit(req, res, next);

@@ -7,6 +7,8 @@ export * from "./generated/api";
 // the same type information via z.infer.
 export type { AuthSession } from "./generated/types/authSession";
 export type { AuthUser } from "./generated/types/authUser";
+export type { DevRegisterInput } from "./generated/types/devRegisterInput";
+export type { DevRegisterInputRole } from "./generated/types/devRegisterInputRole";
 export type { DriverApplication } from "./generated/types/driverApplication";
 export type { DriverOnboard } from "./generated/types/driverOnboard";
 export type { ErrorResponse } from "./generated/types/errorResponse";

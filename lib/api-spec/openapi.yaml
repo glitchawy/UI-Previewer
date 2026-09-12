@@ -124,6 +124,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/dev-register:
+    post:
+      operationId: devRegister
+      tags: [auth]
+      summary: Create a fresh development signup account
+      description: >
+        Test-profile only. Creates a new fixture user with a server-generated
+        synthetic phone identity, without invoking OTP or an external provider,
+        and returns the normal database-backed session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevRegisterInput"
+      responses:
+        "200":
+          description: Fresh development account and authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400":
+          description: Invalid role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Admin signup is forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Development signup is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/verify-otp:
     post:
       operationId: verifyOtp
@@ -2213,6 +2254,17 @@ components:
         deploymentProfile:
           type: string
           enum: [unknown, customer, test]
+
+    DevRegisterInput:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [customer, partner, driver, admin]
+          description: Admin is rejected explicitly; it is included so callers receive the forbidden-role response.
+
     PaymentCapabilities:
       type: object
       additionalProperties: false

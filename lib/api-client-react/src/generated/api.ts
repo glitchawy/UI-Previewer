@@ -41,6 +41,7 @@ import type {
   CustomerAddress,
   CustomerAddressInput,
   CustomerWallet,
+  DevRegisterInput,
   DispatchAdminOrder200,
   DispatchAdminOrderBody,
   DriverActiveOrder,
@@ -219,7 +220,7 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-  return withQueryKey(query, queryOptions.queryKey);
+   return withQueryKey(query, queryOptions.queryKey);
 }
 export const getReadinessCheckUrl = () => {
 
@@ -289,15 +290,8 @@ export function useReadinessCheck<TData = Awaited<ReturnType<typeof readinessChe
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
+   return withQueryKey(query, queryOptions.queryKey);
+ }
 export const getGetAuthCapabilitiesUrl = () => {
 
 
@@ -516,6 +510,78 @@ export const useRegisterOtp = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRegisterOtpMutationOptions(options));
+    }
+
+export const getDevRegisterUrl = () => {
+
+
+
+
+  return `/api/auth/dev-register`
+}
+
+/**
+ * Test-profile only. Creates a new fixture user with a server-generated synthetic phone identity, without invoking OTP or an external provider, and returns the normal database-backed session.
+ * @summary Create a fresh development signup account
+ */
+export const devRegister = async (devRegisterInput: DevRegisterInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
+
+  return customFetch<AuthSession>(getDevRegisterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(devRegisterInput)
+  }
+);}
+
+
+
+
+
+export const getDevRegisterMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof devRegister>>, TError,{data: BodyType<DevRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof devRegister>>, TError,{data: BodyType<DevRegisterInput>}, TContext> => {
+
+const mutationKey = ['devRegister'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof devRegister>>, {data: BodyType<DevRegisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  devRegister(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DevRegisterMutationResult = NonNullable<Awaited<ReturnType<typeof devRegister>>>
+    export type DevRegisterMutationBody = BodyType<DevRegisterInput>
+    export type DevRegisterMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create a fresh development signup account
+ */
+export const useDevRegister = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof devRegister>>, TError,{data: BodyType<DevRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof devRegister>>,
+        TError,
+        {data: BodyType<DevRegisterInput>},
+        TContext
+      > => {
+      return useMutation(getDevRegisterMutationOptions(options));
     }
 
 export const getVerifyOtpUrl = () => {
