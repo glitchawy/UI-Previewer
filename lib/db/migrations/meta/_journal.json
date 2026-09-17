@@ -337,6 +337,20 @@
       "when": 1787251200000,
       "tag": "0047_refund_approved_delete_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787254800000,
+      "tag": "0048_manual_payouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1787258400000,
+      "tag": "0049_manual_payout_hardening",
+      "breakpoints": true
     }
   ]
 }

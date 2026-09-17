@@ -34,3 +34,4 @@ export * from "./admin-access";
 export * from "./admin-operations";
 export * from "./partner-operations";
 export * from "./driver-dispatch";
+export * from "./manual-payouts";

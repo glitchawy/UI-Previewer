@@ -18,6 +18,8 @@ tags:
     description: Driver delivery operations
   - name: storage
     description: Private customer-uploaded object operations
+  - name: payouts
+    description: Recipient manual driver and restaurant payout operations
 paths:
   /healthz:
     get:
@@ -1132,6 +1134,46 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         "200": { description: Immutable earnings snapshots, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+
+  /payouts:
+    get:
+      operationId: listManualPayouts
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Spendable balance and payout request history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManualPayoutListResponse" }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "403": { description: Role is not payout eligible, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+    post:
+      operationId: requestManualPayout
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualPayoutRequestInput" }
+      responses:
+        "201": { description: Payout request created, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutRequest" } } } }
+        "200": { description: Idempotent replay of the existing payout request, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutRequest" } } } }
+        "400": { description: "Invalid channel, destination, or idempotency key", content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "409": { description: Idempotency or spendable balance conflict, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "422": { description: No positive spendable earnings, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+
+  /payouts/{id}/cancel:
+    post:
+      operationId: cancelManualPayout
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }]
+      responses:
+        "200": { description: Cancelled payout request, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutRequest" } } } }
+        "404": { description: Payout not found, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "409": { description: Request is no longer cancellable, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
 
   /driver/documents:
     get:
@@ -2266,7 +2308,9 @@ paths:
       security: [{ bearerAuth: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
       responses:
-        "201": { description: Immutable settlement snapshot, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+        "409":
+          description: Legacy aggregate settlement generation is disabled; cash accounting is per delivered order
+          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
   /admin/operations/settlements/{id}/state:
     post:
       operationId: transitionRestaurantSettlement
@@ -2276,6 +2320,89 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AdminMutation" } } } }
       responses:
         "200": { description: Transitioned settlement, content: { application/json: { schema: { $ref: "#/components/schemas/AdminObject" } } } }
+        "409":
+          description: Legacy paid transition is forbidden; use the manual payout workflow with proof
+          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+
+  /admin/payouts:
+    get:
+      operationId: listAdminManualPayouts
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, approved, rejected, cancelled, paid] } }
+        - { name: role, in: query, schema: { type: string, enum: [driver, partner] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        "200": { description: Manual payout requests, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutAdminPage" } } } }
+        "403": { description: Payout read permission required, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /admin/payouts/{id}/approve:
+    post:
+      operationId: approveManualPayout
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PayoutAdminDecisionInput" } } } }
+      responses:
+        "200": { description: Approved payout request, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutRequest" } } } }
+        "409": { description: Invalid payout state, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /admin/payouts/{id}/reject:
+    post:
+      operationId: rejectManualPayout
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PayoutAdminDecisionInput" } } } }
+      responses:
+        "200": { description: Rejected payout request, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutRequest" } } } }
+        "409": { description: Invalid payout state, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /admin/payouts/{id}/paid:
+    post:
+      operationId: markManualPayoutPaid
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PayoutPaidInput" } } } }
+      responses:
+        "200": { description: Paid payout request, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutRequest" } } } }
+        "409": { description: Invalid state or spendable balance conflict, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "422": { description: Proof or transfer reference required, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /admin/payouts/{id}/proof:
+    post:
+      operationId: uploadManualPayoutProof
+      tags: [payouts, storage]
+      summary: Upload private manual payout proof bytes
+      description: "JPEG, PNG, or WebP bytes no larger than 10 MB. Set X-Receipt-Signed: true for a signed cash receipt."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: X-Receipt-Signed, in: header, required: false, schema: { type: boolean } }
+      requestBody:
+        required: true
+        content:
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          image/webp: { schema: { type: string, format: binary } }
+      responses:
+        "201": { description: Bound private proof object, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutProofResponse" } } } }
+        "400": { description: Invalid image bytes or receipt header, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "413": { description: Image exceeds 10 MB, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /admin/payout-settings:
+    get:
+      operationId: getManualPayoutSettings
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Current payout fee policy, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutSettings" } } } }
+    put:
+      operationId: updateManualPayoutSettings
+      tags: [payouts]
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutSettingsInput" } } } }
+      responses:
+        "200": { description: Updated payout fee policy, content: { application/json: { schema: { $ref: "#/components/schemas/ManualPayoutSettings" } } } }
+        "409": { description: Stale policy version, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
   /admin/operations/notifications:
     get:
       operationId: listNotificationOutbox
@@ -3919,6 +4046,176 @@ components:
           type: number
         total:
           type: number
+
+    ManualPayoutChannel:
+      type: string
+      enum: [instapay, mobile_wallet, cash_branch]
+
+    ManualPayoutRole:
+      type: string
+      enum: [driver, partner]
+
+    ManualPayoutDestination:
+      type: object
+      additionalProperties: false
+      required: [accountName]
+      properties:
+        accountName: { type: string, minLength: 2, maxLength: 120 }
+        instapayAddress: { type: string, minLength: 3, maxLength: 200 }
+        mobileNumber: { type: string, minLength: 8, maxLength: 24 }
+        branch: { type: string, minLength: 2, maxLength: 160 }
+
+    ManualPayoutProof:
+      type: object
+      required: [objectPath, contentType, size, isSignedReceipt, uploadedByAdminId, createdAt]
+      properties:
+        objectPath: { type: string }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        size: { type: number, minimum: 1, maximum: 10000000, multipleOf: 1 }
+        isSignedReceipt: { type: boolean }
+        uploadedByAdminId: { type: number, multipleOf: 1 }
+        createdAt: { type: string, format: date-time }
+
+    ManualPayoutRequest:
+      type: object
+      required: [id, recipientUserId, recipientRole, channel, destination, idempotencyKey, grossAmount, feeAmount, feePayer, netAmount, status, provider, providerMetadata, transferReference, rejectionReason, proof, approvedByAdminId, approvedAt, rejectedByAdminId, rejectedAt, paidByAdminId, paidAt, createdAt, updatedAt]
+      properties:
+        id: { type: number, multipleOf: 1 }
+        recipientUserId: { type: number, multipleOf: 1 }
+        recipientRole: { $ref: "#/components/schemas/ManualPayoutRole" }
+        channel: { $ref: "#/components/schemas/ManualPayoutChannel" }
+        destination: { $ref: "#/components/schemas/ManualPayoutDestination" }
+        idempotencyKey: { type: string }
+        grossAmount: { type: number, exclusiveMinimum: 0 }
+        feeAmount: { type: number, minimum: 0 }
+        feePayer: { type: string, enum: [recipient, platform] }
+        netAmount: { type: number, exclusiveMinimum: 0 }
+        status: { type: string, enum: [pending, approved, rejected, cancelled, paid] }
+        provider: { type: string, enum: [manual] }
+        providerMetadata: { type: ["object", "null"], additionalProperties: true }
+        transferReference: { type: ["string", "null"] }
+        rejectionReason: { type: ["string", "null"] }
+        proof:
+          oneOf:
+            - $ref: "#/components/schemas/ManualPayoutProof"
+            - type: "null"
+        approvedByAdminId: { type: ["number", "null"], multipleOf: 1 }
+        approvedAt: { type: ["string", "null"], format: date-time }
+        rejectedByAdminId: { type: ["number", "null"], multipleOf: 1 }
+        rejectedAt: { type: ["string", "null"], format: date-time }
+        paidByAdminId: { type: ["number", "null"], multipleOf: 1 }
+        paidAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ManualPayoutRequestInput:
+      type: object
+      additionalProperties: false
+      required: [channel, destination, idempotencyKey]
+      properties:
+        channel: { $ref: "#/components/schemas/ManualPayoutChannel" }
+        destination: { $ref: "#/components/schemas/ManualPayoutDestination" }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 160 }
+
+    ManualPayoutSummary:
+      type: object
+      required: [available, reserved, approved, paid, fee, currency]
+      properties:
+        available: { type: number, minimum: 0 }
+        reserved: { type: number, minimum: 0 }
+        approved: { type: number, minimum: 0 }
+        paid: { type: number, minimum: 0 }
+        fee: { type: number, minimum: 0 }
+        currency: { type: string, enum: [EGP] }
+
+    ManualPayoutListResponse:
+      type: object
+      required: [summary, settings, requests]
+      properties:
+        summary: { $ref: "#/components/schemas/ManualPayoutSummary" }
+        settings: { $ref: "#/components/schemas/ManualPayoutSettings" }
+        requests:
+          type: array
+          items: { $ref: "#/components/schemas/ManualPayoutRequest" }
+
+    ManualPayoutAdminItem:
+      allOf:
+        - $ref: "#/components/schemas/ManualPayoutRequest"
+        - type: object
+          required: [recipientName, recipientPhone]
+          properties:
+            recipientName: { type: ["string", "null"] }
+            recipientPhone: { type: ["string", "null"] }
+
+    ManualPayoutAdminPage:
+      type: object
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ManualPayoutAdminItem" }
+        page: { type: number, multipleOf: 1 }
+        pageSize: { type: number, multipleOf: 1 }
+        total: { type: number, multipleOf: 1 }
+        totalPages: { type: number, multipleOf: 1 }
+
+    PayoutAdminDecisionInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+
+    PayoutPaidInput:
+      allOf:
+        - $ref: "#/components/schemas/PayoutAdminDecisionInput"
+        - type: object
+          properties:
+            transferReference: { type: string, maxLength: 200 }
+
+    ManualPayoutProofResponse:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath: { type: string }
+
+    ManualPayoutChannelFee:
+      type: object
+      required: [fee]
+      properties:
+        fee: { type: number, minimum: 0, maximum: 100000 }
+
+    ManualPayoutSettings:
+      type: object
+      required: [version, channels, defaultFeePayer, updatedAt]
+      properties:
+        version: { type: number, minimum: 1, multipleOf: 1 }
+        channels:
+          type: object
+          required: [instapay, mobile_wallet, cash_branch]
+          properties:
+            instapay: { $ref: "#/components/schemas/ManualPayoutChannelFee" }
+            mobile_wallet: { $ref: "#/components/schemas/ManualPayoutChannelFee" }
+            cash_branch: { $ref: "#/components/schemas/ManualPayoutChannelFee" }
+        defaultFeePayer: { type: string, enum: [recipient, platform] }
+        updatedAt: { type: ["string", "null"], format: date-time }
+
+    ManualPayoutSettingsInput:
+      type: object
+      additionalProperties: false
+      required: [version, channels, defaultFeePayer, reason]
+      properties:
+        version: { type: number, minimum: 1, multipleOf: 1 }
+        channels:
+          type: object
+          additionalProperties: false
+          required: [instapay, mobile_wallet, cash_branch]
+          properties:
+            instapay: { $ref: "#/components/schemas/ManualPayoutChannelFee" }
+            mobile_wallet: { $ref: "#/components/schemas/ManualPayoutChannelFee" }
+            cash_branch: { $ref: "#/components/schemas/ManualPayoutChannelFee" }
+        defaultFeePayer: { type: string, enum: [recipient, platform] }
+        reason: { type: string, minLength: 3, maxLength: 500 }
 
     ErrorResponse:
       type: object

@@ -12,6 +12,9 @@ import {
   orderItemsTable,
   ordersTable,
   notificationsTable,
+  manualPayoutAllocationsTable,
+  manualPayoutProofsTable,
+  manualPayoutRequestsTable,
   paymentRefundClaimsTable,
   paymentSessionsTable,
   paymobWebhookInboxTable,
@@ -49,6 +52,7 @@ const checkoutFixtureVariantIds: number[] = [];
 const checkoutFixtureAddonIds: number[] = [];
 let server: ReturnType<typeof app.listen> | undefined;
 let adminPrivacyOrderId: number | undefined;
+const manualPayoutIds: number[] = [];
 
 async function rejectsDb(operation: PromiseLike<unknown>, message: string) {
   let rejected = false;
@@ -151,6 +155,115 @@ async function main() {
     walletBalance: "20.00",
   }).returning();
   userIds.push(customer.id);
+
+  // A payout reservation is a wallet hold, not only a source ledger marker:
+  // generic wallet spending must not consume funds reserved by that payout.
+  const [reservedPayout] = await db.insert(manualPayoutRequestsTable).values({
+    recipientUserId: customer.id,
+    recipientRole: "driver",
+    channel: "instapay",
+    destination: { accountName: prefix, instapayAddress: `${prefix}@instapay` },
+    idempotencyKey: `${prefix}-reservation-guard`,
+    grossAmount: "5.00",
+    feeAmount: "0.00",
+    feePayer: "recipient",
+    netAmount: "5.00",
+    status: "pending",
+  }).returning();
+  manualPayoutIds.push(reservedPayout.id);
+  const reservationSourceId = 900_000_001;
+  await db.insert(manualPayoutAllocationsTable).values({
+    payoutRequestId: reservedPayout.id,
+    recipientUserId: customer.id,
+    sourceType: "driver_earning",
+    sourceId: reservationSourceId,
+    sourceReferenceId: reservationSourceId,
+    amount: "5.00",
+    status: "reserved",
+  });
+  await rejectsDb(
+    db.transaction((tx) => debitWallet(tx, {
+      userId: customer.id,
+      amountCents: 1_600,
+      description: `${prefix}-reserved-spend`,
+      referenceType: "order_payment",
+      referenceId: reservationSourceId,
+    })),
+    "generic wallet debit must respect active payout reservations",
+  );
+  await db.update(manualPayoutAllocationsTable).set({ status: "released", releasedAt: new Date() })
+    .where(eq(manualPayoutAllocationsTable.payoutRequestId, reservedPayout.id));
+  await db.update(manualPayoutRequestsTable).set({ status: "cancelled" })
+    .where(eq(manualPayoutRequestsTable.id, reservedPayout.id));
+
+  // Exercise the migrated wallet reference_type check and terminal payout
+  // guards with the same debit/consume/paid sequence used by the API.
+  const [migrationPayoutUser] = await db.insert(usersTable).values({
+    phone: `${prefix}-payout-migration`,
+    role: "customer",
+    name: prefix,
+    walletBalance: "5.00",
+  }).returning();
+  userIds.push(migrationPayoutUser.id);
+  const [migrationPayout] = await db.insert(manualPayoutRequestsTable).values({
+    recipientUserId: migrationPayoutUser.id,
+    recipientRole: "driver",
+    channel: "instapay",
+    destination: { accountName: prefix, instapayAddress: `${prefix}-migration@instapay` },
+    idempotencyKey: `${prefix}-migration-paid`,
+    grossAmount: "2.00",
+    feeAmount: "0.00",
+    feePayer: "recipient",
+    netAmount: "2.00",
+    status: "pending",
+  }).returning();
+  manualPayoutIds.push(migrationPayout.id);
+  await db.insert(manualPayoutAllocationsTable).values({
+    payoutRequestId: migrationPayout.id,
+    recipientUserId: migrationPayoutUser.id,
+    sourceType: "driver_earning",
+    sourceId: 900_000_002,
+    sourceReferenceId: 900_000_002,
+    amount: "2.00",
+    status: "reserved",
+  });
+  await db.insert(manualPayoutProofsTable).values({
+    payoutRequestId: migrationPayout.id,
+    objectPath: `/objects/${prefix}-migration-proof`,
+    contentType: "image/png",
+    size: 8,
+    uploadedByAdminId: migrationPayoutUser.id,
+  });
+  await db.update(manualPayoutRequestsTable).set({
+    status: "approved",
+    approvedByAdminId: migrationPayoutUser.id,
+    approvedAt: new Date(),
+  }).where(eq(manualPayoutRequestsTable.id, migrationPayout.id));
+  await db.transaction(async (tx) => {
+    await debitWallet(tx, {
+      userId: migrationPayoutUser.id,
+      amountCents: 200,
+      description: `${prefix}-migration-paid`,
+      referenceType: "manual_payout",
+      referenceId: migrationPayout.id,
+    });
+    await tx.update(manualPayoutAllocationsTable).set({
+      status: "consumed",
+      consumedAt: new Date(),
+    }).where(eq(manualPayoutAllocationsTable.payoutRequestId, migrationPayout.id));
+    await tx.update(manualPayoutRequestsTable).set({
+      status: "paid",
+      paidByAdminId: migrationPayoutUser.id,
+      paidAt: new Date(),
+      transferReference: `${prefix}-migration-transfer`,
+    }).where(eq(manualPayoutRequestsTable.id, migrationPayout.id));
+  });
+  const [migrationLedgerEntry] = await db.select().from(walletTransactionsTable).where(and(
+    eq(walletTransactionsTable.userId, migrationPayoutUser.id),
+    eq(walletTransactionsTable.referenceType, "manual_payout"),
+    eq(walletTransactionsTable.referenceId, migrationPayout.id),
+  ));
+  assert.equal(migrationLedgerEntry?.type, "debit", "paid payout must post a manual_payout debit");
 
   // A captured session is monotonic despite pending, duplicate, and contradictory
   // terminal events.
@@ -800,6 +913,23 @@ try {
   }
   if (userIds.length) {
     await db.delete(cartItemsTable).where(inArray(cartItemsTable.userId, userIds));
+  }
+  if (manualPayoutIds.length) {
+    await db.execute(sql`ALTER TABLE manual_payout_proofs DISABLE TRIGGER USER`);
+    await db.execute(sql`ALTER TABLE manual_payout_allocations DISABLE TRIGGER USER`);
+    await db.execute(sql`ALTER TABLE manual_payout_requests DISABLE TRIGGER USER`);
+    try {
+      await db.delete(manualPayoutProofsTable)
+        .where(inArray(manualPayoutProofsTable.payoutRequestId, manualPayoutIds));
+      await db.delete(manualPayoutAllocationsTable)
+        .where(inArray(manualPayoutAllocationsTable.payoutRequestId, manualPayoutIds));
+      await db.delete(manualPayoutRequestsTable)
+        .where(inArray(manualPayoutRequestsTable.id, manualPayoutIds));
+    } finally {
+      await db.execute(sql`ALTER TABLE manual_payout_proofs ENABLE TRIGGER USER`);
+      await db.execute(sql`ALTER TABLE manual_payout_allocations ENABLE TRIGGER USER`);
+      await db.execute(sql`ALTER TABLE manual_payout_requests ENABLE TRIGGER USER`);
+    }
   }
   if (checkoutFixtureProductIds.length) {
     if (checkoutFixtureAddonIds.length) {

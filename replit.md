@@ -9,6 +9,9 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm run dev:local` — start local PostgreSQL with Docker, apply migrations, and run the API in test mode
+- `pnpm run dev:supabase` — run the API against the Supabase PostgreSQL URL in `.env`
+- `pnpm run db:down` — stop the local PostgreSQL container (data is kept in a named Docker volume)
 - Required env: `DATABASE_URL` — Postgres connection string
 - This Replit deployment is intentionally a **public test environment**. Its production environment uses `DEPLOYMENT_PROFILE=test`, `MOCK_AUTH_ENABLED=true`, and `PUBLIC_TEST_MODE_ENABLED=true`, so the clearly labelled DEV MODE role buttons remain public.
 - Safe customer launch: provision a fresh isolated production database (never the shared test database), set exactly `DEPLOYMENT_PROFILE=customer`, and leave both `MOCK_AUTH_ENABLED` and `PUBLIC_TEST_MODE_ENABLED` unset. The API refuses to start if either test flag is true or if fixture identities, active fixture sessions, or fixture-derived active admin grants exist.

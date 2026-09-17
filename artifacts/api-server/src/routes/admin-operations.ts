@@ -1,12 +1,12 @@
 import { Router, type Response } from "express";
-import { and, count, desc, eq, gt, gte, inArray, isNull, lt, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import {
   db, deliveryPricingTiersTable, driverCommissionRulesTable, notificationOutboxTable,
   notificationDeliveryAttemptsTable, operationsWorkerHeartbeatTable, paymobWebhookInboxTable,
   authSessionsTable, notificationDeviceTokensTable, operationsAlertConditionsTable,
   operationsAlertDeliveriesTable,
   orderReviewsTable, ordersTable, paymentSessionsTable, platformSettingsTable,
-  refundRequestsTable, restaurantCommissionsTable, restaurantsTable,
+  restaurantCommissionsTable, restaurantsTable,
   restaurantSettlementsTable, platformRevenueAllocationsTable, usersTable,
 } from "@workspace/db";
 import { requireAdminPermission, requireAuth, requireRole } from "../middleware/auth";
@@ -170,21 +170,18 @@ router.get("/admin/operations/settlements", requireAdminPermission("settlements.
       : money(item.platformDeliveryShare),
   })), total.value, p));
 });
-router.post("/admin/operations/settlements/generate", requireAdminPermission("settlements.manage"), async (req, res: Response): Promise<void> => {
-  const restaurantId = Number(req.body?.restaurantId), start = str(req.body?.periodStart, 10), end = str(req.body?.periodEnd, 10), reason = str(req.body?.reason);
-  if (!Number.isInteger(restaurantId) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(start) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(end) || start > end || reason.length < 3) { res.status(400).json({ error: "الفترة أو المطعم أو السبب غير صحيح" }); return; }
-  const [stats] = await db.select({ orders: count(), gross: sum(ordersTable.subtotal) }).from(ordersTable).where(and(eq(ordersTable.restaurantId, restaurantId), eq(ordersTable.status, "delivered"), sql`${ordersTable.deliveredAt} >= ${start}::date AT TIME ZONE 'Africa/Cairo'`, sql`${ordersTable.deliveredAt} < (${end}::date + 1) AT TIME ZONE 'Africa/Cairo'`));
-  const [commission] = await db.select().from(restaurantCommissionsTable).where(eq(restaurantCommissionsTable.restaurantId, restaurantId)); const rate = money(commission?.rate);
-  const gross = money(stats.gross), commissionAmount = Math.round(gross * rate) / 100;
-  const [refunds] = await db.select({ amount: sum(refundRequestsTable.amount) }).from(refundRequestsTable).innerJoin(ordersTable, eq(ordersTable.id, refundRequestsTable.orderId)).where(and(eq(ordersTable.restaurantId, restaurantId), eq(refundRequestsTable.status, "approved"), sql`${ordersTable.deliveredAt} >= ${start}::date AT TIME ZONE 'Africa/Cairo'`, sql`${ordersTable.deliveredAt} < (${end}::date + 1) AT TIME ZONE 'Africa/Cairo'`));
-  const refundAmount = money(refunds.amount), key = `${restaurantId}:${start}:${end}`;
-  try {
-    const [row] = await db.insert(restaurantSettlementsTable).values({ idempotencyKey: key, restaurantId, periodStart: start, periodEnd: end, orderCount: stats.orders, grossAmount: gross.toFixed(2), commissionRate: rate.toFixed(2), commissionAmount: commissionAmount.toFixed(2), refundAmount: refundAmount.toFixed(2), netAmount: (gross - commissionAmount - refundAmount).toFixed(2), createdByAdminId: req.authUser!.id }).returning();
-    await audit(req, "restaurant_settlement.generated", "restaurant_settlement", row.id, null, row, reason); res.status(201).json(row);
-  } catch (e) { if ((e as { code?: string }).code === "23505") { res.status(409).json({ error: "التسوية موجودة لهذه الفترة" }); return; } throw e; }
+router.post("/admin/operations/settlements/generate", requireAdminPermission("settlements.manage"), async (_req, res: Response): Promise<void> => {
+  res.status(409).json({
+    error: "توليد التسويات التجميعية القديمة متوقف — تتم محاسبة الطلبات النقدية لكل طلب، واستخدم طلب التحويل اليدوي",
+    code: "LEGACY_SETTLEMENT_GENERATION_DISABLED",
+  });
 });
 router.post("/admin/operations/settlements/:id/state", requireAdminPermission("settlements.manage"), async (req, res: Response): Promise<void> => {
   const key = id(req.params.id), target = req.body?.status, reason = str(req.body?.reason); if (!key || !["approved","paid"].includes(target) || reason.length < 3) { res.status(400).json({ error: "قرار غير صحيح" }); return; }
+  if (target === "paid") {
+    res.status(409).json({ error: "تسجيل الدفع القديم متوقف — أنشئ طلب تحويل يدوي واربط إثبات التحويل أولاً", code: "USE_MANUAL_PAYOUT_WORKFLOW" });
+    return;
+  }
   const [before] = await db.select().from(restaurantSettlementsTable).where(eq(restaurantSettlementsTable.id, key)); if (!before || (target === "approved" ? before.status !== "pending" : before.status !== "approved")) { res.status(409).json({ error: "انتقال الحالة غير مسموح" }); return; }
   const now = new Date(), [after] = await db.update(restaurantSettlementsTable).set(target === "approved" ? { status: "approved", approvedByAdminId: req.authUser!.id, approvedAt: now } : { status: "paid", paidByAdminId: req.authUser!.id, paidAt: now }).where(eq(restaurantSettlementsTable.id, key)).returning();
   await audit(req, `restaurant_settlement.${target}`, "restaurant_settlement", key, before, after, reason); res.json(after);

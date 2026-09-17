@@ -806,6 +806,313 @@ export const ListDriverDeliveriesResponse = zod.record(zod.string(), zod.unknown
 export const GetDriverEarningsResponse = zod.record(zod.string(), zod.unknown())
 
 
+export const listManualPayoutsResponseSummaryAvailableMin = 0;
+
+export const listManualPayoutsResponseSummaryReservedMin = 0;
+
+export const listManualPayoutsResponseSummaryApprovedMin = 0;
+
+export const listManualPayoutsResponseSummaryPaidMin = 0;
+
+export const listManualPayoutsResponseSummaryFeeMin = 0;
+
+export const listManualPayoutsResponseSettingsVersionMultipleOf = 1;
+
+export const listManualPayoutsResponseSettingsChannelsInstapayFeeMin = 0;
+export const listManualPayoutsResponseSettingsChannelsInstapayFeeMax = 100000;
+
+export const listManualPayoutsResponseSettingsChannelsMobileWalletFeeMin = 0;
+export const listManualPayoutsResponseSettingsChannelsMobileWalletFeeMax = 100000;
+
+export const listManualPayoutsResponseSettingsChannelsCashBranchFeeMin = 0;
+export const listManualPayoutsResponseSettingsChannelsCashBranchFeeMax = 100000;
+
+export const listManualPayoutsResponseRequestsItemIdMultipleOf = 1;
+
+export const listManualPayoutsResponseRequestsItemRecipientUserIdMultipleOf = 1;
+
+export const listManualPayoutsResponseRequestsItemDestinationAccountNameMin = 2;
+export const listManualPayoutsResponseRequestsItemDestinationAccountNameMax = 120;
+
+export const listManualPayoutsResponseRequestsItemDestinationInstapayAddressMin = 3;
+export const listManualPayoutsResponseRequestsItemDestinationInstapayAddressMax = 200;
+
+export const listManualPayoutsResponseRequestsItemDestinationMobileNumberMin = 8;
+export const listManualPayoutsResponseRequestsItemDestinationMobileNumberMax = 24;
+
+export const listManualPayoutsResponseRequestsItemDestinationBranchMin = 2;
+export const listManualPayoutsResponseRequestsItemDestinationBranchMax = 160;
+
+export const listManualPayoutsResponseRequestsItemGrossAmountExclusiveMin = 0;
+
+export const listManualPayoutsResponseRequestsItemFeeAmountMin = 0;
+
+export const listManualPayoutsResponseRequestsItemNetAmountExclusiveMin = 0;
+
+export const listManualPayoutsResponseRequestsItemProofOneSizeMax = 10000000;
+export const listManualPayoutsResponseRequestsItemProofOneSizeMultipleOf = 1;
+
+export const listManualPayoutsResponseRequestsItemProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const listManualPayoutsResponseRequestsItemApprovedByAdminIdMultipleOf = 1;
+
+export const listManualPayoutsResponseRequestsItemRejectedByAdminIdMultipleOf = 1;
+
+export const listManualPayoutsResponseRequestsItemPaidByAdminIdMultipleOf = 1;
+
+
+
+export const ListManualPayoutsResponse = zod.object({
+  "summary": zod.object({
+  "available": zod.number().min(listManualPayoutsResponseSummaryAvailableMin),
+  "reserved": zod.number().min(listManualPayoutsResponseSummaryReservedMin),
+  "approved": zod.number().min(listManualPayoutsResponseSummaryApprovedMin),
+  "paid": zod.number().min(listManualPayoutsResponseSummaryPaidMin),
+  "fee": zod.number().min(listManualPayoutsResponseSummaryFeeMin),
+  "currency": zod.enum(['EGP'])
+}),
+  "settings": zod.object({
+  "version": zod.number().min(1).multipleOf(listManualPayoutsResponseSettingsVersionMultipleOf),
+  "channels": zod.object({
+  "instapay": zod.object({
+  "fee": zod.number().min(listManualPayoutsResponseSettingsChannelsInstapayFeeMin).max(listManualPayoutsResponseSettingsChannelsInstapayFeeMax)
+}),
+  "mobile_wallet": zod.object({
+  "fee": zod.number().min(listManualPayoutsResponseSettingsChannelsMobileWalletFeeMin).max(listManualPayoutsResponseSettingsChannelsMobileWalletFeeMax)
+}),
+  "cash_branch": zod.object({
+  "fee": zod.number().min(listManualPayoutsResponseSettingsChannelsCashBranchFeeMin).max(listManualPayoutsResponseSettingsChannelsCashBranchFeeMax)
+})
+}),
+  "defaultFeePayer": zod.enum(['recipient', 'platform']),
+  "updatedAt": zod.coerce.date().nullable()
+}),
+  "requests": zod.array(zod.object({
+  "id": zod.number().multipleOf(listManualPayoutsResponseRequestsItemIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(listManualPayoutsResponseRequestsItemRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(listManualPayoutsResponseRequestsItemDestinationAccountNameMin).max(listManualPayoutsResponseRequestsItemDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(listManualPayoutsResponseRequestsItemDestinationInstapayAddressMin).max(listManualPayoutsResponseRequestsItemDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(listManualPayoutsResponseRequestsItemDestinationMobileNumberMin).max(listManualPayoutsResponseRequestsItemDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(listManualPayoutsResponseRequestsItemDestinationBranchMin).max(listManualPayoutsResponseRequestsItemDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(listManualPayoutsResponseRequestsItemGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(listManualPayoutsResponseRequestsItemFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(listManualPayoutsResponseRequestsItemNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(listManualPayoutsResponseRequestsItemProofOneSizeMax).multipleOf(listManualPayoutsResponseRequestsItemProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(listManualPayoutsResponseRequestsItemProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(listManualPayoutsResponseRequestsItemApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(listManualPayoutsResponseRequestsItemRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(listManualPayoutsResponseRequestsItemPaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+export const requestManualPayoutBodyDestinationAccountNameMin = 2;
+export const requestManualPayoutBodyDestinationAccountNameMax = 120;
+
+export const requestManualPayoutBodyDestinationInstapayAddressMin = 3;
+export const requestManualPayoutBodyDestinationInstapayAddressMax = 200;
+
+export const requestManualPayoutBodyDestinationMobileNumberMin = 8;
+export const requestManualPayoutBodyDestinationMobileNumberMax = 24;
+
+export const requestManualPayoutBodyDestinationBranchMin = 2;
+export const requestManualPayoutBodyDestinationBranchMax = 160;
+
+export const requestManualPayoutBodyIdempotencyKeyMin = 8;
+export const requestManualPayoutBodyIdempotencyKeyMax = 160;
+
+
+
+export const RequestManualPayoutBody = zod.object({
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(requestManualPayoutBodyDestinationAccountNameMin).max(requestManualPayoutBodyDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(requestManualPayoutBodyDestinationInstapayAddressMin).max(requestManualPayoutBodyDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(requestManualPayoutBodyDestinationMobileNumberMin).max(requestManualPayoutBodyDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(requestManualPayoutBodyDestinationBranchMin).max(requestManualPayoutBodyDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string().min(requestManualPayoutBodyIdempotencyKeyMin).max(requestManualPayoutBodyIdempotencyKeyMax)
+})
+
+export const requestManualPayoutResponseIdMultipleOf = 1;
+
+export const requestManualPayoutResponseRecipientUserIdMultipleOf = 1;
+
+export const requestManualPayoutResponseDestinationAccountNameMin = 2;
+export const requestManualPayoutResponseDestinationAccountNameMax = 120;
+
+export const requestManualPayoutResponseDestinationInstapayAddressMin = 3;
+export const requestManualPayoutResponseDestinationInstapayAddressMax = 200;
+
+export const requestManualPayoutResponseDestinationMobileNumberMin = 8;
+export const requestManualPayoutResponseDestinationMobileNumberMax = 24;
+
+export const requestManualPayoutResponseDestinationBranchMin = 2;
+export const requestManualPayoutResponseDestinationBranchMax = 160;
+
+export const requestManualPayoutResponseGrossAmountExclusiveMin = 0;
+
+export const requestManualPayoutResponseFeeAmountMin = 0;
+
+export const requestManualPayoutResponseNetAmountExclusiveMin = 0;
+
+export const requestManualPayoutResponseProofOneSizeMax = 10000000;
+export const requestManualPayoutResponseProofOneSizeMultipleOf = 1;
+
+export const requestManualPayoutResponseProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const requestManualPayoutResponseApprovedByAdminIdMultipleOf = 1;
+
+export const requestManualPayoutResponseRejectedByAdminIdMultipleOf = 1;
+
+export const requestManualPayoutResponsePaidByAdminIdMultipleOf = 1;
+
+
+
+export const RequestManualPayoutResponse = zod.object({
+  "id": zod.number().multipleOf(requestManualPayoutResponseIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(requestManualPayoutResponseRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(requestManualPayoutResponseDestinationAccountNameMin).max(requestManualPayoutResponseDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(requestManualPayoutResponseDestinationInstapayAddressMin).max(requestManualPayoutResponseDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(requestManualPayoutResponseDestinationMobileNumberMin).max(requestManualPayoutResponseDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(requestManualPayoutResponseDestinationBranchMin).max(requestManualPayoutResponseDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(requestManualPayoutResponseGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(requestManualPayoutResponseFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(requestManualPayoutResponseNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(requestManualPayoutResponseProofOneSizeMax).multipleOf(requestManualPayoutResponseProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(requestManualPayoutResponseProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(requestManualPayoutResponseApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(requestManualPayoutResponseRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(requestManualPayoutResponsePaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+
+
+
+export const CancelManualPayoutParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const cancelManualPayoutResponseIdMultipleOf = 1;
+
+export const cancelManualPayoutResponseRecipientUserIdMultipleOf = 1;
+
+export const cancelManualPayoutResponseDestinationAccountNameMin = 2;
+export const cancelManualPayoutResponseDestinationAccountNameMax = 120;
+
+export const cancelManualPayoutResponseDestinationInstapayAddressMin = 3;
+export const cancelManualPayoutResponseDestinationInstapayAddressMax = 200;
+
+export const cancelManualPayoutResponseDestinationMobileNumberMin = 8;
+export const cancelManualPayoutResponseDestinationMobileNumberMax = 24;
+
+export const cancelManualPayoutResponseDestinationBranchMin = 2;
+export const cancelManualPayoutResponseDestinationBranchMax = 160;
+
+export const cancelManualPayoutResponseGrossAmountExclusiveMin = 0;
+
+export const cancelManualPayoutResponseFeeAmountMin = 0;
+
+export const cancelManualPayoutResponseNetAmountExclusiveMin = 0;
+
+export const cancelManualPayoutResponseProofOneSizeMax = 10000000;
+export const cancelManualPayoutResponseProofOneSizeMultipleOf = 1;
+
+export const cancelManualPayoutResponseProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const cancelManualPayoutResponseApprovedByAdminIdMultipleOf = 1;
+
+export const cancelManualPayoutResponseRejectedByAdminIdMultipleOf = 1;
+
+export const cancelManualPayoutResponsePaidByAdminIdMultipleOf = 1;
+
+
+
+export const CancelManualPayoutResponse = zod.object({
+  "id": zod.number().multipleOf(cancelManualPayoutResponseIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(cancelManualPayoutResponseRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(cancelManualPayoutResponseDestinationAccountNameMin).max(cancelManualPayoutResponseDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(cancelManualPayoutResponseDestinationInstapayAddressMin).max(cancelManualPayoutResponseDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(cancelManualPayoutResponseDestinationMobileNumberMin).max(cancelManualPayoutResponseDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(cancelManualPayoutResponseDestinationBranchMin).max(cancelManualPayoutResponseDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(cancelManualPayoutResponseGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(cancelManualPayoutResponseFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(cancelManualPayoutResponseNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(cancelManualPayoutResponseProofOneSizeMax).multipleOf(cancelManualPayoutResponseProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(cancelManualPayoutResponseProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(cancelManualPayoutResponseApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(cancelManualPayoutResponseRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(cancelManualPayoutResponsePaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
 export const ListDriverDocumentsResponse = zod.record(zod.string(), zod.unknown())
 
 
@@ -1947,7 +2254,7 @@ export const ListRestaurantSettlementsResponse = zod.object({
 
 export const GenerateRestaurantSettlementBody = zod.record(zod.string(), zod.unknown())
 
-export const GenerateRestaurantSettlementResponse = zod.record(zod.string(), zod.unknown())
+export const GenerateRestaurantSettlementResponse = zod.void()
 
 
 export const TransitionRestaurantSettlementParams = zod.object({
@@ -1957,6 +2264,504 @@ export const TransitionRestaurantSettlementParams = zod.object({
 export const TransitionRestaurantSettlementBody = zod.record(zod.string(), zod.unknown())
 
 export const TransitionRestaurantSettlementResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const listAdminManualPayoutsQueryPageDefault = 1;
+
+export const listAdminManualPayoutsQueryPageSizeDefault = 20;
+export const listAdminManualPayoutsQueryPageSizeMax = 50;
+
+
+
+export const ListAdminManualPayoutsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']).optional(),
+  "role": zod.enum(['driver', 'partner']).optional(),
+  "page": zod.coerce.number().int().min(1).default(listAdminManualPayoutsQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(listAdminManualPayoutsQueryPageSizeMax).default(listAdminManualPayoutsQueryPageSizeDefault)
+})
+
+export const listAdminManualPayoutsResponseItemsItemOneIdMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseItemsItemOneRecipientUserIdMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseItemsItemOneDestinationAccountNameMin = 2;
+export const listAdminManualPayoutsResponseItemsItemOneDestinationAccountNameMax = 120;
+
+export const listAdminManualPayoutsResponseItemsItemOneDestinationInstapayAddressMin = 3;
+export const listAdminManualPayoutsResponseItemsItemOneDestinationInstapayAddressMax = 200;
+
+export const listAdminManualPayoutsResponseItemsItemOneDestinationMobileNumberMin = 8;
+export const listAdminManualPayoutsResponseItemsItemOneDestinationMobileNumberMax = 24;
+
+export const listAdminManualPayoutsResponseItemsItemOneDestinationBranchMin = 2;
+export const listAdminManualPayoutsResponseItemsItemOneDestinationBranchMax = 160;
+
+export const listAdminManualPayoutsResponseItemsItemOneGrossAmountExclusiveMin = 0;
+
+export const listAdminManualPayoutsResponseItemsItemOneFeeAmountMin = 0;
+
+export const listAdminManualPayoutsResponseItemsItemOneNetAmountExclusiveMin = 0;
+
+export const listAdminManualPayoutsResponseItemsItemOneProofOneSizeMax = 10000000;
+export const listAdminManualPayoutsResponseItemsItemOneProofOneSizeMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseItemsItemOneProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseItemsItemOneApprovedByAdminIdMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseItemsItemOneRejectedByAdminIdMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseItemsItemOnePaidByAdminIdMultipleOf = 1;
+
+export const listAdminManualPayoutsResponsePageMultipleOf = 1;
+
+export const listAdminManualPayoutsResponsePageSizeMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseTotalMultipleOf = 1;
+
+export const listAdminManualPayoutsResponseTotalPagesMultipleOf = 1;
+
+
+
+export const ListAdminManualPayoutsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().multipleOf(listAdminManualPayoutsResponseItemsItemOneIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(listAdminManualPayoutsResponseItemsItemOneRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(listAdminManualPayoutsResponseItemsItemOneDestinationAccountNameMin).max(listAdminManualPayoutsResponseItemsItemOneDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(listAdminManualPayoutsResponseItemsItemOneDestinationInstapayAddressMin).max(listAdminManualPayoutsResponseItemsItemOneDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(listAdminManualPayoutsResponseItemsItemOneDestinationMobileNumberMin).max(listAdminManualPayoutsResponseItemsItemOneDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(listAdminManualPayoutsResponseItemsItemOneDestinationBranchMin).max(listAdminManualPayoutsResponseItemsItemOneDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(listAdminManualPayoutsResponseItemsItemOneGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(listAdminManualPayoutsResponseItemsItemOneFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(listAdminManualPayoutsResponseItemsItemOneNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(listAdminManualPayoutsResponseItemsItemOneProofOneSizeMax).multipleOf(listAdminManualPayoutsResponseItemsItemOneProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(listAdminManualPayoutsResponseItemsItemOneProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(listAdminManualPayoutsResponseItemsItemOneApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(listAdminManualPayoutsResponseItemsItemOneRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(listAdminManualPayoutsResponseItemsItemOnePaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "recipientName": zod.string().nullable(),
+  "recipientPhone": zod.string().nullable()
+}))),
+  "page": zod.number().multipleOf(listAdminManualPayoutsResponsePageMultipleOf),
+  "pageSize": zod.number().multipleOf(listAdminManualPayoutsResponsePageSizeMultipleOf),
+  "total": zod.number().multipleOf(listAdminManualPayoutsResponseTotalMultipleOf),
+  "totalPages": zod.number().multipleOf(listAdminManualPayoutsResponseTotalPagesMultipleOf)
+})
+
+
+
+
+
+export const ApproveManualPayoutParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const approveManualPayoutBodyReasonMin = 3;
+export const approveManualPayoutBodyReasonMax = 500;
+
+
+
+export const ApproveManualPayoutBody = zod.object({
+  "reason": zod.string().min(approveManualPayoutBodyReasonMin).max(approveManualPayoutBodyReasonMax)
+})
+
+export const approveManualPayoutResponseIdMultipleOf = 1;
+
+export const approveManualPayoutResponseRecipientUserIdMultipleOf = 1;
+
+export const approveManualPayoutResponseDestinationAccountNameMin = 2;
+export const approveManualPayoutResponseDestinationAccountNameMax = 120;
+
+export const approveManualPayoutResponseDestinationInstapayAddressMin = 3;
+export const approveManualPayoutResponseDestinationInstapayAddressMax = 200;
+
+export const approveManualPayoutResponseDestinationMobileNumberMin = 8;
+export const approveManualPayoutResponseDestinationMobileNumberMax = 24;
+
+export const approveManualPayoutResponseDestinationBranchMin = 2;
+export const approveManualPayoutResponseDestinationBranchMax = 160;
+
+export const approveManualPayoutResponseGrossAmountExclusiveMin = 0;
+
+export const approveManualPayoutResponseFeeAmountMin = 0;
+
+export const approveManualPayoutResponseNetAmountExclusiveMin = 0;
+
+export const approveManualPayoutResponseProofOneSizeMax = 10000000;
+export const approveManualPayoutResponseProofOneSizeMultipleOf = 1;
+
+export const approveManualPayoutResponseProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const approveManualPayoutResponseApprovedByAdminIdMultipleOf = 1;
+
+export const approveManualPayoutResponseRejectedByAdminIdMultipleOf = 1;
+
+export const approveManualPayoutResponsePaidByAdminIdMultipleOf = 1;
+
+
+
+export const ApproveManualPayoutResponse = zod.object({
+  "id": zod.number().multipleOf(approveManualPayoutResponseIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(approveManualPayoutResponseRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(approveManualPayoutResponseDestinationAccountNameMin).max(approveManualPayoutResponseDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(approveManualPayoutResponseDestinationInstapayAddressMin).max(approveManualPayoutResponseDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(approveManualPayoutResponseDestinationMobileNumberMin).max(approveManualPayoutResponseDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(approveManualPayoutResponseDestinationBranchMin).max(approveManualPayoutResponseDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(approveManualPayoutResponseGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(approveManualPayoutResponseFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(approveManualPayoutResponseNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(approveManualPayoutResponseProofOneSizeMax).multipleOf(approveManualPayoutResponseProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(approveManualPayoutResponseProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(approveManualPayoutResponseApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(approveManualPayoutResponseRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(approveManualPayoutResponsePaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+
+
+
+export const RejectManualPayoutParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const rejectManualPayoutBodyReasonMin = 3;
+export const rejectManualPayoutBodyReasonMax = 500;
+
+
+
+export const RejectManualPayoutBody = zod.object({
+  "reason": zod.string().min(rejectManualPayoutBodyReasonMin).max(rejectManualPayoutBodyReasonMax)
+})
+
+export const rejectManualPayoutResponseIdMultipleOf = 1;
+
+export const rejectManualPayoutResponseRecipientUserIdMultipleOf = 1;
+
+export const rejectManualPayoutResponseDestinationAccountNameMin = 2;
+export const rejectManualPayoutResponseDestinationAccountNameMax = 120;
+
+export const rejectManualPayoutResponseDestinationInstapayAddressMin = 3;
+export const rejectManualPayoutResponseDestinationInstapayAddressMax = 200;
+
+export const rejectManualPayoutResponseDestinationMobileNumberMin = 8;
+export const rejectManualPayoutResponseDestinationMobileNumberMax = 24;
+
+export const rejectManualPayoutResponseDestinationBranchMin = 2;
+export const rejectManualPayoutResponseDestinationBranchMax = 160;
+
+export const rejectManualPayoutResponseGrossAmountExclusiveMin = 0;
+
+export const rejectManualPayoutResponseFeeAmountMin = 0;
+
+export const rejectManualPayoutResponseNetAmountExclusiveMin = 0;
+
+export const rejectManualPayoutResponseProofOneSizeMax = 10000000;
+export const rejectManualPayoutResponseProofOneSizeMultipleOf = 1;
+
+export const rejectManualPayoutResponseProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const rejectManualPayoutResponseApprovedByAdminIdMultipleOf = 1;
+
+export const rejectManualPayoutResponseRejectedByAdminIdMultipleOf = 1;
+
+export const rejectManualPayoutResponsePaidByAdminIdMultipleOf = 1;
+
+
+
+export const RejectManualPayoutResponse = zod.object({
+  "id": zod.number().multipleOf(rejectManualPayoutResponseIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(rejectManualPayoutResponseRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(rejectManualPayoutResponseDestinationAccountNameMin).max(rejectManualPayoutResponseDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(rejectManualPayoutResponseDestinationInstapayAddressMin).max(rejectManualPayoutResponseDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(rejectManualPayoutResponseDestinationMobileNumberMin).max(rejectManualPayoutResponseDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(rejectManualPayoutResponseDestinationBranchMin).max(rejectManualPayoutResponseDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(rejectManualPayoutResponseGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(rejectManualPayoutResponseFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(rejectManualPayoutResponseNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(rejectManualPayoutResponseProofOneSizeMax).multipleOf(rejectManualPayoutResponseProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(rejectManualPayoutResponseProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(rejectManualPayoutResponseApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(rejectManualPayoutResponseRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(rejectManualPayoutResponsePaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+
+
+
+export const MarkManualPayoutPaidParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const markManualPayoutPaidBodyOneReasonMin = 3;
+export const markManualPayoutPaidBodyOneReasonMax = 500;
+
+export const markManualPayoutPaidBodyTwoTransferReferenceMax = 200;
+
+
+
+export const MarkManualPayoutPaidBody = zod.object({
+  "reason": zod.string().min(markManualPayoutPaidBodyOneReasonMin).max(markManualPayoutPaidBodyOneReasonMax)
+}).and(zod.object({
+  "transferReference": zod.string().max(markManualPayoutPaidBodyTwoTransferReferenceMax).optional()
+}))
+
+export const markManualPayoutPaidResponseIdMultipleOf = 1;
+
+export const markManualPayoutPaidResponseRecipientUserIdMultipleOf = 1;
+
+export const markManualPayoutPaidResponseDestinationAccountNameMin = 2;
+export const markManualPayoutPaidResponseDestinationAccountNameMax = 120;
+
+export const markManualPayoutPaidResponseDestinationInstapayAddressMin = 3;
+export const markManualPayoutPaidResponseDestinationInstapayAddressMax = 200;
+
+export const markManualPayoutPaidResponseDestinationMobileNumberMin = 8;
+export const markManualPayoutPaidResponseDestinationMobileNumberMax = 24;
+
+export const markManualPayoutPaidResponseDestinationBranchMin = 2;
+export const markManualPayoutPaidResponseDestinationBranchMax = 160;
+
+export const markManualPayoutPaidResponseGrossAmountExclusiveMin = 0;
+
+export const markManualPayoutPaidResponseFeeAmountMin = 0;
+
+export const markManualPayoutPaidResponseNetAmountExclusiveMin = 0;
+
+export const markManualPayoutPaidResponseProofOneSizeMax = 10000000;
+export const markManualPayoutPaidResponseProofOneSizeMultipleOf = 1;
+
+export const markManualPayoutPaidResponseProofOneUploadedByAdminIdMultipleOf = 1;
+
+export const markManualPayoutPaidResponseApprovedByAdminIdMultipleOf = 1;
+
+export const markManualPayoutPaidResponseRejectedByAdminIdMultipleOf = 1;
+
+export const markManualPayoutPaidResponsePaidByAdminIdMultipleOf = 1;
+
+
+
+export const MarkManualPayoutPaidResponse = zod.object({
+  "id": zod.number().multipleOf(markManualPayoutPaidResponseIdMultipleOf),
+  "recipientUserId": zod.number().multipleOf(markManualPayoutPaidResponseRecipientUserIdMultipleOf),
+  "recipientRole": zod.enum(['driver', 'partner']),
+  "channel": zod.enum(['instapay', 'mobile_wallet', 'cash_branch']),
+  "destination": zod.object({
+  "accountName": zod.string().min(markManualPayoutPaidResponseDestinationAccountNameMin).max(markManualPayoutPaidResponseDestinationAccountNameMax),
+  "instapayAddress": zod.string().min(markManualPayoutPaidResponseDestinationInstapayAddressMin).max(markManualPayoutPaidResponseDestinationInstapayAddressMax).optional(),
+  "mobileNumber": zod.string().min(markManualPayoutPaidResponseDestinationMobileNumberMin).max(markManualPayoutPaidResponseDestinationMobileNumberMax).optional(),
+  "branch": zod.string().min(markManualPayoutPaidResponseDestinationBranchMin).max(markManualPayoutPaidResponseDestinationBranchMax).optional()
+}),
+  "idempotencyKey": zod.string(),
+  "grossAmount": zod.number().gt(markManualPayoutPaidResponseGrossAmountExclusiveMin),
+  "feeAmount": zod.number().min(markManualPayoutPaidResponseFeeAmountMin),
+  "feePayer": zod.enum(['recipient', 'platform']),
+  "netAmount": zod.number().gt(markManualPayoutPaidResponseNetAmountExclusiveMin),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled', 'paid']),
+  "provider": zod.enum(['manual']),
+  "providerMetadata": zod.record(zod.string(), zod.unknown()).nullable(),
+  "transferReference": zod.string().nullable(),
+  "rejectionReason": zod.string().nullable(),
+  "proof": zod.union([zod.object({
+  "objectPath": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().min(1).max(markManualPayoutPaidResponseProofOneSizeMax).multipleOf(markManualPayoutPaidResponseProofOneSizeMultipleOf),
+  "isSignedReceipt": zod.boolean(),
+  "uploadedByAdminId": zod.number().multipleOf(markManualPayoutPaidResponseProofOneUploadedByAdminIdMultipleOf),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "approvedByAdminId": zod.number().multipleOf(markManualPayoutPaidResponseApprovedByAdminIdMultipleOf).nullable(),
+  "approvedAt": zod.coerce.date().nullable(),
+  "rejectedByAdminId": zod.number().multipleOf(markManualPayoutPaidResponseRejectedByAdminIdMultipleOf).nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "paidByAdminId": zod.number().multipleOf(markManualPayoutPaidResponsePaidByAdminIdMultipleOf).nullable(),
+  "paidAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * JPEG, PNG, or WebP bytes no larger than 10 MB. Set X-Receipt-Signed: true for a signed cash receipt.
+ * @summary Upload private manual payout proof bytes
+ */
+
+
+
+export const UploadManualPayoutProofParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const UploadManualPayoutProofHeader = zod.object({
+  "X-Receipt-Signed": zod.boolean().optional()
+})
+
+export const UploadManualPayoutProofResponse = zod.object({
+  "objectPath": zod.string()
+})
+
+
+export const getManualPayoutSettingsResponseVersionMultipleOf = 1;
+
+export const getManualPayoutSettingsResponseChannelsInstapayFeeMin = 0;
+export const getManualPayoutSettingsResponseChannelsInstapayFeeMax = 100000;
+
+export const getManualPayoutSettingsResponseChannelsMobileWalletFeeMin = 0;
+export const getManualPayoutSettingsResponseChannelsMobileWalletFeeMax = 100000;
+
+export const getManualPayoutSettingsResponseChannelsCashBranchFeeMin = 0;
+export const getManualPayoutSettingsResponseChannelsCashBranchFeeMax = 100000;
+
+
+
+export const GetManualPayoutSettingsResponse = zod.object({
+  "version": zod.number().min(1).multipleOf(getManualPayoutSettingsResponseVersionMultipleOf),
+  "channels": zod.object({
+  "instapay": zod.object({
+  "fee": zod.number().min(getManualPayoutSettingsResponseChannelsInstapayFeeMin).max(getManualPayoutSettingsResponseChannelsInstapayFeeMax)
+}),
+  "mobile_wallet": zod.object({
+  "fee": zod.number().min(getManualPayoutSettingsResponseChannelsMobileWalletFeeMin).max(getManualPayoutSettingsResponseChannelsMobileWalletFeeMax)
+}),
+  "cash_branch": zod.object({
+  "fee": zod.number().min(getManualPayoutSettingsResponseChannelsCashBranchFeeMin).max(getManualPayoutSettingsResponseChannelsCashBranchFeeMax)
+})
+}),
+  "defaultFeePayer": zod.enum(['recipient', 'platform']),
+  "updatedAt": zod.coerce.date().nullable()
+})
+
+
+export const updateManualPayoutSettingsBodyVersionMultipleOf = 1;
+
+export const updateManualPayoutSettingsBodyChannelsInstapayFeeMin = 0;
+export const updateManualPayoutSettingsBodyChannelsInstapayFeeMax = 100000;
+
+export const updateManualPayoutSettingsBodyChannelsMobileWalletFeeMin = 0;
+export const updateManualPayoutSettingsBodyChannelsMobileWalletFeeMax = 100000;
+
+export const updateManualPayoutSettingsBodyChannelsCashBranchFeeMin = 0;
+export const updateManualPayoutSettingsBodyChannelsCashBranchFeeMax = 100000;
+
+export const updateManualPayoutSettingsBodyReasonMin = 3;
+export const updateManualPayoutSettingsBodyReasonMax = 500;
+
+
+
+export const UpdateManualPayoutSettingsBody = zod.object({
+  "version": zod.number().min(1).multipleOf(updateManualPayoutSettingsBodyVersionMultipleOf),
+  "channels": zod.object({
+  "instapay": zod.object({
+  "fee": zod.number().min(updateManualPayoutSettingsBodyChannelsInstapayFeeMin).max(updateManualPayoutSettingsBodyChannelsInstapayFeeMax)
+}),
+  "mobile_wallet": zod.object({
+  "fee": zod.number().min(updateManualPayoutSettingsBodyChannelsMobileWalletFeeMin).max(updateManualPayoutSettingsBodyChannelsMobileWalletFeeMax)
+}),
+  "cash_branch": zod.object({
+  "fee": zod.number().min(updateManualPayoutSettingsBodyChannelsCashBranchFeeMin).max(updateManualPayoutSettingsBodyChannelsCashBranchFeeMax)
+})
+}),
+  "defaultFeePayer": zod.enum(['recipient', 'platform']),
+  "reason": zod.string().min(updateManualPayoutSettingsBodyReasonMin).max(updateManualPayoutSettingsBodyReasonMax)
+})
+
+export const updateManualPayoutSettingsResponseVersionMultipleOf = 1;
+
+export const updateManualPayoutSettingsResponseChannelsInstapayFeeMin = 0;
+export const updateManualPayoutSettingsResponseChannelsInstapayFeeMax = 100000;
+
+export const updateManualPayoutSettingsResponseChannelsMobileWalletFeeMin = 0;
+export const updateManualPayoutSettingsResponseChannelsMobileWalletFeeMax = 100000;
+
+export const updateManualPayoutSettingsResponseChannelsCashBranchFeeMin = 0;
+export const updateManualPayoutSettingsResponseChannelsCashBranchFeeMax = 100000;
+
+
+
+export const UpdateManualPayoutSettingsResponse = zod.object({
+  "version": zod.number().min(1).multipleOf(updateManualPayoutSettingsResponseVersionMultipleOf),
+  "channels": zod.object({
+  "instapay": zod.object({
+  "fee": zod.number().min(updateManualPayoutSettingsResponseChannelsInstapayFeeMin).max(updateManualPayoutSettingsResponseChannelsInstapayFeeMax)
+}),
+  "mobile_wallet": zod.object({
+  "fee": zod.number().min(updateManualPayoutSettingsResponseChannelsMobileWalletFeeMin).max(updateManualPayoutSettingsResponseChannelsMobileWalletFeeMax)
+}),
+  "cash_branch": zod.object({
+  "fee": zod.number().min(updateManualPayoutSettingsResponseChannelsCashBranchFeeMin).max(updateManualPayoutSettingsResponseChannelsCashBranchFeeMax)
+})
+}),
+  "defaultFeePayer": zod.enum(['recipient', 'platform']),
+  "updatedAt": zod.coerce.date().nullable()
+})
 
 
 export const ListNotificationOutboxResponse = zod.object({

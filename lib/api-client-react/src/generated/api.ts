@@ -71,6 +71,7 @@ import type {
   ListAdminAccountsParams,
   ListAdminCoreCustomersParams,
   ListAdminCoreOrdersParams,
+  ListAdminManualPayoutsParams,
   ListAdminPermissionGroupsParams,
   ListBusinessAuditLogsParams,
   ListDriverApplicationsParams,
@@ -88,6 +89,13 @@ import type {
   LocationUpdate,
   LoginOtpInput,
   Logout200,
+  ManualPayoutAdminPage,
+  ManualPayoutListResponse,
+  ManualPayoutProofResponse,
+  ManualPayoutRequest,
+  ManualPayoutRequestInput,
+  ManualPayoutSettings,
+  ManualPayoutSettingsInput,
   NotificationList,
   OnboardResult,
   OrderActionResult,
@@ -106,6 +114,8 @@ import type {
   PaymentCapabilities,
   PaymentRefundResolutionInput,
   PaymentSession,
+  PayoutAdminDecisionInput,
+  PayoutPaidInput,
   ProfileUpdate,
   ProfileUpdateResult,
   ReadAllNotifications200,
@@ -2894,6 +2904,207 @@ export function useGetDriverEarnings<TData = Awaited<ReturnType<typeof getDriver
 
 
 
+
+export const getListManualPayoutsUrl = () => {
+
+
+
+
+  return `/api/payouts`
+}
+
+export const listManualPayouts = async ( options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutListResponse> => {
+
+  return customFetch<ManualPayoutListResponse>(getListManualPayoutsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListManualPayoutsQueryKey = () => {
+    return [
+    `/api/payouts`
+    ] as const;
+    }
+
+
+export const getListManualPayoutsQueryOptions = <TData = Awaited<ReturnType<typeof listManualPayouts>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listManualPayouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListManualPayoutsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listManualPayouts>>> = ({ signal }) => listManualPayouts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listManualPayouts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListManualPayoutsQueryResult = NonNullable<Awaited<ReturnType<typeof listManualPayouts>>>
+export type ListManualPayoutsQueryError = ErrorType<ErrorResponse>
+
+
+
+export function useListManualPayouts<TData = Awaited<ReturnType<typeof listManualPayouts>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listManualPayouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListManualPayoutsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestManualPayoutUrl = () => {
+
+
+
+
+  return `/api/payouts`
+}
+
+export const requestManualPayout = async (manualPayoutRequestInput: ManualPayoutRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutRequest> => {
+
+  return customFetch<ManualPayoutRequest>(getRequestManualPayoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(manualPayoutRequestInput)
+  }
+);}
+
+
+
+
+
+export const getRequestManualPayoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestManualPayout>>, TError,{data: BodyType<ManualPayoutRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestManualPayout>>, TError,{data: BodyType<ManualPayoutRequestInput>}, TContext> => {
+
+const mutationKey = ['requestManualPayout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestManualPayout>>, {data: BodyType<ManualPayoutRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestManualPayout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestManualPayoutMutationResult = NonNullable<Awaited<ReturnType<typeof requestManualPayout>>>
+    export type RequestManualPayoutMutationBody = BodyType<ManualPayoutRequestInput>
+    export type RequestManualPayoutMutationError = ErrorType<ErrorResponse>
+
+    export const useRequestManualPayout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestManualPayout>>, TError,{data: BodyType<ManualPayoutRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestManualPayout>>,
+        TError,
+        {data: BodyType<ManualPayoutRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestManualPayoutMutationOptions(options));
+    }
+
+export const getCancelManualPayoutUrl = (id: number,) => {
+
+
+
+
+  return `/api/payouts/${id}/cancel`
+}
+
+export const cancelManualPayout = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutRequest> => {
+
+  return customFetch<ManualPayoutRequest>(getCancelManualPayoutUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelManualPayoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelManualPayout>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelManualPayout>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cancelManualPayout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelManualPayout>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancelManualPayout(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelManualPayoutMutationResult = NonNullable<Awaited<ReturnType<typeof cancelManualPayout>>>
+
+    export type CancelManualPayoutMutationError = ErrorType<ErrorResponse>
+
+    export const useCancelManualPayout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelManualPayout>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelManualPayout>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCancelManualPayoutMutationOptions(options));
+    }
 
 export const getListDriverDocumentsUrl = () => {
 
@@ -7130,9 +7341,9 @@ export const getGenerateRestaurantSettlementUrl = () => {
   return `/api/admin/operations/settlements/generate`
 }
 
-export const generateRestaurantSettlement = async (adminMutation: AdminMutation, options?: Parameters<typeof customFetch>[1]): Promise<AdminObject> => {
+export const generateRestaurantSettlement = async (adminMutation: AdminMutation, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
 
-  return customFetch<AdminObject>(getGenerateRestaurantSettlementUrl(),
+  return customFetch<unknown>(getGenerateRestaurantSettlementUrl(),
   {
     ...options,
     method: 'POST',
@@ -7145,7 +7356,7 @@ export const generateRestaurantSettlement = async (adminMutation: AdminMutation,
 
 
 
-export const getGenerateRestaurantSettlementMutationOptions = <TError = ErrorType<unknown>,
+export const getGenerateRestaurantSettlementMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateRestaurantSettlement>>, TError,{data: BodyType<AdminMutation>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof generateRestaurantSettlement>>, TError,{data: BodyType<AdminMutation>}, TContext> => {
 
@@ -7174,9 +7385,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type GenerateRestaurantSettlementMutationResult = NonNullable<Awaited<ReturnType<typeof generateRestaurantSettlement>>>
     export type GenerateRestaurantSettlementMutationBody = BodyType<AdminMutation>
-    export type GenerateRestaurantSettlementMutationError = ErrorType<unknown>
+    export type GenerateRestaurantSettlementMutationError = ErrorType<ErrorResponse>
 
-    export const useGenerateRestaurantSettlement = <TError = ErrorType<unknown>,
+    export const useGenerateRestaurantSettlement = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateRestaurantSettlement>>, TError,{data: BodyType<AdminMutation>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof generateRestaurantSettlement>>,
@@ -7211,7 +7422,7 @@ export const transitionRestaurantSettlement = async (id: number,
 
 
 
-export const getTransitionRestaurantSettlementMutationOptions = <TError = ErrorType<unknown>,
+export const getTransitionRestaurantSettlementMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transitionRestaurantSettlement>>, TError,{id: number;data: BodyType<AdminMutation>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof transitionRestaurantSettlement>>, TError,{id: number;data: BodyType<AdminMutation>}, TContext> => {
 
@@ -7240,9 +7451,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type TransitionRestaurantSettlementMutationResult = NonNullable<Awaited<ReturnType<typeof transitionRestaurantSettlement>>>
     export type TransitionRestaurantSettlementMutationBody = BodyType<AdminMutation>
-    export type TransitionRestaurantSettlementMutationError = ErrorType<unknown>
+    export type TransitionRestaurantSettlementMutationError = ErrorType<ErrorResponse>
 
-    export const useTransitionRestaurantSettlement = <TError = ErrorType<unknown>,
+    export const useTransitionRestaurantSettlement = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transitionRestaurantSettlement>>, TError,{id: number;data: BodyType<AdminMutation>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof transitionRestaurantSettlement>>,
@@ -7251,6 +7462,491 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getTransitionRestaurantSettlementMutationOptions(options));
+    }
+
+export const getListAdminManualPayoutsUrl = (params?: ListAdminManualPayoutsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/payouts?${stringifiedParams}` : `/api/admin/payouts`
+}
+
+export const listAdminManualPayouts = async (params?: ListAdminManualPayoutsParams, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutAdminPage> => {
+
+  return customFetch<ManualPayoutAdminPage>(getListAdminManualPayoutsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminManualPayoutsQueryKey = (params?: ListAdminManualPayoutsParams,) => {
+    return [
+    `/api/admin/payouts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminManualPayoutsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminManualPayouts>>, TError = ErrorType<ErrorResponse>>(params?: ListAdminManualPayoutsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminManualPayouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminManualPayoutsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminManualPayouts>>> = ({ signal }) => listAdminManualPayouts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminManualPayouts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminManualPayoutsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminManualPayouts>>>
+export type ListAdminManualPayoutsQueryError = ErrorType<ErrorResponse>
+
+
+
+export function useListAdminManualPayouts<TData = Awaited<ReturnType<typeof listAdminManualPayouts>>, TError = ErrorType<ErrorResponse>>(
+ params?: ListAdminManualPayoutsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminManualPayouts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminManualPayoutsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveManualPayoutUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/payouts/${id}/approve`
+}
+
+export const approveManualPayout = async (id: number,
+    payoutAdminDecisionInput: PayoutAdminDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutRequest> => {
+
+  return customFetch<ManualPayoutRequest>(getApproveManualPayoutUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payoutAdminDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getApproveManualPayoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveManualPayout>>, TError,{id: number;data: BodyType<PayoutAdminDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveManualPayout>>, TError,{id: number;data: BodyType<PayoutAdminDecisionInput>}, TContext> => {
+
+const mutationKey = ['approveManualPayout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveManualPayout>>, {id: number;data: BodyType<PayoutAdminDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveManualPayout(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveManualPayoutMutationResult = NonNullable<Awaited<ReturnType<typeof approveManualPayout>>>
+    export type ApproveManualPayoutMutationBody = BodyType<PayoutAdminDecisionInput>
+    export type ApproveManualPayoutMutationError = ErrorType<ErrorResponse>
+
+    export const useApproveManualPayout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveManualPayout>>, TError,{id: number;data: BodyType<PayoutAdminDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveManualPayout>>,
+        TError,
+        {id: number;data: BodyType<PayoutAdminDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getApproveManualPayoutMutationOptions(options));
+    }
+
+export const getRejectManualPayoutUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/payouts/${id}/reject`
+}
+
+export const rejectManualPayout = async (id: number,
+    payoutAdminDecisionInput: PayoutAdminDecisionInput, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutRequest> => {
+
+  return customFetch<ManualPayoutRequest>(getRejectManualPayoutUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payoutAdminDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getRejectManualPayoutMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectManualPayout>>, TError,{id: number;data: BodyType<PayoutAdminDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectManualPayout>>, TError,{id: number;data: BodyType<PayoutAdminDecisionInput>}, TContext> => {
+
+const mutationKey = ['rejectManualPayout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectManualPayout>>, {id: number;data: BodyType<PayoutAdminDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectManualPayout(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectManualPayoutMutationResult = NonNullable<Awaited<ReturnType<typeof rejectManualPayout>>>
+    export type RejectManualPayoutMutationBody = BodyType<PayoutAdminDecisionInput>
+    export type RejectManualPayoutMutationError = ErrorType<ErrorResponse>
+
+    export const useRejectManualPayout = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectManualPayout>>, TError,{id: number;data: BodyType<PayoutAdminDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectManualPayout>>,
+        TError,
+        {id: number;data: BodyType<PayoutAdminDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getRejectManualPayoutMutationOptions(options));
+    }
+
+export const getMarkManualPayoutPaidUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/payouts/${id}/paid`
+}
+
+export const markManualPayoutPaid = async (id: number,
+    payoutPaidInput: PayoutPaidInput, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutRequest> => {
+
+  return customFetch<ManualPayoutRequest>(getMarkManualPayoutPaidUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(payoutPaidInput)
+  }
+);}
+
+
+
+
+
+export const getMarkManualPayoutPaidMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markManualPayoutPaid>>, TError,{id: number;data: BodyType<PayoutPaidInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markManualPayoutPaid>>, TError,{id: number;data: BodyType<PayoutPaidInput>}, TContext> => {
+
+const mutationKey = ['markManualPayoutPaid'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markManualPayoutPaid>>, {id: number;data: BodyType<PayoutPaidInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  markManualPayoutPaid(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkManualPayoutPaidMutationResult = NonNullable<Awaited<ReturnType<typeof markManualPayoutPaid>>>
+    export type MarkManualPayoutPaidMutationBody = BodyType<PayoutPaidInput>
+    export type MarkManualPayoutPaidMutationError = ErrorType<ErrorResponse>
+
+    export const useMarkManualPayoutPaid = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markManualPayoutPaid>>, TError,{id: number;data: BodyType<PayoutPaidInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markManualPayoutPaid>>,
+        TError,
+        {id: number;data: BodyType<PayoutPaidInput>},
+        TContext
+      > => {
+      return useMutation(getMarkManualPayoutPaidMutationOptions(options));
+    }
+
+export const getUploadManualPayoutProofUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/payouts/${id}/proof`
+}
+
+/**
+ * JPEG, PNG, or WebP bytes no larger than 10 MB. Set X-Receipt-Signed: true for a signed cash receipt.
+ * @summary Upload private manual payout proof bytes
+ */
+export const uploadManualPayoutProof = async (id: number,
+    uploadManualPayoutProofBody: Blob, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutProofResponse> => {
+
+  return customFetch<ManualPayoutProofResponse>(getUploadManualPayoutProofUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg', ...options?.headers },
+    body: uploadManualPayoutProofBody
+  }
+);}
+
+
+
+
+
+export const getUploadManualPayoutProofMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadManualPayoutProof>>, TError,{id: number;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadManualPayoutProof>>, TError,{id: number;data: BodyType<Blob>}, TContext> => {
+
+const mutationKey = ['uploadManualPayoutProof'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadManualPayoutProof>>, {id: number;data: BodyType<Blob>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  uploadManualPayoutProof(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadManualPayoutProofMutationResult = NonNullable<Awaited<ReturnType<typeof uploadManualPayoutProof>>>
+    export type UploadManualPayoutProofMutationBody = BodyType<Blob>
+    export type UploadManualPayoutProofMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Upload private manual payout proof bytes
+ */
+export const useUploadManualPayoutProof = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadManualPayoutProof>>, TError,{id: number;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadManualPayoutProof>>,
+        TError,
+        {id: number;data: BodyType<Blob>},
+        TContext
+      > => {
+      return useMutation(getUploadManualPayoutProofMutationOptions(options));
+    }
+
+export const getGetManualPayoutSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/payout-settings`
+}
+
+export const getManualPayoutSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutSettings> => {
+
+  return customFetch<ManualPayoutSettings>(getGetManualPayoutSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetManualPayoutSettingsQueryKey = () => {
+    return [
+    `/api/admin/payout-settings`
+    ] as const;
+    }
+
+
+export const getGetManualPayoutSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getManualPayoutSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManualPayoutSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetManualPayoutSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getManualPayoutSettings>>> = ({ signal }) => getManualPayoutSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getManualPayoutSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetManualPayoutSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getManualPayoutSettings>>>
+export type GetManualPayoutSettingsQueryError = ErrorType<unknown>
+
+
+
+export function useGetManualPayoutSettings<TData = Awaited<ReturnType<typeof getManualPayoutSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getManualPayoutSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetManualPayoutSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateManualPayoutSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/payout-settings`
+}
+
+export const updateManualPayoutSettings = async (manualPayoutSettingsInput: ManualPayoutSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<ManualPayoutSettings> => {
+
+  return customFetch<ManualPayoutSettings>(getUpdateManualPayoutSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(manualPayoutSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateManualPayoutSettingsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateManualPayoutSettings>>, TError,{data: BodyType<ManualPayoutSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateManualPayoutSettings>>, TError,{data: BodyType<ManualPayoutSettingsInput>}, TContext> => {
+
+const mutationKey = ['updateManualPayoutSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateManualPayoutSettings>>, {data: BodyType<ManualPayoutSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateManualPayoutSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateManualPayoutSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateManualPayoutSettings>>>
+    export type UpdateManualPayoutSettingsMutationBody = BodyType<ManualPayoutSettingsInput>
+    export type UpdateManualPayoutSettingsMutationError = ErrorType<ErrorResponse>
+
+    export const useUpdateManualPayoutSettings = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateManualPayoutSettings>>, TError,{data: BodyType<ManualPayoutSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateManualPayoutSettings>>,
+        TError,
+        {data: BodyType<ManualPayoutSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateManualPayoutSettingsMutationOptions(options));
     }
 
 export const getListNotificationOutboxUrl = () => {

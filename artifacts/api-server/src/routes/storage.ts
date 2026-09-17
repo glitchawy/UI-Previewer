@@ -8,6 +8,8 @@ import {
   db,
   driverProfilesTable,
   refundProofUploadsTable,
+  manualPayoutProofsTable,
+  manualPayoutRequestsTable,
   restaurantsTable,
   usersTable,
 } from '@workspace/db';
@@ -63,6 +65,26 @@ export async function canUserAccessObject(
       .limit(1);
     return account?.isActive === true &&
       (account.isSuperAdmin || (account.permissions ?? []).includes("refunds.read"));
+  }
+
+  const [payoutProof] = await db.select({
+    recipientUserId: manualPayoutRequestsTable.recipientUserId,
+  }).from(manualPayoutProofsTable)
+    .innerJoin(manualPayoutRequestsTable, eq(manualPayoutRequestsTable.id, manualPayoutProofsTable.payoutRequestId))
+    .where(eq(manualPayoutProofsTable.objectPath, objectPath))
+    .limit(1);
+  if (payoutProof) {
+    if (user.role !== "admin") return payoutProof.recipientUserId === user.id;
+    const [account] = await db.select({
+      isActive: adminAccountsTable.isActive,
+      isSuperAdmin: adminAccountsTable.isSuperAdmin,
+      permissions: adminPermissionGroupsTable.permissions,
+    }).from(adminAccountsTable)
+      .leftJoin(adminPermissionGroupsTable, eq(adminPermissionGroupsTable.id, adminAccountsTable.permissionGroupId))
+      .where(eq(adminAccountsTable.userId, user.id))
+      .limit(1);
+    return account?.isActive === true &&
+      (account.isSuperAdmin || (account.permissions ?? []).includes("payouts.read"));
   }
 
   if (user.role === 'admin') {

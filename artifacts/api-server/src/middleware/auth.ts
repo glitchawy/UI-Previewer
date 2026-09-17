@@ -71,6 +71,8 @@ export const ADMIN_PERMISSIONS = [
   "refunds.manage",
   "settlements.read",
   "settlements.manage",
+  "payouts.read",
+  "payouts.manage",
   "pricing.read",
   "pricing.manage",
   "commissions.read",

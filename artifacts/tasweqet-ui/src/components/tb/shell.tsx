@@ -239,6 +239,7 @@ export function Field({
   icon,
   type = "text",
   hint,
+  required = false,
   value,
   onChange,
 }: {
@@ -247,6 +248,7 @@ export function Field({
   icon?: string;
   type?: string;
   hint?: string;
+  required?: boolean;
   value?: string;
   onChange?: ChangeEventHandler<HTMLInputElement>;
 }) {
@@ -258,6 +260,7 @@ export function Field({
         {icon ? <Icon name={icon} className="text-[20px] text-outline" /> : null}
         <input
           type={type}
+          required={required}
           {...(onChange ? { value, onChange } : { defaultValue: value })}
           placeholder={placeholder ? shellText(placeholder, t) : undefined}
           className="w-full bg-transparent font-body-md text-body-md text-on-surface outline-none placeholder:text-outline"

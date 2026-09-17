@@ -1,5 +1,11 @@
-import { and, eq, sql } from "drizzle-orm";
-import { db, usersTable, walletTransactionsTable } from "@workspace/db";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import {
+  db,
+  manualPayoutAllocationsTable,
+  manualPayoutRequestsTable,
+  usersTable,
+  walletTransactionsTable,
+} from "@workspace/db";
 
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -19,7 +25,8 @@ type LedgerReferenceType =
   | "order_payment"
   | "admin_adjustment"
   | "restaurant_settlement"
-  | "driver_earning";
+  | "driver_earning"
+  | "manual_payout";
 
 export async function debitWallet(
   tx: DbTransaction,
@@ -39,12 +46,29 @@ export async function debitWallet(
     eq(walletTransactionsTable.referenceId, input.referenceId),
   )).limit(1);
   if (existing[0]) return existing[0];
+  // Reservations are a spendable hold, not merely a payout report. Lock the
+  // wallet row before reading them so an order payment cannot race a payout
+  // request that is about to reserve the same credited funds.
+  await tx.execute(sql`select id from users where id = ${input.userId} for update`);
+  const [holds] = await tx.select({
+    amount: sql<string>`coalesce(sum(${manualPayoutAllocationsTable.amount}), 0)`,
+  }).from(manualPayoutAllocationsTable)
+    .innerJoin(manualPayoutRequestsTable, eq(manualPayoutRequestsTable.id, manualPayoutAllocationsTable.payoutRequestId))
+    .where(and(
+      eq(manualPayoutAllocationsTable.recipientUserId, input.userId),
+      eq(manualPayoutAllocationsTable.status, "reserved"),
+      inArray(manualPayoutRequestsTable.status, ["pending", "approved"]),
+      input.referenceType === "manual_payout"
+        ? ne(manualPayoutRequestsTable.id, input.referenceId)
+        : undefined,
+    ));
   const amount = fromCents(input.amountCents);
+  const heldAmount = String(holds?.amount ?? "0");
   const [updated] = await tx.update(usersTable).set({
     walletBalance: sql`${usersTable.walletBalance} - ${amount}`,
   }).where(and(
     eq(usersTable.id, input.userId),
-    sql`${usersTable.walletBalance} >= ${amount}`,
+    sql`${usersTable.walletBalance} >= ${amount}::numeric + ${heldAmount}::numeric`,
   )).returning({ balance: usersTable.walletBalance });
   if (!updated) throw new Error("INSUFFICIENT_WALLET_BALANCE");
   const [entry] = await tx.insert(walletTransactionsTable).values({

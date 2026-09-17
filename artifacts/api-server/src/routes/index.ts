@@ -19,6 +19,7 @@ import adminOperationsRouter from "./admin-operations";
 import partnerOperationsRouter from "./partner-operations";
 import driverAccountRouter from "./driver-account";
 import notificationDevicesRouter from "./notification-devices";
+import manualPayoutsRouter from "./manual-payouts";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(adminOperationsRouter);
 router.use(partnerOperationsRouter);
 router.use(driverAccountRouter);
 router.use(notificationDevicesRouter);
+router.use(manualPayoutsRouter);
 
 export default router;

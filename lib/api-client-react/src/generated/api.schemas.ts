@@ -1267,6 +1267,264 @@ export interface DriverOrderOffer {
   total: number;
 }
 
+export type ManualPayoutChannel = typeof ManualPayoutChannel[keyof typeof ManualPayoutChannel];
+
+
+export const ManualPayoutChannel = {
+  instapay: 'instapay',
+  mobile_wallet: 'mobile_wallet',
+  cash_branch: 'cash_branch',
+} as const;
+
+export type ManualPayoutRole = typeof ManualPayoutRole[keyof typeof ManualPayoutRole];
+
+
+export const ManualPayoutRole = {
+  driver: 'driver',
+  partner: 'partner',
+} as const;
+
+export interface ManualPayoutDestination {
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  accountName: string;
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
+  instapayAddress?: string;
+  /**
+     * @minLength 8
+     * @maxLength 24
+     */
+  mobileNumber?: string;
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  branch?: string;
+}
+
+export type ManualPayoutProofContentType = typeof ManualPayoutProofContentType[keyof typeof ManualPayoutProofContentType];
+
+
+export const ManualPayoutProofContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface ManualPayoutProof {
+  objectPath: string;
+  contentType: ManualPayoutProofContentType;
+  /**
+     * @minimum 1
+     * @maximum 10000000
+     */
+  size: number;
+  isSignedReceipt: boolean;
+  uploadedByAdminId: number;
+  createdAt: string;
+}
+
+export type ManualPayoutRequestFeePayer = typeof ManualPayoutRequestFeePayer[keyof typeof ManualPayoutRequestFeePayer];
+
+
+export const ManualPayoutRequestFeePayer = {
+  recipient: 'recipient',
+  platform: 'platform',
+} as const;
+
+export type ManualPayoutRequestStatus = typeof ManualPayoutRequestStatus[keyof typeof ManualPayoutRequestStatus];
+
+
+export const ManualPayoutRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+  paid: 'paid',
+} as const;
+
+export type ManualPayoutRequestProvider = typeof ManualPayoutRequestProvider[keyof typeof ManualPayoutRequestProvider];
+
+
+export const ManualPayoutRequestProvider = {
+  manual: 'manual',
+} as const;
+
+/**
+ * @nullable
+ */
+export type ManualPayoutRequestProviderMetadata = { [key: string]: unknown } | null;
+
+export interface ManualPayoutRequest {
+  id: number;
+  recipientUserId: number;
+  recipientRole: ManualPayoutRole;
+  channel: ManualPayoutChannel;
+  destination: ManualPayoutDestination;
+  idempotencyKey: string;
+  /** @exclusiveMinimum 0 */
+  grossAmount: number;
+  /** @minimum 0 */
+  feeAmount: number;
+  feePayer: ManualPayoutRequestFeePayer;
+  /** @exclusiveMinimum 0 */
+  netAmount: number;
+  status: ManualPayoutRequestStatus;
+  provider: ManualPayoutRequestProvider;
+  /** @nullable */
+  providerMetadata: ManualPayoutRequestProviderMetadata;
+  /** @nullable */
+  transferReference: string | null;
+  /** @nullable */
+  rejectionReason: string | null;
+  proof: ManualPayoutProof | null;
+  /** @nullable */
+  approvedByAdminId: number | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  rejectedByAdminId: number | null;
+  /** @nullable */
+  rejectedAt: string | null;
+  /** @nullable */
+  paidByAdminId: number | null;
+  /** @nullable */
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManualPayoutRequestInput {
+  channel: ManualPayoutChannel;
+  destination: ManualPayoutDestination;
+  /**
+     * @minLength 8
+     * @maxLength 160
+     */
+  idempotencyKey: string;
+}
+
+export type ManualPayoutSummaryCurrency = typeof ManualPayoutSummaryCurrency[keyof typeof ManualPayoutSummaryCurrency];
+
+
+export const ManualPayoutSummaryCurrency = {
+  EGP: 'EGP',
+} as const;
+
+export interface ManualPayoutSummary {
+  /** @minimum 0 */
+  available: number;
+  /** @minimum 0 */
+  reserved: number;
+  /** @minimum 0 */
+  approved: number;
+  /** @minimum 0 */
+  paid: number;
+  /** @minimum 0 */
+  fee: number;
+  currency: ManualPayoutSummaryCurrency;
+}
+
+export interface ManualPayoutChannelFee {
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  fee: number;
+}
+
+export type ManualPayoutSettingsDefaultFeePayer = typeof ManualPayoutSettingsDefaultFeePayer[keyof typeof ManualPayoutSettingsDefaultFeePayer];
+
+
+export const ManualPayoutSettingsDefaultFeePayer = {
+  recipient: 'recipient',
+  platform: 'platform',
+} as const;
+
+export type ManualPayoutSettingsChannels = {
+  instapay: ManualPayoutChannelFee;
+  mobile_wallet: ManualPayoutChannelFee;
+  cash_branch: ManualPayoutChannelFee;
+};
+
+export interface ManualPayoutSettings {
+  /** @minimum 1 */
+  version: number;
+  channels: ManualPayoutSettingsChannels;
+  defaultFeePayer: ManualPayoutSettingsDefaultFeePayer;
+  /** @nullable */
+  updatedAt: string | null;
+}
+
+export interface ManualPayoutListResponse {
+  summary: ManualPayoutSummary;
+  settings: ManualPayoutSettings;
+  requests: ManualPayoutRequest[];
+}
+
+export type ManualPayoutAdminItem = ManualPayoutRequest & ({
+  /** @nullable */
+  recipientName: string | null;
+  /** @nullable */
+  recipientPhone: string | null;
+});
+
+export interface ManualPayoutAdminPage {
+  items: ManualPayoutAdminItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PayoutAdminDecisionInput {
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export type PayoutPaidInput = PayoutAdminDecisionInput & {
+  /** @maxLength 200 */
+  transferReference?: string;
+};
+
+export interface ManualPayoutProofResponse {
+  objectPath: string;
+}
+
+export type ManualPayoutSettingsInputChannels = {
+  instapay: ManualPayoutChannelFee;
+  mobile_wallet: ManualPayoutChannelFee;
+  cash_branch: ManualPayoutChannelFee;
+};
+
+export type ManualPayoutSettingsInputDefaultFeePayer = typeof ManualPayoutSettingsInputDefaultFeePayer[keyof typeof ManualPayoutSettingsInputDefaultFeePayer];
+
+
+export const ManualPayoutSettingsInputDefaultFeePayer = {
+  recipient: 'recipient',
+  platform: 'platform',
+} as const;
+
+export interface ManualPayoutSettingsInput {
+  /** @minimum 1 */
+  version: number;
+  channels: ManualPayoutSettingsInputChannels;
+  defaultFeePayer: ManualPayoutSettingsInputDefaultFeePayer;
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
+}
+
 export interface ErrorResponse {
   error: string;
   code?: string;
@@ -1598,6 +1856,39 @@ pageSize?: number;
  */
 q?: string;
 };
+
+export type ListAdminManualPayoutsParams = {
+status?: ListAdminManualPayoutsStatus;
+role?: ListAdminManualPayoutsRole;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+};
+
+export type ListAdminManualPayoutsStatus = typeof ListAdminManualPayoutsStatus[keyof typeof ListAdminManualPayoutsStatus];
+
+
+export const ListAdminManualPayoutsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+  paid: 'paid',
+} as const;
+
+export type ListAdminManualPayoutsRole = typeof ListAdminManualPayoutsRole[keyof typeof ListAdminManualPayoutsRole];
+
+
+export const ListAdminManualPayoutsRole = {
+  driver: 'driver',
+  partner: 'partner',
+} as const;
 
 export type ExportAdminOrdersCsvParams = {
 start: string;

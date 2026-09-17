@@ -21,7 +21,7 @@ export const walletTransactionsTable = pgTable("wallet_transactions", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description").notNull(),
   referenceType: text("reference_type", {
-    enum: ["refund", "order_payment", "admin_adjustment", "restaurant_settlement", "driver_earning"],
+    enum: ["refund", "order_payment", "admin_adjustment", "restaurant_settlement", "driver_earning", "manual_payout"],
   }).notNull(),
   referenceId: integer("reference_id").notNull(),
   balanceAfter: numeric("balance_after", { precision: 12, scale: 2 }).notNull(),

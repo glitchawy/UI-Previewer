@@ -3,8 +3,14 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "preinstall": "node scripts/preinstall.mjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "dev:local": "node scripts/start-local.mjs",
+    "dev:supabase": "node scripts/start-supabase.mjs",
+    "db:compare-dump": "node scripts/compare-supabase-dump.mjs",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "test:dispatch": "node --test scripts/dispatch-critical.test.mjs",
@@ -27,6 +33,8 @@
     "@replit/connectors-sdk": "^0.4.1"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "4.62.3",
+    "lightningcss-win32-x64-msvc": "1.32.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
   }
