@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Talabat Betak",
+    "slug": "talabat-betak-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "talabatbetak",
+    "userInterfaceStyle": "automatic",
+    "icon": "../talabat-betak-driver/assets/images/icon.png",
+    "android": {
+      "package": "com.userve.tasweqetbetak",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "../talabat-betak-driver/assets/images/icon.png",
+        "backgroundColor": "#FFD502"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

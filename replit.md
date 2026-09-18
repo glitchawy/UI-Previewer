@@ -11,6 +11,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm run dev:local` — start local PostgreSQL with Docker, apply migrations, and run the API in test mode
 - `pnpm run dev:supabase` — run the API against the Supabase PostgreSQL URL in `.env`
+- `pnpm --filter @workspace/talabat-betak-mobile run dev` — preview the Android WebView wrapper; set `EXPO_PUBLIC_WEB_APP_URL` first
+- `pnpm --filter @workspace/talabat-betak-mobile run build:android` — create a signed Play Store `.aab` through EAS
 - `pnpm run db:down` — stop the local PostgreSQL container (data is kept in a named Docker volume)
 - Required env: `DATABASE_URL` — Postgres connection string
 - This Replit deployment is intentionally a **public test environment**. Its production environment uses `DEPLOYMENT_PROFILE=test`, `MOCK_AUTH_ENABLED=true`, and `PUBLIC_TEST_MODE_ENABLED=true`, so the clearly labelled DEV MODE role buttons remain public.
