@@ -64,6 +64,10 @@
   --radius-card: 16px;
   --radius-input: 9999px;
 
+  /* Motion Language Tokens */
+  --motion-standard: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-extended: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
   --color-surface: var(--surface);
   --color-surface-dim: var(--surface-dim);
   --color-surface-bright: var(--surface-bright);
@@ -257,22 +261,22 @@
 .tb-screen [class*="rounded-"][class*="border"],
 .tb-screen .tb-card {
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    transform var(--motion-standard),
+    box-shadow var(--motion-standard);
 }
 
 .tb-screen button,
 .tb-screen a {
   transition:
-    transform 0.18s ease,
-    background-color 0.2s ease,
-    color 0.2s ease,
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+    transform var(--motion-standard),
+    background-color var(--motion-standard),
+    color var(--motion-standard),
+    box-shadow var(--motion-standard),
+    filter var(--motion-standard);
 }
 
 .tb-screen button:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -410,7 +414,7 @@
 html,
 body {
   overflow-x: hidden;
-  overscroll-behavior-y: none;
+  overflow-y: auto;
   -webkit-tap-highlight-color: transparent;
 }
 

@@ -83,6 +83,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Global Scroll Reset: Prevents leaked 'overflow: hidden' from Modals/Drawers
+    // on route changes.
+    document.body.style.overflow = "auto";
+  }, [router.state.location.pathname]);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -4,6 +4,15 @@ import { useCart } from "@/lib/tb/cart";
 import { getSession, logoutSession } from "@/lib/auth-session";
 import { LanguageSwitcher } from "@/components/tb/language-switcher";
 import { useTranslation, type LocalizedText } from "@/lib/i18n";
+import { PageContainer } from "./page-container";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { useState } from "react";
 
 export { LanguageSwitcher };
 
@@ -444,7 +453,7 @@ function LocalizedMobileShell({
         <div className="flex justify-end px-md pt-2">
           <LanguageSwitcher />
         </div>
-        <div className="tb-tabbar-space min-w-0 flex-1">{children}</div>
+        <div className="tb-tabbar-space min-w-0 flex-1 overflow-y-auto">{children}</div>
         {fab}
         {tabs?.length ? (
           <nav className="tb-tabbar fixed bottom-0 z-30 w-full max-w-full border-t border-outline-variant bg-surface-container-lowest/95 backdrop-blur sm:max-w-[480px]">
